@@ -45,34 +45,7 @@
 
 ---
 
-## 4. 關鍵業務邏輯與流程設計 (Workflow Design)
-
-### Phase 1: 清單匯入與數位化分頁 (Manifest Import)
-1.  **資料來源:** 特定格式的電子檔（Excel 或 JSON）。
-2.  **數位化與排序規則:** * 系統匯入時必須保留原始檔案的**絕對順序**（增加 `item_order` 欄位）。
-    * 系統撰寫腳本，嚴格依據 `item_order` 每 **44 項目** 切分為一頁，並寫入 `page_number`（例如：1~44 項為 Page 1，45~88 項為 Page 2），確保網頁順序與實體紙本完全一致。
-
-### Phase 2: Web 端清點面板操作 (Operation Panel)
-提供 RWD（響應式）網頁介面，預設為**分頁檢視模式**，以利藥師與紙本逐頁比對。
-
-1.  **智慧條碼篩選與全域自動跳轉 (Smart Screening & Auto-Jump):**
-    * 使用者手動輸入條碼或掃描（支援藍牙槍模擬鍵盤輸入）。
-    * **動態搜尋邏輯:** 若該條碼屬於當前頁面，立即前端過濾高亮；若屬於其他分頁，系統**自動跳轉至該分頁**並同時執行篩選高亮。
-2.  **數量輸入與即時比對 (Quantity Verification):**
-    * 篩選出項目後，解鎖 `actual_quantity` (實際清點數量) 輸入框供使用者輸入。
-    * **比對回饋邏輯:**
-        * 若 `actual_quantity == expected_quantity` ➔ 狀態為 `completed`（正常結案）。
-        * 若 `actual_quantity != expected_quantity` ➔ **該資料列觸發強烈視覺警告（整列反紅變色）**，狀態標記為 `error`（數量不符）。
-3.  **不論對錯、強制拍照確認 (Photo Capture):**
-    * 不論清點數量相符(`completed`)與否(`error`)，**皆須調用手機相機拍照留存現況**。
-    * 照片即時串流上傳至 Supabase Storage（路徑規則：`/manifest_id/page_number/barcode_timestamp.jpg`），並更新資料庫中的 `photo_url`，隨後關閉該項目的編輯狀態。
-    * **容錯機制:** 狀態為已完成/已反紅的項目仍可點擊縮圖預覽，並允許「重新拍照」以覆蓋舊照片。
-
-### Phase 3: 確認與總結 (Verification & Report)
-1.  **異常覆核面板:** 最終提交前，系統必須獨立且集中列出所有 `error`（整列反紅、數量不符）與 `pending`（未清點）的項目，供藥師進行最後的實體確認與覆核。
-2.  **差異結案 (Discrepancy Report)：** 當使用者確認送出含有 `error` 項目的清單時，系統需將此批次標記為「有差異結案」，並在資料庫留存預期與實際的數量差額（如：-2 或 +1），以便後台進行帳務追蹤與報表生成。
-
-## 5. UI/UX 與視覺設計規範 (UI/UX Design Standards)
+## 4. UI/UX 與視覺設計規範 (UI/UX Design Standards)
 
 在生成前端頁面 (Tailwind CSS) 時，必須嚴格遵守以下科技感美學：
 

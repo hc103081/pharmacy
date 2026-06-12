@@ -85,24 +85,28 @@ export default function ScanContent() {
     fetchPageData();
   }, [fetchPageData]);
 
-  // 智慧條碼篩選邏輯
+  // 智慧條碼/名稱模糊篩選邏輯
   const handleBarcodeChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setBarcodeInput(value);
 
-    if (!value) return;
+    if (!value || value.length < 2) return; // 至少 2 個字才觸發全域搜尋，避免過多請求
 
-    // 1. 檢查當前頁面是否有匹配
-    const localMatch = drugs.find(d => d.barcode === value);
+    // 1. 檢查當前頁面是否有匹配 (Barcode 包含 或 Name 包含)
+    const localMatch = drugs.find(d => 
+      d.barcode.includes(value) || d.name.toLowerCase().includes(value.toLowerCase())
+    );
     if (localMatch) return;
 
     // 2. 全域搜尋 (跨頁防呆)
     try {
       const { data: globalMatch, error } = await supabase
         .from('drug_items')
-        .select('page_number, name')
+        .select('page_number, name, barcode')
         .eq('manifest_id', manifestId!)
-        .eq('barcode', value)
+        .or(`barcode.ilike.%${value}%,name.ilike.%${value}%`)
+        .order('item_order', { ascending: true })
+        .limit(1)
         .single();
 
       if (error || !globalMatch) return;
@@ -118,7 +122,9 @@ export default function ScanContent() {
     }
   };
 
-  const matchingItem = drugs.find(d => d.barcode === barcodeInput);
+  const matchingItem = drugs.find(d => 
+    d.barcode.includes(barcodeInput) || d.name.toLowerCase().includes(barcodeInput.toLowerCase())
+  );
 
   const triggerCamera = () => {
     if (!matchingItem) return;
@@ -312,17 +318,24 @@ export default function ScanContent() {
         ) : (
           <div className="space-y-4">
             {drugs.map((drug) => {
-              const isMatched = drug.barcode === barcodeInput;
+              const isMatched = drug.barcode === barcodeInput || (barcodeInput && (drug.barcode.includes(barcodeInput) || drug.name.toLowerCase().includes(barcodeInput.toLowerCase())));
               const isCompleted = drug.counted_status === 'completed';
               const isError = drug.counted_status === 'error';
               const isUploading = uploadingId === drug.id;
+              
+              // 即時比對邏輯：如果是目前匹配項，且輸入了數量，則根據數量決定是否反紅
+              let isRealtimeError = false;
+              if (isMatched && actualQuantity !== '') {
+                isRealtimeError = parseInt(actualQuantity) !== drug.expected_quantity;
+              }
+              const isRealtimeCompleted = isMatched && actualQuantity !== '' && parseInt(actualQuantity) === drug.expected_quantity;
 
               return (
                 <div 
                   key={drug.id}
                   className={`tech-card p-4 transition-all flex flex-col gap-4 ${
                     isMatched ? 'border-[#00f2fe] shadow-[0_0_20px_rgba(0,242,254,0.2)] scale-[1.02] z-10' : ''
-                  } ${isError ? 'border-[#ff4b5c] bg-[#ff4b5c]/5' : ''} ${isCompleted && !isMatched ? 'opacity-40 grayscale' : ''}`}
+                  } ${isError || isRealtimeError ? 'border-[#ff4b5c] bg-[#ff4b5c]/10' : ''} ${isCompleted && !isMatched ? 'opacity-40 grayscale' : ''}`}
                 >
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-4 flex-1 min-w-0">
@@ -339,8 +352,17 @@ export default function ScanContent() {
 
                     {drug.photo_url && (
                       <div 
-                        onClick={() => setPreviewImage(drug.photo_url)}
-                        className="w-12 h-12 rounded-lg overflow-hidden border border-slate-700 cursor-zoom-in hover:border-[#00f2fe] transition-all shrink-0 shadow-inner bg-slate-900"
+                        onClick={() => {
+                          if (isMatched) {
+                            triggerCamera();
+                          } else {
+                            setPreviewImage(drug.photo_url);
+                          }
+                        }}
+                        className={`w-12 h-12 rounded-lg overflow-hidden border cursor-pointer transition-all shrink-0 shadow-inner bg-slate-900 ${
+                          isMatched ? 'border-[#00f2fe] hover:scale-110' : 'border-slate-700 hover:border-[#00f2fe]'
+                        }`}
+                        title={isMatched ? '點擊重新拍照' : '點擊預覽'}
                       >
                         <img 
                           src={drug.photo_url} 

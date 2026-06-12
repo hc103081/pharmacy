@@ -84,22 +84,28 @@ export default function SummaryPage() {
     
     setArchiving(true);
     try {
-      // 判斷是否為差異結案
+      // 1. 計算總差異 (實際總量 - 預期總量)
+      const totalExpected = allDrugs.reduce((sum, d) => sum + d.expected_quantity, 0);
+      const totalActual = allDrugs.reduce((sum, d) => sum + (d.actual_quantity || 0), 0);
+      const totalDiff = totalActual - totalExpected;
+
+      // 2. 判斷是否為差異結案
       const hasErrors = allDrugs.some(d => d.counted_status === 'error');
       const conclusionType = hasErrors ? 'discrepancy' : 'normal';
 
-      // 更新 Manifest 狀態與結案類型
+      // 3. 更新 Manifest 狀態、結案類型與總差異
       const { error: archiveError } = await supabase
         .from('manifests')
         .update({ 
           status: 'completed',
-          conclusion_type: conclusionType 
+          conclusion_type: conclusionType,
+          total_diff: totalDiff
         })
         .eq('id', manifestId);
 
       if (archiveError) throw archiveError;
 
-      alert(`清單已封存！結案類型: ${conclusionType === 'normal' ? '正常結案' : '差異結案'}`);
+      alert(`清單已封存！結案類型: ${conclusionType === 'normal' ? '正常結案' : '差異結案'}\n總差異數量: ${totalDiff}`);
       router.push('/manifests');
     } catch (error: any) {
       alert(`封存失敗: ${error.message}`);
