@@ -48,6 +48,8 @@ export default function ScanContent() {
   const [actualQuantity, setActualQuantity] = useState<string>('');
   // 新增：跨頁跳轉 Dialog 狀態
   const [jumpTarget, setJumpTarget] = useState<{ page: number, name: string } | null>(null);
+  // 新增：照片預覽狀態
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const fetchPageData = useCallback(async () => {
     if (!manifestId) return;
@@ -213,6 +215,28 @@ export default function ScanContent() {
         </div>
       )}
 
+      {/* 照片預覽 Modal */}
+      {previewImage && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md cursor-zoom-out"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div className="relative max-w-4xl w-full animate-in zoom-in duration-300">
+            <img 
+              src={previewImage} 
+              alt="Drug evidence" 
+              className="w-full h-auto max-h-[85vh] object-contain rounded-2xl shadow-2xl border border-white/10"
+            />
+            <button 
+              onClick={() => setPreviewImage(null)}
+              className="absolute top-4 right-4 p-2 bg-black/50 text-white rounded-full hover:bg-black/80 transition-colors"
+            >
+              <ArrowLeft className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <header className="bg-[#162a56]/80 backdrop-blur-sm border-b border-blue-500/20 sticky top-0 z-10 p-4 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -300,19 +324,34 @@ export default function ScanContent() {
                     isMatched ? 'border-[#00f2fe] shadow-[0_0_20px_rgba(0,242,254,0.2)] scale-[1.02] z-10' : ''
                   } ${isError ? 'border-[#ff4b5c] bg-[#ff4b5c]/5' : ''} ${isCompleted && !isMatched ? 'opacity-40 grayscale' : ''}`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
                         isCompleted ? 'bg-[#00f2fe] text-slate-900' : isError ? 'bg-[#ff4b5c] text-white' : 'bg-slate-800 text-slate-400'
                       }`}>
                         {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : isError ? <AlertCircle className="w-5 h-5" /> : drug.page_number}
                       </div>
-                      <div>
-                        <div className={`font-bold text-lg ${isMatched ? 'text-[#00f2fe]' : 'text-white'}`}>{drug.name}</div>
-                        <div className="text-xs font-mono text-slate-500">{drug.barcode} | 預期: {drug.expected_quantity}</div>
+                      <div className="min-w-0">
+                        <div className={`font-bold text-lg truncate ${isMatched ? 'text-[#00f2fe]' : 'text-white'}`}>{drug.name}</div>
+                        <div className="text-xs font-mono text-slate-500 truncate">{drug.barcode} | 預期: {drug.expected_quantity}</div>
                       </div>
                     </div>
-                    
+
+                    {drug.photo_url && (
+                      <div 
+                        onClick={() => setPreviewImage(drug.photo_url)}
+                        className="w-12 h-12 rounded-lg overflow-hidden border border-slate-700 cursor-zoom-in hover:border-[#00f2fe] transition-all shrink-0 shadow-inner bg-slate-900"
+                      >
+                        <img 
+                          src={drug.photo_url} 
+                          alt="Thumbnail" 
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex justify-between items-center gap-4">
                     {isMatched && (
                       <div className="flex items-center gap-2 bg-slate-950/50 p-2 rounded-lg border border-slate-700">
                         <label className="text-xs font-bold text-slate-500">數量:</label>
@@ -325,9 +364,7 @@ export default function ScanContent() {
                         />
                       </div>
                     )}
-                  </div>
-                  
-                  <div className="flex justify-end">
+                    <div className="flex-1" />
                     <button 
                       onClick={triggerCamera}
                       disabled={!isMatched || !!uploadingId}
