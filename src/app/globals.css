@@ -1,3 +1,4 @@
+@reference "tailwindcss";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -19,7 +20,7 @@ body {
 
 @layer components {
   .tech-card {
-    @apply bg-[#162a56] backdrop-blur-md border border-blue-500/20 rounded-2xl shadow-lg transition-all duration-300;
+    @apply bg-[#162a56] backdrop-blur-sm border border-blue-500/20 rounded-2xl shadow-lg transition-all duration-300;
   }
   
   .tech-input {

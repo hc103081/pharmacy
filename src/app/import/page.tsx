@@ -7,7 +7,7 @@ import Link from 'next/link';
 
 export default function ImportPage() {
   const [manifestName, setManifestName] = useState('');
-  const [jsonData, setJsonData] = useState('[\n  { "barcode": "12345678", "name": "藥品 A", "expected_quantity": 10 },\n  { "barcode": "87654321", "name":, "expected_quantity": 5 }\n]');
+  const [jsonData, setJsonData] = useState('[\n  { "barcode": "12345678", "name": "藥品 A", "expected_quantity": 10 },\n  { "barcode": "87654321", "name": "藥品 B", "expected_quantity": 5 }\n]');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
 
@@ -68,7 +68,7 @@ export default function ImportPage() {
               className="tech-input w-full font-mono text-sm bg-slate-950/50"
             />
             <p className="text-xs text-slate-500">
-              格式要求: <code>[{"barcode": "...", "name": "...", "expected_quantity": 0}, ...]</code>
+              格式要求: <code>{' [ { "barcode": "...", "name": "...", "expected_quantity": 0 }, ... ] '}</code>
             </p>
           </div>
 

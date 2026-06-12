@@ -213,7 +213,7 @@ export default function ScanContent() {
         </div>
       )}
 
-      <header className="bg-[#162a56]/80 backdrop-blur-md border-b border-blue-500/20 sticky top-0 z-10 p-4 space-y-4">
+      <header className="bg-[#162a56]/80 backdrop-blur-sm border-b border-blue-500/20 sticky top-0 z-10 p-4 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/manifests" className="p-2 hover:bg-slate-800 rounded-full transition-colors">
