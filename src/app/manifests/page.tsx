@@ -39,30 +39,30 @@ export default function ManifestsPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-[#07142b] text-slate-200 p-6">
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex items-center gap-4">
-          <Link href="/" className="p-2 hover:bg-gray-200 rounded-full transition-colors">
-            <ArrowLeft className="w-6 h-6 text-gray-600" />
+          <Link href="/" className="p-2 hover:bg-slate-800 rounded-full transition-colors">
+            <ArrowLeft className="w-6 h-6 text-slate-400" />
           </Link>
-          <h1 className="text-2xl font-bold text-gray-900">選擇清點清單</h1>
+          <h1 className="text-2xl font-bold text-white">選擇清點清單</h1>
         </div>
 
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 space-y-4">
-            <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
-            <p className="text-gray-500">載入清單中...</p>
+            <Loader2 className="w-10 h-10 text-[#00f2fe] animate-spin" />
+            <p className="text-slate-400">載入清單中...</p>
           </div>
         ) : manifests.length === 0 ? (
-          <div className="text-center py-20 bg-white rounded-xl border border-dashed border-gray-300 space-y-4">
-            <Package className="w-12 h-12 text-gray-300 mx-auto" />
+          <div className="text-center py-20 tech-card border-dashed border-slate-700 space-y-4">
+            <Package className="w-12 h-12 text-slate-600 mx-auto" />
             <div className="space-y-1">
-              <p className="text-gray-600 font-medium">目前沒有可用的清單</p>
-              <p className="text-sm text-gray-400">請先前往「匯入清單」頁面建立新清單</p>
+              <p className="text-slate-300 font-medium">目前沒有可用的清單</p>
+              <p className="text-sm text-slate-500">請先前往「匯入清單」頁面建立新清單</p>
             </div>
             <Link 
               href="/import" 
-              className="inline-block px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              className="tech-button tech-button-primary inline-flex px-6 py-2"
             >
               立即匯入
             </Link>
@@ -73,15 +73,15 @@ export default function ManifestsPage() {
               <Link 
                 key={m.id} 
                 href={`/scan?manifestId=${m.id}`}
-                className="p-4 bg-white border rounded-xl shadow-sm hover:shadow-md hover:border-blue-400 transition-all flex items-center justify-between group"
+                className="tech-card p-4 group hover:border-[#00f2fe]/50 flex items-center justify-between"
               >
                 <div className="flex items-center gap-4">
-                  <div className="p-3 bg-blue-50 text-blue-600 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                  <div className="p-3 bg-blue-500/10 text-[#00f2fe] rounded-lg group-hover:bg-[#00f2fe] group-hover:text-slate-900 transition-all duration-300 shadow-[0_0_15px_rgba(0,242,254,0.2)]">
                     <Package className="w-6 h-6" />
                   </div>
                   <div className="space-y-1">
-                    <h3 className="font-semibold text-gray-900">{m.name}</h3>
-                    <div className="flex items-center gap-3 text-xs text-gray-500">
+                    <h3 className="font-semibold text-white">{m.name}</h3>
+                    <div className="flex items-center gap-3 text-xs text-slate-400">
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
                         {new Date(m.created_at).toLocaleDateString()}
@@ -91,7 +91,7 @@ export default function ManifestsPage() {
                     </div>
                   </div>
                 </div>
-                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
+                <ChevronRight className="w-5 h-5 text-slate-500 group-hover:text-[#00f2fe] transition-colors" />
               </Link>
             ))}
           </div>

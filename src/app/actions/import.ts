@@ -16,7 +16,8 @@ export interface ImportResponse {
 }
 
 /**
- * 匯入藥品清單並實作 44 項一頁的邏輯分頁
+ * 匯入藥品清單並實作嚴格的 44 項邏輯分頁
+ * 依據原始輸入順序 (item_order) 進行切分
  */
 export async function importDrugs(manifestName: string, drugs: ImportDrugItem[]): Promise<ImportResponse> {
   try {
@@ -39,12 +40,15 @@ export async function importDrugs(manifestName: string, drugs: ImportDrugItem[])
       throw new Error(`建立清單失敗: ${manifestError?.message}`);
     }
 
-    // 2. 實作 44 項邏輯分頁
+    // 2. 實作嚴格的分頁與排序
     const ITEMS_PER_PAGE = 44;
     const drugItemsToInsert = drugs.map((drug, index) => {
-      const pageNumber = Math.floor(index / ITEMS_PER_PAGE) + 1;
+      const itemOrder = index + 1; // 原始流水號 (1, 2, 3...)
+      const pageNumber = Math.ceil(itemOrder / ITEMS_PER_PAGE);
+      
       return {
         manifest_id: manifest.id,
+        item_order: itemOrder,
         page_number: pageNumber,
         barcode: drug.barcode,
         name: drug.name,
