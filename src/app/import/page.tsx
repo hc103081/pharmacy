@@ -68,7 +68,7 @@ export default function ImportPage() {
               className="w-full p-3 font-mono text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-gray-50"
             />
             <p className="text-xs text-gray-500">
-              格式要求: <code>[{"barcode": "...", "name": "...", "expected_quantity": 0}, ...]</code>
+              格式要求: <code>{"[{\"barcode\": \"...\", \"name\": \"...\", \"expected_quantity\": 0}, ... ]"}</code>
             </p>
           </div>
 

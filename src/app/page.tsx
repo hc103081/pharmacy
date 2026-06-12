@@ -32,8 +32,8 @@ export default function HomePage() {
           </Link>
 
           <Link 
-            href="/scan" 
-            className="p-6 bg-white border rounded-xl shadow-sm hover:shadow-md transition-all group opacity-50 cursor-not-allowed"
+            href="/manifests" 
+            className="p-6 bg-white border rounded-xl shadow-sm hover:shadow-md transition-all group"
           >
             <div className="flex flex-col items-center gap-4">
               <div className="p-3 bg-green-100 text-green-600 rounded-full group-hover:bg-green-600 group-hover:text-white transition-colors">
@@ -41,7 +41,7 @@ export default function HomePage() {
               </div>
               <div className="text-xl font-semibold">開始清點</div>
               <p className="text-sm text-gray-500 text-center">
-                依照分頁進行條碼核對與拍照留存
+                選擇清單並依照分頁進行條碼核對
               </p>
             </div>
           </Link>
