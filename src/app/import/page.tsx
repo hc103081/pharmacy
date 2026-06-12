@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import React, { useState } from 'react';
 import { importDrugs, ImportDrugItem } from '@/app/actions/import';
 import { FileUp, Loader2, CheckCircle2, AlertCircle, ArrowLeft } from 'lucide-react';
