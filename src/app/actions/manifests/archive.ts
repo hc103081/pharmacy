@@ -47,9 +47,12 @@ export async function deleteManifest(manifestId: string): Promise<ArchiveRespons
       .map(item => item.photo_url)
       .filter((url): url is string => !!url)
       .map(url => {
-        // 從 Public URL 提取路徑
-        const parts = url.split('/storage/v1/object/public/');
-        return parts.length > 1 ? parts[1] : null;
+        // 從 Public URL 提取路徑 (去掉 /storage/v1/object/public/bucket_name/)
+        const urlObj = new URL(url);
+        const pathWithBucket = urlObj.pathname.replace('/storage/v1/object/public/', '');
+        const pathParts = pathWithBucket.split('/');
+        // 移除第一部分 (儲存桶名稱)，保留剩餘路徑
+        return pathParts.length > 1 ? pathParts.slice(1).join('/') : null;
       })
       .filter((path): path is string => !!path);
 

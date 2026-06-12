@@ -94,7 +94,8 @@ export async function uploadImportImages(formData: FormData): Promise<{ success:
     for (const file of files) {
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
-      const filePath = `import_screenshots/${fileName}`;
+      const filePath = fileName; // 修正：路徑不應包含儲存桶名稱
+
 
       const { data, error } = await supabaseAdmin.storage
         .from('import_screenshots')

@@ -99,7 +99,7 @@ export default function SummaryPage() {
         .update({ 
           status: 'completed',
           conclusion_type: conclusionType,
-          total_diff: totalDiff
+          total_discrepancy: totalDiff
         })
         .eq('id', manifestId);
 
@@ -183,20 +183,24 @@ export default function SummaryPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div className="p-3 bg-slate-900/50 rounded-xl text-center space-y-1 border border-slate-800">
-                  <div className="text-xs text-slate-500">總項數</div>
-                  <div className="text-lg font-bold text-white">{manifest?.total_items || 0}</div>
+              <div className="grid grid-cols-4 gap-4">
+                  <div className="p-3 bg-slate-900/50 rounded-xl text-center space-y-1 border border-slate-800">
+                    <div className="text-xs text-slate-500">總項數</div>
+                    <div className="text-lg font-bold text-white">{manifest?.total_items || 0}</div>
+                  </div>
+                  <div className="p-3 bg-green-500/10 rounded-xl text-center space-y-1 border border-green-500/20">
+                    <div className="text-xs text-green-400">已完成</div>
+                    <div className="text-lg font-bold text-green-400">{completedCount}</div>
+                  </div>
+                  <div className="p-3 bg-red-500/10 rounded-xl text-center space-y-1 border border-red-500/20">
+                    <div className="text-xs text-red-400">異常/未完</div>
+                    <div className="text-lg font-bold text-red-400">{pendingCount + errorCount}</div>
+                  </div>
+                  <div className="p-3 bg-blue-500/10 rounded-xl text-center space-y-1 border border-blue-500/20">
+                    <div className="text-xs text-blue-400">總差異量</div>
+                    <div className="text-lg font-bold text-blue-400">{manifest?.total_discrepancy || 0}</div>
+                  </div>
                 </div>
-                <div className="p-3 bg-green-500/10 rounded-xl text-center space-y-1 border border-green-500/20">
-                  <div className="text-xs text-green-400">已完成</div>
-                  <div className="text-lg font-bold text-green-400">{completedCount}</div>
-                </div>
-                <div className="p-3 bg-red-500/10 rounded-xl text-center space-y-1 border border-red-500/20">
-                  <div className="text-xs text-red-400">異常/未完</div>
-                  <div className="text-lg font-bold text-red-400">{pendingCount + errorCount}</div>
-                </div>
-              </div>
             </div>
 
             {/* 異常覆核面板 */}

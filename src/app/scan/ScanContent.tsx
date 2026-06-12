@@ -43,6 +43,7 @@ export default function ScanContent() {
   const [loading, setLoading] = useState(true);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [manifestName, setManifestName] = useState('');
+  const [isLocked, setIsLocked] = useState(false);
   
   // 新增：數量輸入狀態
   const [actualQuantity, setActualQuantity] = useState<string>('');
@@ -58,11 +59,14 @@ export default function ScanContent() {
     try {
       const { data: manifest } = await supabase
         .from('manifests')
-        .select('name')
+        .select('name, status')
         .eq('id', manifestId)
         .single();
       
-      if (manifest) setManifestName(manifest.name);
+      if (manifest) {
+        setManifestName(manifest.name);
+        setIsLocked(manifest.status === 'completed');
+      }
 
       const { data, error } = await supabase
         .from('drug_items')
@@ -251,7 +255,14 @@ export default function ScanContent() {
             </Link>
             <div>
               <h1 className="font-bold text-white truncate max-w-[150px]">{manifestName || '載入中...'}</h1>
-              <p className="text-xs text-slate-500">分頁清點模式</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-slate-500">分頁清點模式</p>
+                {isLocked && (
+                  <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 text-[10px] font-bold border border-red-500/30">
+                    已封存 (唯讀)
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           
@@ -282,9 +293,10 @@ export default function ScanContent() {
             value={barcodeInput}
             onChange={handleBarcodeChange}
             placeholder="掃描或輸入條碼..."
+            disabled={isLocked}
             className={`tech-input w-full pl-10 pr-4 text-lg font-mono ${
               matchingItem ? 'border-[#00f2fe] shadow-[0_0_15px_rgba(0,242,254,0.3)]' : ''
-            }`}
+            } ${isLocked ? 'bg-slate-900/50 opacity-50 cursor-not-allowed' : ''}`}
             autoFocus
           />
           {matchingItem && (
@@ -381,7 +393,8 @@ export default function ScanContent() {
                           type="number"
                           value={actualQuantity}
                           onChange={(e) => setActualQuantity(e.target.value)}
-                          className="w-14 bg-transparent text-center font-mono text-sm text-[#00f2fe] outline-none"
+                          disabled={isLocked}
+                          className={`w-14 bg-transparent text-center font-mono text-sm text-[#00f2fe] outline-none ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
                           placeholder="0"
                         />
                       </div>
@@ -389,9 +402,9 @@ export default function ScanContent() {
                     <div className="flex-1" />
                     <button 
                       onClick={triggerCamera}
-                      disabled={!isMatched || !!uploadingId}
+                      disabled={!isMatched || !!uploadingId || isLocked}
                       className={`tech-button px-6 py-2 ${
-                        isMatched 
+                        isMatched && !isLocked
                           ? 'tech-button-primary' 
                           : 'bg-slate-800 text-slate-500 cursor-not-allowed'
                       }`}
