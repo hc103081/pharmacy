@@ -12,7 +12,8 @@ import {
   AlertCircle, 
   ArrowLeft,
   Package,
-  Loader2
+  Loader2,
+  FileText
 } from 'lucide-react';
 import Link from 'next/link';
 import { updateDrugStatus } from '@/app/actions/scan/updatePhoto';
@@ -140,6 +141,14 @@ export default function ScanPage() {
           </div>
           
           <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
+            <Link 
+              href={`/summary/${manifestId}`} 
+              className="p-1 hover:bg-white rounded transition-all flex items-center gap-1 px-2 text-xs font-bold text-gray-600 hover:text-blue-600"
+            >
+              <FileText className="w-4 h-4" />
+              總結
+            </Link>
+            <div className="w-px h-4 bg-gray-300 mx-1" />
             <button 
               onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
               disabled={currentPage === 1}
