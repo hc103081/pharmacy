@@ -30,6 +30,7 @@ interface Manifest {
   id: string;
   name: string;
   total_items: number;
+  total_discrepancy?: number;
 }
 
 export default function SummaryPage() {
