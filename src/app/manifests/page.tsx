@@ -51,8 +51,8 @@ export default function ManifestsPage() {
       } else {
         alert(`刪除失敗: ${result.error}`);
       }
-    } catch (error) {
-      alert('刪除過程中發生錯誤');
+    } catch (error: any) {
+      alert(`刪除過程中發生錯誤: ${error.message || '未知錯誤'}`);
     } finally {
       setDeletingId(null);
     }

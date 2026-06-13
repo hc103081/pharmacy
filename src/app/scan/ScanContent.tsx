@@ -44,12 +44,11 @@ export default function ScanContent() {
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [manifestName, setManifestName] = useState('');
   const [isLocked, setIsLocked] = useState(false);
+  const [totalPages, setTotalPages] = useState(1);
   
   // 新增：數量輸入狀態
   const [actualQuantity, setActualQuantity] = useState<string>('');
-  // 新增：跨頁跳轉 Dialog 狀態
   const [jumpTarget, setJumpTarget] = useState<{ page: number, name: string } | null>(null);
-  // 新增：照片預覽狀態
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const fetchPageData = useCallback(async () => {
@@ -59,13 +58,14 @@ export default function ScanContent() {
     try {
       const { data: manifest } = await supabase
         .from('manifests')
-        .select('name, status')
+        .select('name, status, total_items')
         .eq('id', manifestId)
         .single();
       
       if (manifest) {
         setManifestName(manifest.name);
         setIsLocked(manifest.status === 'completed');
+        setTotalPages(Math.ceil(manifest.total_items / 44));
       }
 
       const { data, error } = await supabase
@@ -192,7 +192,7 @@ export default function ScanContent() {
   }
 
   return (
-    <div className="min-h-screen bg-[#07142b] text-slate-200 flex flex-col">
+    <div className="min-h-screen bg-[#07142b] text-slate-200 flex flex-col overflow-x-hidden">
       {/* 跨頁跳轉 Dialog */}
       {jumpTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -276,32 +276,37 @@ export default function ScanContent() {
             </button>
             <span className="text-sm font-bold px-2 text-slate-300">第 {currentPage} 頁</span>
             <button 
-              onClick={() => setCurrentPage(prev => prev + 1)}
-              className="p-1 hover:bg-slate-800 rounded transition-all"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="p-1 hover:bg-slate-800 rounded disabled:opacity-30 transition-all"
             >
               <ChevronRight className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        <div className="relative">
+        <div className="relative overflow-hidden">
           <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
             <Search className="w-5 h-5 text-slate-500" />
           </div>
           <input
             type="text"
+            id="search-barcode"
+            name="barcode"
             value={barcodeInput}
             onChange={handleBarcodeChange}
             placeholder="掃描或輸入條碼..."
             disabled={isLocked}
-            className={`tech-input w-full pl-10 pr-4 text-lg font-mono ${
-              matchingItem ? 'border-[#00f2fe] shadow-[0_0_15px_rgba(0,242,254,0.3)]' : ''
+            className={`tech-input w-full pl-9 md:pl-10 pr-12 text-base md:text-lg font-mono ${
+              matchingItem ? 'border-[#00f2fe] ring-1 ring-inset ring-[#00f2fe]/50' : ''
             } ${isLocked ? 'bg-slate-900/50 opacity-50 cursor-not-allowed' : ''}`}
             autoFocus
           />
           {matchingItem && (
-            <div className="absolute inset-y-0 right-3 flex items-center text-[#00f2fe] font-bold text-sm animate-pulse">
-              匹配成功!
+            <div className="absolute inset-y-0 right-2 flex items-center animate-in zoom-in duration-300">
+              <div className="bg-[#00f2fe]/20 text-[#00f2fe] p-1 rounded-full border border-[#00f2fe]/50">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
             </div>
           )}
         </div>
@@ -335,7 +340,7 @@ export default function ScanContent() {
               const isError = drug.counted_status === 'error';
               const isUploading = uploadingId === drug.id;
               
-              // 即時比對邏輯：如果是目前匹配項，且輸入了數量，則根據數量決定是否反紅
+              // 即時比對邏輯
               let isRealtimeError = false;
               if (isMatched && actualQuantity !== '') {
                 isRealtimeError = parseInt(actualQuantity) !== drug.expected_quantity;
@@ -346,7 +351,7 @@ export default function ScanContent() {
                 <div 
                   key={drug.id}
                   className={`tech-card p-4 transition-all flex flex-col gap-4 ${
-                    isMatched ? 'border-[#00f2fe] shadow-[0_0_20px_rgba(0,242,254,0.2)] scale-[1.02] z-10' : ''
+                    isMatched ? 'border-[#00f2fe] ring-2 ring-inset ring-[#00f2fe]/50 scale-[1.02] z-10' : ''
                   } ${isError || isRealtimeError ? 'border-[#ff4b5c] bg-[#ff4b5c]/10' : ''} ${isCompleted && !isMatched ? 'opacity-40 grayscale' : ''}`}
                 >
                   <div className="flex items-center justify-between gap-4">
@@ -358,10 +363,10 @@ export default function ScanContent() {
                       </div>
                       <div className="min-w-0">
                         <div className={`font-bold text-lg truncate ${isMatched ? 'text-[#00f2fe]' : 'text-white'}`}>{drug.name}</div>
-                        <div className="text-xs font-mono text-slate-500 truncate">{drug.barcode} | 預期: {drug.expected_quantity}</div>
+                        <div className="text-xs font-mono text-slate-500 truncate break-all">{drug.barcode} | 預期: {drug.expected_quantity}</div>
                       </div>
                     </div>
-
+                    
                     {drug.photo_url && (
                       <div 
                         onClick={() => {
@@ -391,6 +396,8 @@ export default function ScanContent() {
                         <label className="text-xs font-bold text-slate-500">數量:</label>
                         <input 
                           type="number"
+                          id="actual-quantity"
+                          name="quantity"
                           value={actualQuantity}
                           onChange={(e) => setActualQuantity(e.target.value)}
                           disabled={isLocked}
@@ -423,7 +430,7 @@ export default function ScanContent() {
           </div>
         )}
       </main>
-
+      
       <footer className="p-4 bg-[#07142b] border-t border-slate-800 text-center">
         <p className="text-xs text-slate-500 font-medium">
           請掃描條碼以激活數量輸入與拍照按鈕
