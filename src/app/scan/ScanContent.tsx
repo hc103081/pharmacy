@@ -51,6 +51,7 @@ export default function ScanContent() {
   
   // 新增：數量輸入狀態
   const [actualQuantity, setActualQuantity] = useState<string>('');
+  const [selectedStatus, setSelectedStatus] = useState<'correct' | 'incorrect' | null>(null);
   const [jumpTarget, setJumpTarget] = useState<{ page: number, name: string } | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
@@ -94,7 +95,6 @@ export default function ScanContent() {
         .from('drug_items')
         .select('*')
         .eq('manifest_id', manifestId)
-        .eq('page_number', currentPage)
         .order('item_order', { ascending: true });
 
       if (error) throw error;
@@ -181,7 +181,6 @@ export default function ScanContent() {
     setUploadingId(drugId);
 
     try {
-      // 依照新路徑規則：/manifest_id/page_number/barcode_timestamp.jpg
       const filePath = `manifests/${manifestId}/${matchingItem.page_number}/${matchingItem.barcode}_${Date.now()}.jpg`;
       
       const { error: uploadError } = await supabase.storage
@@ -194,13 +193,23 @@ export default function ScanContent() {
         .from('drug-photos')
         .getPublicUrl(filePath);
 
-      // 更新狀態時同步更新實際數量
-      const { error: updateError } = await updateDrugStatus(drugId, publicUrl, parseInt(actualQuantity || '0'));
+      // 決定最終提交數量
+      let finalQuantity = 0;
+      if (selectedStatus === 'correct') {
+        finalQuantity = matchingItem.expected_quantity;
+      } else if (selectedStatus === 'incorrect') {
+        finalQuantity = parseInt(actualQuantity || '0');
+      } else {
+        finalQuantity = parseInt(actualQuantity || '0');
+      }
+
+      const { error: updateError } = await updateDrugStatus(drugId, publicUrl, finalQuantity);
       if (updateError) throw updateError;
 
       await fetchPageData();
       setBarcodeInput('');
       setActualQuantity('');
+      setSelectedStatus(null);
     } catch (error: any) {
       console.error('Upload Error:', error);
       alert(`上傳失敗: ${error.message}`);
@@ -392,6 +401,7 @@ export default function ScanContent() {
         ) : (
           <div className="space-y-4">
             {drugs
+              .slice((currentPage - 1) * 44, currentPage * 44)
               .filter(drug => !barcodeInput || getMatchScore(drug, barcodeInput) > 0)
               .map((drug) => {
                 const score = getMatchScore(drug, barcodeInput);
@@ -452,24 +462,59 @@ export default function ScanContent() {
                   
                   <div className="flex justify-between items-center gap-4">
                     {isMatched && (
-                      <div className="flex items-center gap-2 bg-slate-950/50 p-2 rounded-lg border border-slate-700">
-                        <label className="text-xs font-bold text-slate-500">數量:</label>
-                        <input 
-                          type="number"
-                          id="actual-quantity"
-                          name="quantity"
-                          value={actualQuantity}
-                          onChange={(e) => setActualQuantity(e.target.value)}
-                          disabled={isLocked}
-                          className={`w-14 bg-transparent text-center font-mono text-sm text-[#00f2fe] outline-none ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
-                          placeholder="0"
-                        />
+                      <div className="flex flex-col gap-3 bg-slate-950/50 p-3 rounded-xl border border-slate-700 w-full md:w-auto">
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => {
+                              setSelectedStatus('correct');
+                              setActualQuantity(String(drug.expected_quantity));
+                              triggerCamera();
+                            }}
+                            disabled={isLocked}
+                            className={`flex-1 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                              selectedStatus === 'correct' 
+                                ? 'bg-[#00f2fe] text-slate-900 shadow-[0_0_10px_rgba(0,242,254,0.4)]' 
+                                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                            } ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          >
+                            正確
+                          </button>
+                          <button 
+                            onClick={() => {
+                              setSelectedStatus('incorrect');
+                              setActualQuantity('');
+                            }}
+                            disabled={isLocked}
+                            className={`flex-1 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                              selectedStatus === 'incorrect' 
+                                ? 'bg-[#ff4b5c] text-white shadow-[0_0_10px_rgba(255,75,92,0.4)]' 
+                                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                            } ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          >
+                            有誤
+                          </button>
+                        </div>
+                        
+                        {selectedStatus === 'incorrect' && (
+                          <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase">實際數量:</label>
+                            <input 
+                              type="number"
+                              value={actualQuantity}
+                              onChange={(e) => setActualQuantity(e.target.value)}
+                              disabled={isLocked}
+                              autoFocus
+                              className={`flex-1 bg-transparent text-right font-mono text-sm text-[#00f2fe] outline-none ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              placeholder="0"
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
                     <div className="flex-1" />
                     <button 
                       onClick={triggerCamera}
-                      disabled={!isMatched || !!uploadingId || isLocked}
+                      disabled={!isMatched || !!uploadingId || isLocked || (selectedStatus === 'incorrect' && !actualQuantity)}
                       className={`tech-button px-6 py-2 ${
                         isMatched && !isLocked
                           ? 'tech-button-primary' 
