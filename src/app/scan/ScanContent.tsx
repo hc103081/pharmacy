@@ -1,63 +1,61 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Search, 
-  Camera, 
-  CheckCircle2, 
-  AlertCircle, 
+import {
+  ChevronLeft,
+  ChevronRight,
   ArrowLeft,
   Package,
-  Loader2,
   FileText,
-  ArrowRightLeft
+  AlertCircle,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
-import { updateDrugStatus } from '@/app/actions/scan/updatePhoto';
-
-interface DrugItem {
-  id: string;
-  manifest_id: string;
-  page_number: number;
-  barcode: string;
-  name: string;
-  expected_quantity: number;
-  actual_quantity: number;
-  counted_status: 'pending' | 'completed' | 'error';
-  photo_url: string | null;
-}
+import { DrugCard, ErrorDrawer, JumpDialog, PhotoPreview, BarcodeSearchBar } from './components';
+import { useBarcodeMatch, usePhotoCapture, usePagePersistence } from './hooks';
+import type { DrugItem, ErrorDrugItem, JumpTarget } from './types';
 
 export default function ScanContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const manifestId = searchParams.get('manifestId');
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [drugs, setDrugs] = useState<DrugItem[]>([]);
   const [barcodeInput, setBarcodeInput] = useState('');
   const [loading, setLoading] = useState(true);
-  const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [manifestName, setManifestName] = useState('');
   const [isLocked, setIsLocked] = useState(false);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [completedTotal, setCompletedTotal] = useState(0);
   const [errorTotal, setErrorTotal] = useState(0);
-  
-  // 新增：數量輸入狀態
+  const [errorDrugs, setErrorDrugs] = useState<ErrorDrugItem[]>([]);
+  const [isErrorDrawerOpen, setIsErrorDrawerOpen] = useState(false);
+
   const [actualQuantity, setActualQuantity] = useState<string>('');
   const [selectedStatus, setSelectedStatus] = useState<'correct' | 'incorrect' | null>(null);
-  const [jumpTarget, setJumpTarget] = useState<{ page: number, name: string } | null>(null);
+  const [jumpTarget, setJumpTarget] = useState<JumpTarget | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+    setTimeout(() => setToast(null), 2000);
+  }, []);
+
+  const { initializedRef, lastVisitedPage, setLastVisitedPage, lastVisitedPageRef, lastScrollY, setLastScrollY, lastScrollYRef, saveState, restorePage } = usePagePersistence(manifestId);
+  const { matchingItem, getMatchScore } = useBarcodeMatch(drugs, barcodeInput);
+
+  const navigateToPage = (page: number) => {
+    setCurrentPage(page);
+  };
 
   const fetchPageData = useCallback(async () => {
     if (!manifestId) return;
-    
+
     setLoading(true);
     try {
       const { data: manifest } = await supabase
@@ -65,7 +63,7 @@ export default function ScanContent() {
         .select('name, status, total_items')
         .eq('id', manifestId)
         .single();
-      
+
       if (manifest) {
         setManifestName(manifest.name);
         setIsLocked(manifest.status === 'completed');
@@ -73,32 +71,37 @@ export default function ScanContent() {
         setTotalPages(Math.ceil(manifest.total_items / 44));
       }
 
-      // 同步獲取全域已完成總數
-      const { count: completedCount } = await supabase
-        .from('drug_items')
-        .select('*', { count: 'exact', head: true })
-        .eq('manifest_id', manifestId)
-        .eq('counted_status', 'completed');
-      
-      setCompletedTotal(completedCount || 0);
+      const [completedRes, errorRes, pageRes, errorItemsRes] = await Promise.all([
+        supabase
+          .from('drug_items')
+          .select('*', { count: 'exact', head: true })
+          .eq('manifest_id', manifestId)
+          .eq('counted_status', 'completed'),
+        supabase
+          .from('drug_items')
+          .select('*', { count: 'exact', head: true })
+          .eq('manifest_id', manifestId)
+          .eq('counted_status', 'error'),
+        supabase
+          .from('drug_items')
+          .select('*')
+          .eq('manifest_id', manifestId)
+          .eq('page_number', currentPage)
+          .order('item_order', { ascending: true }),
+        supabase
+          .from('drug_items')
+          .select('id, page_number, name, barcode, actual_quantity, expected_quantity')
+          .eq('manifest_id', manifestId)
+          .eq('counted_status', 'error')
+          .order('page_number', { ascending: true }),
+      ]);
 
-      // 同步獲取全域異常總數
-      const { count: errorCount } = await supabase
-        .from('drug_items')
-        .select('*', { count: 'exact', head: true })
-        .eq('manifest_id', manifestId)
-        .eq('counted_status', 'error');
-      
-      setErrorTotal(errorCount || 0);
+      setCompletedTotal(completedRes.count || 0);
+      setErrorTotal(errorRes.count || 0);
+      setErrorDrugs(errorItemsRes.data || []);
 
-      const { data, error } = await supabase
-        .from('drug_items')
-        .select('*')
-        .eq('manifest_id', manifestId)
-        .order('item_order', { ascending: true });
-
-      if (error) throw error;
-      setDrugs(data || []);
+      if (pageRes.error) throw pageRes.error;
+      setDrugs(pageRes.data || []);
     } catch (error) {
       console.error('Error fetching page data:', error);
       alert('載入數據失敗，請刷新頁面');
@@ -107,46 +110,89 @@ export default function ScanContent() {
     }
   }, [manifestId, currentPage]);
 
+  
+
+  const autoJumpToNext = useCallback(
+    (currentDrugs: DrugItem[]) => {
+      const nextPending = currentDrugs.find((d) => d.counted_status === 'pending');
+      if (nextPending) {
+        setBarcodeInput(nextPending.barcode);
+        setTimeout(() => {
+          const element = document.querySelector(`[data-drug-id="${nextPending.id}"]`);
+          element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+      }
+    },
+    []
+  );
+
+  const { fileInputRef, uploadingQueue, triggerCamera, handleFileUpload } = usePhotoCapture({
+    manifestId,
+    matchingItem,
+    selectedStatus,
+    actualQuantity,
+    onToast: showToast,
+    onRefresh: fetchPageData,
+    onResetInput: () => {
+      setBarcodeInput('');
+      setActualQuantity('');
+      setSelectedStatus(null);
+      autoJumpToNext(drugs);
+    },
+  });
+
+  // 恢復上次的頁碼
   useEffect(() => {
-    fetchPageData();
-  }, [fetchPageData]);
-
-  // 匹配權重邏輯：完全匹配 > 條碼包含 > 名稱包含
-  const getMatchScore = (drug: DrugItem, input: string) => {
-    if (!input) return 0;
-    if (drug.barcode === input) return 3; // 完全匹配 (最高)
-    if (drug.barcode.includes(input)) return 2; // 條碼包含
-    if (drug.name.toLowerCase().includes(input.toLowerCase())) return 1; // 名稱包含
-    return 0;
-  };
-
-  // 找出當前頁面最佳匹配項
-  const matchingItem = drugs.reduce((best, current) => {
-    const score = getMatchScore(current, barcodeInput);
-    if (score > (best ? getMatchScore(best, barcodeInput) : -1)) {
-      return current;
+    if (!manifestId) return;
+    const savedPage = restorePage();
+    if (savedPage) {
+      // 使用 queueMicrotask 避免在 effect 內同步 setState
+      queueMicrotask(() => setCurrentPage(savedPage));
     }
-    return best;
-  }, null as DrugItem | null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [manifestId]);
 
-  const handleBarcodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setBarcodeInput(e.target.value);
-  };
+  // 頁碼變更時持久化並載入資料
+  useEffect(() => {
+    if (!manifestId) return;
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      fetchPageData();
+      return;
+    }
+    saveState(currentPage);
+    fetchPageData();
+  }, [currentPage, manifestId]);
 
-  // 全域搜尋 Debounce 邏輯
+  // 行動裝置鍵盤彈出時自動將輸入框滾動到可視區域
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+
+    const handleResize = () => {
+      const inputEl = document.getElementById('search-barcode');
+      if (!inputEl || document.activeElement !== inputEl) return;
+      setTimeout(() => {
+        inputEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    };
+
+    window.visualViewport?.addEventListener('resize', handleResize);
+    return () => window.visualViewport?.removeEventListener('resize', handleResize);
+  }, []);
+
+  // 全域搜尋 Debounce
   useEffect(() => {
     if (!manifestId) return;
     if (!barcodeInput || barcodeInput.length < 2) return;
 
-    // 如果當前頁面已經有匹配項，則不觸發全域搜尋
-    const hasLocalMatch = drugs.some(d => getMatchScore(d, barcodeInput) > 0);
+    const hasLocalMatch = drugs.some((d) => getMatchScore(d, barcodeInput) > 0);
     if (hasLocalMatch) return;
 
     const timer = setTimeout(async () => {
       try {
         const { data: globalMatch, error } = await supabase
           .from('drug_items')
-          .select('page_number, name, barcode')
+          .select('id, page_number, name, barcode')
           .eq('manifest_id', manifestId)
           .or(`barcode.ilike.%${barcodeInput}%,name.ilike.%${barcodeInput}%`)
           .order('item_order', { ascending: true })
@@ -158,152 +204,147 @@ export default function ScanContent() {
         if (globalMatch.page_number !== currentPage) {
           setJumpTarget({
             page: globalMatch.page_number,
-            name: globalMatch.name
+            name: globalMatch.name,
+            id: globalMatch.id,
+            barcode: globalMatch.barcode,
           });
         }
       } catch (err) {
         console.error('Global search error:', err);
       }
-    }, 500); // 500ms debounce
+    }, 500);
 
     return () => clearTimeout(timer);
   }, [barcodeInput, drugs, manifestId, currentPage]);
- const triggerCamera = () => {
-    if (!matchingItem) return;
-    fileInputRef.current?.click();
-  };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !matchingItem) return;
+  const handleJumpToDrug = (target: JumpTarget) => {
+    const isSamePage = target.page === currentPage;
 
-    const drugId = matchingItem.id;
-    setUploadingId(drugId);
-
-    try {
-      const filePath = `manifests/${manifestId}/${matchingItem.page_number}/${matchingItem.barcode}_${Date.now()}.jpg`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('drug-photos')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('drug-photos')
-        .getPublicUrl(filePath);
-
-      // 決定最終提交數量
-      let finalQuantity = 0;
-      if (selectedStatus === 'correct') {
-        finalQuantity = matchingItem.expected_quantity;
-      } else if (selectedStatus === 'incorrect') {
-        finalQuantity = parseInt(actualQuantity || '0');
-      } else {
-        finalQuantity = parseInt(actualQuantity || '0');
-      }
-
-      const { error: updateError } = await updateDrugStatus(drugId, publicUrl, finalQuantity);
-      if (updateError) throw updateError;
-
-      await fetchPageData();
-      setBarcodeInput('');
-      setActualQuantity('');
-      setSelectedStatus(null);
-    } catch (error: any) {
-      console.error('Upload Error:', error);
-      alert(`上傳失敗: ${error.message}`);
-    } finally {
-      setUploadingId(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+    if (isSamePage) {
+      setBarcodeInput(target.barcode);
+      setTimeout(() => {
+        const element = document.querySelector(`[data-drug-id="${target.id}"]`);
+        element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    } else {
+      setLastVisitedPage(currentPage);
+      lastVisitedPageRef.current = currentPage;
+      setLastScrollY(window.scrollY);
+      lastScrollYRef.current = window.scrollY;
+      navigateToPage(target.page);
+      setBarcodeInput(target.barcode);
+      setTimeout(() => {
+        const element = document.querySelector(`[data-drug-id="${target.id}"]`);
+        element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 150);
     }
   };
 
-  // 封裝更新狀態 API (內部使用)
-  async function updateDrugStatus(id: string, url: string, qty: number) {
-    const item = drugs.find(d => d.id === id);
-    const expected = item?.expected_quantity || 0;
-    const status = qty === expected ? 'completed' : 'error';
-
-    const { error } = await supabase
-      .from('drug_items')
-      .update({
-        actual_quantity: qty,
-        counted_status: status,
-        photo_url: url,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id);
-    
-    return { error };
-  }
+  const pageCompletedCount = drugs.filter((d) => d.counted_status !== 'pending').length;
+  const pageTotalCount = drugs.length || 44;
 
   return (
-    <div className="min-h-screen bg-[#07142b] text-slate-200 flex flex-col overflow-x-hidden">
-      {/* 跨頁跳轉 Dialog */}
-      {jumpTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="tech-card p-6 max-w-sm w-full space-y-4 animate-in zoom-in duration-200">
-            <div className="flex items-center gap-3 text-[#00f2fe]">
-              <ArrowRightLeft className="w-6 h-6" />
-              <h3 className="font-bold text-lg">發現藥品在其他分頁</h3>
-            </div>
-            <p className="text-slate-400 text-sm leading-relaxed">
-              藥品 <span className="text-white font-bold">「{jumpTarget.name}」</span> 位於 <span className="text-[#00f2fe] font-bold">第 {jumpTarget.page} 頁</span>。
-            </p>
-            <div className="flex gap-3 pt-2">
-              <button 
-                onClick={() => setJumpTarget(null)}
-                className="flex-1 py-2 bg-slate-800 text-slate-400 rounded-xl font-medium hover:bg-slate-700 transition-colors"
-              >
-                留在本頁
-              </button>
-              <button 
-                onClick={() => {
-                  setCurrentPage(jumpTarget.page);
-                  setJumpTarget(null);
-                }}
-                className="flex-1 py-2 bg-[#00f2fe] text-slate-900 rounded-xl font-bold hover:brightness-110 transition-all"
-              >
-                跳轉至該頁
-              </button>
-            </div>
+    <div className="h-screen bg-[#07142b] text-slate-200 flex flex-col overflow-hidden">
+      <ErrorDrawer
+        isOpen={isErrorDrawerOpen}
+        errorDrugs={errorDrugs}
+        onClose={() => setIsErrorDrawerOpen(false)}
+        onJumpToDrug={(drug) =>
+          handleJumpToDrug({
+            page: drug.page_number,
+            name: drug.name,
+            id: drug.id,
+            barcode: drug.barcode,
+          })
+        }
+      />
+
+      {/* 全域進度條 */}
+      <div className="fixed top-0 left-0 w-full h-1 z-[100] bg-slate-800">
+        <div
+          className="h-full bg-[#00f2fe] shadow-[0_0_10px_#00f2fe] transition-all duration-500 ease-out"
+          style={{ width: totalItems > 0 ? `${(completedTotal / totalItems) * 100}%` : '0%' }}
+        />
+      </div>
+
+      {/* Toast 通知 */}
+      {toast && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[110] animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="px-4 py-2 bg-slate-800/90 border border-slate-600 rounded-xl text-sm text-slate-200 shadow-lg backdrop-blur-md">
+            {toast}
           </div>
         </div>
       )}
 
+      {/* 跳轉回溯標籤 */}
+      {lastVisitedPage && lastVisitedPage !== currentPage && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
+          <button
+            onClick={() => {
+              setBarcodeInput('');
+              setCurrentPage(lastVisitedPage!);
+              setLastVisitedPage(null);
+
+              if (lastScrollY !== null) {
+                setTimeout(() => {
+                  window.scrollTo({ top: lastScrollY, behavior: 'smooth' });
+                }, 100);
+              }
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-[#00f2fe] text-slate-900 rounded-full text-xs font-bold shadow-lg hover:scale-105 active:scale-95 transition-all"
+          >
+            <ArrowLeft className="w-3 h-3" />
+            <span>返回原分頁 (第 {lastVisitedPage} 頁)</span>
+          </button>
+        </div>
+      )}
+
+      {/* 跨頁跳轉 Dialog */}
+      {jumpTarget && (
+        <JumpDialog
+          jumpTarget={jumpTarget}
+          currentPage={currentPage}
+          onStay={() => setJumpTarget(null)}
+          onJump={() => {
+            handleJumpToDrug(jumpTarget);
+            setJumpTarget(null);
+          }}
+        />
+      )}
+
       {/* 照片預覽 Modal */}
       {previewImage && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md cursor-zoom-out"
-          onClick={() => setPreviewImage(null)}
-        >
-          <div className="relative max-w-4xl w-full animate-in zoom-in duration-300">
-            <img 
-              src={previewImage} 
-              alt="Drug evidence" 
-              className="w-full h-auto max-h-[85vh] object-contain rounded-2xl shadow-2xl border border-white/10"
-            />
-            <button 
-              onClick={() => setPreviewImage(null)}
-              className="absolute top-4 right-4 p-2 bg-black/50 text-white rounded-full hover:bg-black/80 transition-colors"
-            >
-              <ArrowLeft className="w-6 h-6" />
-            </button>
-          </div>
-        </div>
+        <PhotoPreview imageUrl={previewImage} onClose={() => setPreviewImage(null)} />
       )}
 
       <header className="bg-[#162a56]/80 backdrop-blur-sm border-b border-blue-500/20 sticky top-0 z-10 p-4 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/manifests" className="p-2 hover:bg-slate-800 rounded-full transition-colors">
-              <ArrowLeft className="w-5 h-5 text-slate-400" />
-            </Link>
+            <button
+              onClick={() => {
+                if (barcodeInput) {
+                  setBarcodeInput('');
+                } else {
+                  router.push('/manifests');
+                }
+              }}
+              className={`p-2 rounded-full transition-all active:scale-95 ${
+                barcodeInput
+                  ? 'bg-slate-700/80 hover:bg-slate-600 text-white'
+                  : 'hover:bg-slate-800 text-slate-400'
+              }`}
+            >
+              {barcodeInput ? <X className="w-5 h-5" /> : <ArrowLeft className="w-5 h-5" />}
+            </button>
             <div>
-              <h1 className="font-bold text-white truncate max-w-[150px]">{manifestName || '載入中...'}</h1>
+              <h1 className="font-bold text-white truncate max-w-[150px]">
+                {manifestName || '載入中...'}
+              </h1>
               <div className="flex items-center gap-2">
                 <p className="text-xs text-slate-500">分頁清點模式</p>
+                <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[10px] font-bold border border-blue-500/30">
+                  本頁 {pageCompletedCount}/{pageTotalCount}
+                </span>
                 {isLocked && (
                   <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 text-[10px] font-bold border border-red-500/30">
                     已封存 (唯讀)
@@ -312,28 +353,41 @@ export default function ScanContent() {
               </div>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-3">
-            <Link 
+            <Link
               href={`/summary/${manifestId}`}
               className="flex items-center gap-2 px-3 py-1.5 bg-slate-950/50 text-slate-300 rounded-xl border border-slate-800 hover:bg-slate-800 transition-all text-sm font-medium"
             >
               <FileText className="w-4 h-4" />
               <span>預覽結果</span>
             </Link>
+            <button
+              onClick={() => setIsErrorDrawerOpen(true)}
+              className={`flex items-center gap-2 px-3 py-1.5 bg-slate-950/50 text-slate-300 rounded-xl border transition-all text-sm font-medium ${
+                errorTotal > 0
+                  ? 'border-red-500/50 text-red-400 hover:bg-red-500/10'
+                  : 'border-slate-800 hover:bg-slate-800'
+              }`}
+            >
+              <AlertCircle className="w-4 h-4" />
+              <span>異常清單 ({errorTotal})</span>
+            </button>
             <div className="flex items-center gap-2 bg-slate-950/50 p-1 rounded-xl border border-slate-800">
-              <button 
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              <button
+                onClick={() => navigateToPage(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}
-                className="p-1 hover:bg-slate-800 rounded disabled:opacity-30 transition-all"
+                className="p-1 hover:bg-slate-800 rounded disabled:opacity-30 transition-all active:scale-95"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
-              <span className="text-sm font-bold px-2 text-slate-300">第 {currentPage} 頁</span>
-              <button 
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              <span className="text-sm font-bold px-2 text-slate-300">
+                第 {currentPage}/{totalPages} 頁
+              </span>
+              <button
+                onClick={() => navigateToPage(Math.min(totalPages, currentPage + 1))}
                 disabled={currentPage === totalPages}
-                className="p-1 hover:bg-slate-800 rounded disabled:opacity-30 transition-all"
+                className="p-1 hover:bg-slate-800 rounded disabled:opacity-30 transition-all active:scale-95"
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
@@ -356,45 +410,29 @@ export default function ScanContent() {
           </div>
           <div className="flex flex-col items-center">
             <span className="text-[10px] text-slate-500 uppercase font-bold">待清點</span>
-            <span className="text-sm font-mono font-bold text-slate-300">{totalItems - completedTotal - errorTotal}</span>
+            <span className="text-sm font-mono font-bold text-slate-300">
+              {totalItems - completedTotal - errorTotal}
+            </span>
           </div>
         </div>
 
-        <div className="relative overflow-hidden">
-          <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-            <Search className="w-5 h-5 text-slate-500" />
-          </div>
-          <input
-            type="text"
-            id="search-barcode"
-            name="barcode"
-            value={barcodeInput}
-            onChange={handleBarcodeChange}
-            placeholder="掃描或輸入條碼..."
-            disabled={isLocked}
-            className={`tech-input w-full pl-9 md:pl-10 pr-12 text-base md:text-lg font-mono ${
-              matchingItem ? 'border-[#00f2fe] ring-1 ring-inset ring-[#00f2fe]/50' : ''
-            } ${isLocked ? 'bg-slate-900/50 opacity-50 cursor-not-allowed' : ''}`}
-            autoFocus
-          />
-          {matchingItem && (
-            <div className="absolute inset-y-0 right-2 flex items-center animate-in zoom-in duration-300">
-              <div className="bg-[#00f2fe]/20 text-[#00f2fe] p-1 rounded-full border border-[#00f2fe]/50">
-                <CheckCircle2 className="w-5 h-5" />
-              </div>
-            </div>
-          )}
-        </div>
+        <BarcodeSearchBar
+          value={barcodeInput}
+          onChange={setBarcodeInput}
+          onClear={() => setBarcodeInput('')}
+          hasMatch={!!matchingItem}
+          isLocked={isLocked}
+        />
       </header>
 
       <main className="flex-1 p-4 overflow-y-auto">
-        <input 
-          type="file" 
+        <input
+          type="file"
           ref={fileInputRef}
           onChange={handleFileUpload}
-          accept="image/*" 
-          capture="environment" 
-          className="hidden" 
+          accept="image/*"
+          capture="environment"
+          className="hidden"
         />
 
         {loading ? (
@@ -410,141 +448,31 @@ export default function ScanContent() {
         ) : (
           <div className="space-y-4">
             {drugs
-              .slice((currentPage - 1) * 44, currentPage * 44)
-              .filter(drug => !barcodeInput || getMatchScore(drug, barcodeInput) > 0)
+              .filter((drug) => !barcodeInput || getMatchScore(drug, barcodeInput) > 0)
               .map((drug) => {
-                const score = getMatchScore(drug, barcodeInput);
-                const isMatched = score > 0;
-                const isCompleted = drug.counted_status === 'completed';
-                const isError = drug.counted_status === 'error';
-                const isUploading = uploadingId === drug.id;
-                
-                // 即時比對邏輯
-                let isRealtimeError = false;
-                if (isMatched && actualQuantity !== '') {
-                  isRealtimeError = parseInt(actualQuantity) !== drug.expected_quantity;
-                }
-                const isRealtimeCompleted = isMatched && actualQuantity !== '' && parseInt(actualQuantity) === drug.expected_quantity;
+                const isMatched = getMatchScore(drug, barcodeInput) > 0;
+                const isUploading = uploadingQueue.has(drug.id);
 
                 return (
-                  <div 
+                  <DrugCard
                     key={drug.id}
-                    className={`tech-card p-4 transition-all duration-300 flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 ${
-                      isMatched ? 'border-[#00f2fe] ring-2 ring-inset ring-[#00f2fe]/50 scale-[1.02] z-10' : ''
-                    } ${isError || isRealtimeError ? 'border-[#ff4b5c] bg-[#ff4b5c]/10' : ''} ${isCompleted && !isMatched ? 'opacity-40 grayscale' : ''}`}
-                  >
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-4 flex-1 min-w-0">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                        isCompleted ? 'bg-[#00f2fe] text-slate-900' : isError ? 'bg-[#ff4b5c] text-white' : 'bg-slate-800 text-slate-400'
-                      }`}>
-                        {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : isError ? <AlertCircle className="w-5 h-5" /> : drug.page_number}
-                      </div>
-                      <div className="min-w-0">
-                        <div className={`font-bold text-lg truncate ${isMatched ? 'text-[#00f2fe]' : 'text-white'}`}>{drug.name}</div>
-                        <div className="text-xs font-mono text-slate-500 truncate break-all">{drug.barcode} | 預期: {drug.expected_quantity}</div>
-                      </div>
-                    </div>
-                    
-                    {drug.photo_url && (
-                      <div 
-                        onClick={() => {
-                          if (isMatched) {
-                            triggerCamera();
-                          } else {
-                            setPreviewImage(drug.photo_url);
-                          }
-                        }}
-                        className={`w-12 h-12 rounded-lg overflow-hidden border cursor-pointer transition-all shrink-0 shadow-inner bg-slate-900 ${
-                          isMatched ? 'border-[#00f2fe] hover:scale-110' : 'border-slate-700 hover:border-[#00f2fe]'
-                        }`}
-                        title={isMatched ? '點擊重新拍照' : '點擊預覽'}
-                      >
-                        <img 
-                          src={drug.photo_url} 
-                          alt="Thumbnail" 
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="flex justify-between items-center gap-4">
-                    {isMatched && (
-                      <div className="flex flex-col gap-3 bg-slate-950/50 p-3 rounded-xl border border-slate-700 w-full md:w-auto">
-                        <div className="flex items-center gap-2">
-                          <button 
-                            onClick={() => {
-                              setSelectedStatus('correct');
-                              setActualQuantity(String(drug.expected_quantity));
-                              triggerCamera();
-                            }}
-                            disabled={isLocked}
-                            className={`flex-1 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-                              selectedStatus === 'correct' 
-                                ? 'bg-[#00f2fe] text-slate-900 shadow-[0_0_10px_rgba(0,242,254,0.4)]' 
-                                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                            } ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
-                          >
-                            正確
-                          </button>
-                          <button 
-                            onClick={() => {
-                              setSelectedStatus('incorrect');
-                              setActualQuantity('');
-                            }}
-                            disabled={isLocked}
-                            className={`flex-1 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-                              selectedStatus === 'incorrect' 
-                                ? 'bg-[#ff4b5c] text-white shadow-[0_0_10px_rgba(255,75,92,0.4)]' 
-                                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                            } ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
-                          >
-                            有誤
-                          </button>
-                        </div>
-                        
-                        {selectedStatus === 'incorrect' && (
-                          <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase">實際數量:</label>
-                            <input 
-                              type="number"
-                              value={actualQuantity}
-                              onChange={(e) => setActualQuantity(e.target.value)}
-                              disabled={isLocked}
-                              autoFocus
-                              className={`flex-1 bg-transparent text-right font-mono text-sm text-[#00f2fe] outline-none ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              placeholder="0"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    <div className="flex-1" />
-                    <button 
-                      onClick={triggerCamera}
-                      disabled={!isMatched || !!uploadingId || isLocked || (selectedStatus === 'incorrect' && !actualQuantity)}
-                      className={`tech-button px-6 py-2 ${
-                        isMatched && !isLocked
-                          ? 'tech-button-primary' 
-                          : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                      }`}
-                    >
-                      {isUploading ? (
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                      ) : (
-                        <Camera className="w-5 h-5" />
-                      )}
-                      <span className="text-sm font-bold">{isUploading ? '上傳中...' : '拍照確認'}</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+                    drug={drug}
+                    isMatched={isMatched}
+                    isUploading={isUploading}
+                    isLocked={isLocked}
+                    actualQuantity={actualQuantity}
+                    selectedStatus={selectedStatus}
+                    onStatusSelect={setSelectedStatus}
+                    onActualQuantityChange={setActualQuantity}
+                    onTriggerCamera={triggerCamera}
+                    onPreviewPhoto={setPreviewImage}
+                  />
+                );
+              })}
           </div>
         )}
       </main>
-      
+
       <footer className="p-4 bg-[#07142b] border-t border-slate-800 text-center">
         <p className="text-xs text-slate-500 font-medium">
           請掃描條碼以激活數量輸入與拍照按鈕

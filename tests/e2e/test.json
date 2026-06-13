@@ -1,0 +1,1542 @@
+[
+  {
+    "barcode": "471010010000",
+    "name": "普拿疼加強錠 500mg",
+    "expected_quantity": 74
+  },
+  {
+    "barcode": "471010020000",
+    "name": "阿斯匹靈腸溶錠 200mg",
+    "expected_quantity": 62
+  },
+  {
+    "barcode": "471010030000",
+    "name": "布洛芬膠囊 400mg",
+    "expected_quantity": 13
+  },
+  {
+    "barcode": "471010040000",
+    "name": "胃達樂錠 10mg",
+    "expected_quantity": 12
+  },
+  {
+    "barcode": "471010050000",
+    "name": "樂必寧止瀉錠 20mg",
+    "expected_quantity": 11
+  },
+  {
+    "barcode": "471010060000",
+    "name": "抗敏寧錠 5mg",
+    "expected_quantity": 11
+  },
+  {
+    "barcode": "471010070000",
+    "name": "安眠舒錠 2mg",
+    "expected_quantity": 29
+  },
+  {
+    "barcode": "471010080000",
+    "name": "降血糖錠 50mcg",
+    "expected_quantity": 42
+  },
+  {
+    "barcode": "471010090000",
+    "name": "降血脂錠 100mg",
+    "expected_quantity": 24
+  },
+  {
+    "barcode": "471010100000",
+    "name": "降血壓錠 1000mg",
+    "expected_quantity": 10
+  },
+  {
+    "barcode": "471010110000",
+    "name": "利尿錠 40mg",
+    "expected_quantity": 67
+  },
+  {
+    "barcode": "471010120000",
+    "name": "止咳化痰液 25mg",
+    "expected_quantity": 39
+  },
+  {
+    "barcode": "471010130000",
+    "name": "消炎止痛凝膠 Tab",
+    "expected_quantity": 44
+  },
+  {
+    "barcode": "471010140000",
+    "name": "胃潰瘍錠 Cap",
+    "expected_quantity": 27
+  },
+  {
+    "barcode": "471010150000",
+    "name": "抗憂鬱錠 Gel",
+    "expected_quantity": 24
+  },
+  {
+    "barcode": "471010160000",
+    "name": "抗生素膠囊 Cream",
+    "expected_quantity": 41
+  },
+  {
+    "barcode": "471010170000",
+    "name": "類固醇軟膏 Syrup",
+    "expected_quantity": 21
+  },
+  {
+    "barcode": "471010180000",
+    "name": "抗癲癇錠 Spray",
+    "expected_quantity": 47
+  },
+  {
+    "barcode": "471010190000",
+    "name": "甲狀腺素錠 Granule",
+    "expected_quantity": 12
+  },
+  {
+    "barcode": "471010200000",
+    "name": "抗凝血錠 500mg",
+    "expected_quantity": 39
+  },
+  {
+    "barcode": "471010210000",
+    "name": "眼藥水 200mg",
+    "expected_quantity": 35
+  },
+  {
+    "barcode": "471010220000",
+    "name": "鼻噴劑 400mg",
+    "expected_quantity": 57
+  },
+  {
+    "barcode": "471010230000",
+    "name": "綜合維他命錠 10mg",
+    "expected_quantity": 70
+  },
+  {
+    "barcode": "471010240000",
+    "name": "魚油軟膠囊 20mg",
+    "expected_quantity": 73
+  },
+  {
+    "barcode": "471010250000",
+    "name": "維生素C錠 5mg",
+    "expected_quantity": 71
+  },
+  {
+    "barcode": "471010260000",
+    "name": "鈣片咀嚼錠 2mg",
+    "expected_quantity": 30
+  },
+  {
+    "barcode": "471010270000",
+    "name": "益生菌膠囊 50mcg",
+    "expected_quantity": 78
+  },
+  {
+    "barcode": "471010280000",
+    "name": "葉酸錠 100mg",
+    "expected_quantity": 38
+  },
+  {
+    "barcode": "471010290000",
+    "name": "鐵劑錠 1000mg",
+    "expected_quantity": 14
+  },
+  {
+    "barcode": "471010300000",
+    "name": "葡萄糖胺膠囊 40mg",
+    "expected_quantity": 38
+  },
+  {
+    "barcode": "471010310000",
+    "name": "銀杏萃取錠 25mg",
+    "expected_quantity": 43
+  },
+  {
+    "barcode": "471010320000",
+    "name": "蔓越莓膠囊 Tab",
+    "expected_quantity": 40
+  },
+  {
+    "barcode": "471010330000",
+    "name": "葉黃素軟膠囊 Cap",
+    "expected_quantity": 33
+  },
+  {
+    "barcode": "471010340000",
+    "name": "蜂膠噴劑 Gel",
+    "expected_quantity": 32
+  },
+  {
+    "barcode": "471010350000",
+    "name": "感冒靈顆粒 Cream",
+    "expected_quantity": 25
+  },
+  {
+    "barcode": "471010360000",
+    "name": "川貝枇杷膏 Syrup",
+    "expected_quantity": 67
+  },
+  {
+    "barcode": "471010370000",
+    "name": "萬金油軟膏 Spray",
+    "expected_quantity": 14
+  },
+  {
+    "barcode": "471010380000",
+    "name": "德國百靈油 Granule",
+    "expected_quantity": 15
+  },
+  {
+    "barcode": "471010390000",
+    "name": "正光金絲膏 500mg",
+    "expected_quantity": 13
+  },
+  {
+    "barcode": "471010400000",
+    "name": "撒隆巴斯貼布 200mg",
+    "expected_quantity": 29
+  },
+  {
+    "barcode": "471010410000",
+    "name": "肌樂噴劑 400mg",
+    "expected_quantity": 38
+  },
+  {
+    "barcode": "471010420000",
+    "name": "熱力鎮痛貼片 10mg",
+    "expected_quantity": 69
+  },
+  {
+    "barcode": "471010430000",
+    "name": "普濟消毒飲 20mg",
+    "expected_quantity": 24
+  },
+  {
+    "barcode": "471010440000",
+    "name": "葛根湯顆粒 5mg",
+    "expected_quantity": 61
+  },
+  {
+    "barcode": "471020010000",
+    "name": "普拿疼加強錠 (2mg)",
+    "expected_quantity": 25
+  },
+  {
+    "barcode": "471020020000",
+    "name": "阿斯匹靈腸溶錠 50mcg",
+    "expected_quantity": 46
+  },
+  {
+    "barcode": "471020030000",
+    "name": "布洛芬膠囊 100mg",
+    "expected_quantity": 12
+  },
+  {
+    "barcode": "471020040000",
+    "name": "胃達樂錠 1000mg",
+    "expected_quantity": 51
+  },
+  {
+    "barcode": "471020050000",
+    "name": "樂必寧止瀉錠 40mg",
+    "expected_quantity": 76
+  },
+  {
+    "barcode": "471020060000",
+    "name": "抗敏寧錠 25mg",
+    "expected_quantity": 29
+  },
+  {
+    "barcode": "471020070000",
+    "name": "安眠舒錠 Tab",
+    "expected_quantity": 19
+  },
+  {
+    "barcode": "471020080000",
+    "name": "降血糖錠 Cap",
+    "expected_quantity": 64
+  },
+  {
+    "barcode": "471020090000",
+    "name": "降血脂錠 Gel",
+    "expected_quantity": 68
+  },
+  {
+    "barcode": "471020100000",
+    "name": "降血壓錠 Cream",
+    "expected_quantity": 12
+  },
+  {
+    "barcode": "471020110000",
+    "name": "利尿錠 Syrup",
+    "expected_quantity": 37
+  },
+  {
+    "barcode": "471020120000",
+    "name": "止咳化痰液 Spray",
+    "expected_quantity": 75
+  },
+  {
+    "barcode": "471020130000",
+    "name": "消炎止痛凝膠 Granule",
+    "expected_quantity": 60
+  },
+  {
+    "barcode": "471020140000",
+    "name": "胃潰瘍錠 500mg",
+    "expected_quantity": 72
+  },
+  {
+    "barcode": "471020150000",
+    "name": "抗憂鬱錠 200mg",
+    "expected_quantity": 41
+  },
+  {
+    "barcode": "471020160000",
+    "name": "抗生素膠囊 400mg",
+    "expected_quantity": 32
+  },
+  {
+    "barcode": "471020170000",
+    "name": "類固醇軟膏 10mg",
+    "expected_quantity": 57
+  },
+  {
+    "barcode": "471020180000",
+    "name": "抗癲癇錠 20mg",
+    "expected_quantity": 43
+  },
+  {
+    "barcode": "471020190000",
+    "name": "甲狀腺素錠 5mg",
+    "expected_quantity": 58
+  },
+  {
+    "barcode": "471020200000",
+    "name": "抗凝血錠 2mg",
+    "expected_quantity": 45
+  },
+  {
+    "barcode": "471020210000",
+    "name": "眼藥水 50mcg",
+    "expected_quantity": 69
+  },
+  {
+    "barcode": "471020220000",
+    "name": "鼻噴劑 100mg",
+    "expected_quantity": 32
+  },
+  {
+    "barcode": "471020230000",
+    "name": "綜合維他命錠 1000mg",
+    "expected_quantity": 66
+  },
+  {
+    "barcode": "471020240000",
+    "name": "魚油軟膠囊 40mg",
+    "expected_quantity": 47
+  },
+  {
+    "barcode": "471020250000",
+    "name": "維生素C錠 25mg",
+    "expected_quantity": 12
+  },
+  {
+    "barcode": "471020260000",
+    "name": "鈣片咀嚼錠 Tab",
+    "expected_quantity": 46
+  },
+  {
+    "barcode": "471020270000",
+    "name": "益生菌膠囊 Cap",
+    "expected_quantity": 74
+  },
+  {
+    "barcode": "471020280000",
+    "name": "葉酸錠 Gel",
+    "expected_quantity": 27
+  },
+  {
+    "barcode": "471020290000",
+    "name": "鐵劑錠 Cream",
+    "expected_quantity": 18
+  },
+  {
+    "barcode": "471020300000",
+    "name": "葡萄糖胺膠囊 Syrup",
+    "expected_quantity": 68
+  },
+  {
+    "barcode": "471020310000",
+    "name": "銀杏萃取錠 Spray",
+    "expected_quantity": 70
+  },
+  {
+    "barcode": "471020320000",
+    "name": "蔓越莓膠囊 Granule",
+    "expected_quantity": 44
+  },
+  {
+    "barcode": "471020330000",
+    "name": "葉黃素軟膠囊 500mg",
+    "expected_quantity": 14
+  },
+  {
+    "barcode": "471020340000",
+    "name": "蜂膠噴劑 200mg",
+    "expected_quantity": 48
+  },
+  {
+    "barcode": "471020350000",
+    "name": "感冒靈顆粒 400mg",
+    "expected_quantity": 66
+  },
+  {
+    "barcode": "471020360000",
+    "name": "川貝枇杷膏 10mg",
+    "expected_quantity": 72
+  },
+  {
+    "barcode": "471020370000",
+    "name": "萬金油軟膏 20mg",
+    "expected_quantity": 24
+  },
+  {
+    "barcode": "471020380000",
+    "name": "德國百靈油 5mg",
+    "expected_quantity": 53
+  },
+  {
+    "barcode": "471020390000",
+    "name": "正光金絲膏 2mg",
+    "expected_quantity": 65
+  },
+  {
+    "barcode": "471020400000",
+    "name": "撒隆巴斯貼布 50mcg",
+    "expected_quantity": 34
+  },
+  {
+    "barcode": "471020410000",
+    "name": "肌樂噴劑 100mg",
+    "expected_quantity": 74
+  },
+  {
+    "barcode": "471020420000",
+    "name": "熱力鎮痛貼片 1000mg",
+    "expected_quantity": 15
+  },
+  {
+    "barcode": "471020430000",
+    "name": "普濟消毒飲 40mg",
+    "expected_quantity": 70
+  },
+  {
+    "barcode": "471020440000",
+    "name": "葛根湯顆粒 25mg",
+    "expected_quantity": 37
+  },
+  {
+    "barcode": "471030010000",
+    "name": "普拿疼加強錠 (Tab)",
+    "expected_quantity": 64
+  },
+  {
+    "barcode": "471030020000",
+    "name": "阿斯匹靈腸溶錠 Cap",
+    "expected_quantity": 34
+  },
+  {
+    "barcode": "471030030000",
+    "name": "布洛芬膠囊 Gel",
+    "expected_quantity": 62
+  },
+  {
+    "barcode": "471030040000",
+    "name": "胃達樂錠 Cream",
+    "expected_quantity": 30
+  },
+  {
+    "barcode": "471030050000",
+    "name": "樂必寧止瀉錠 Syrup",
+    "expected_quantity": 13
+  },
+  {
+    "barcode": "471030060000",
+    "name": "抗敏寧錠 Spray",
+    "expected_quantity": 66
+  },
+  {
+    "barcode": "471030070000",
+    "name": "安眠舒錠 Granule",
+    "expected_quantity": 53
+  },
+  {
+    "barcode": "471030080000",
+    "name": "降血糖錠 500mg",
+    "expected_quantity": 28
+  },
+  {
+    "barcode": "471030090000",
+    "name": "降血脂錠 200mg",
+    "expected_quantity": 47
+  },
+  {
+    "barcode": "471030100000",
+    "name": "降血壓錠 400mg",
+    "expected_quantity": 54
+  },
+  {
+    "barcode": "471030110000",
+    "name": "利尿錠 10mg",
+    "expected_quantity": 24
+  },
+  {
+    "barcode": "471030120000",
+    "name": "止咳化痰液 20mg",
+    "expected_quantity": 41
+  },
+  {
+    "barcode": "471030130000",
+    "name": "消炎止痛凝膠 5mg",
+    "expected_quantity": 35
+  },
+  {
+    "barcode": "471030140000",
+    "name": "胃潰瘍錠 2mg",
+    "expected_quantity": 68
+  },
+  {
+    "barcode": "471030150000",
+    "name": "抗憂鬱錠 50mcg",
+    "expected_quantity": 53
+  },
+  {
+    "barcode": "471030160000",
+    "name": "抗生素膠囊 100mg",
+    "expected_quantity": 59
+  },
+  {
+    "barcode": "471030170000",
+    "name": "類固醇軟膏 1000mg",
+    "expected_quantity": 21
+  },
+  {
+    "barcode": "471030180000",
+    "name": "抗癲癇錠 40mg",
+    "expected_quantity": 32
+  },
+  {
+    "barcode": "471030190000",
+    "name": "甲狀腺素錠 25mg",
+    "expected_quantity": 23
+  },
+  {
+    "barcode": "471030200000",
+    "name": "抗凝血錠 Tab",
+    "expected_quantity": 12
+  },
+  {
+    "barcode": "471030210000",
+    "name": "眼藥水 Cap",
+    "expected_quantity": 29
+  },
+  {
+    "barcode": "471030220000",
+    "name": "鼻噴劑 Gel",
+    "expected_quantity": 48
+  },
+  {
+    "barcode": "471030230000",
+    "name": "綜合維他命錠 Cream",
+    "expected_quantity": 32
+  },
+  {
+    "barcode": "471030240000",
+    "name": "魚油軟膠囊 Syrup",
+    "expected_quantity": 62
+  },
+  {
+    "barcode": "471030250000",
+    "name": "維生素C錠 Spray",
+    "expected_quantity": 14
+  },
+  {
+    "barcode": "471030260000",
+    "name": "鈣片咀嚼錠 Granule",
+    "expected_quantity": 46
+  },
+  {
+    "barcode": "471030270000",
+    "name": "益生菌膠囊 500mg",
+    "expected_quantity": 62
+  },
+  {
+    "barcode": "471030280000",
+    "name": "葉酸錠 200mg",
+    "expected_quantity": 78
+  },
+  {
+    "barcode": "471030290000",
+    "name": "鐵劑錠 400mg",
+    "expected_quantity": 78
+  },
+  {
+    "barcode": "471030300000",
+    "name": "葡萄糖胺膠囊 10mg",
+    "expected_quantity": 33
+  },
+  {
+    "barcode": "471030310000",
+    "name": "銀杏萃取錠 20mg",
+    "expected_quantity": 39
+  },
+  {
+    "barcode": "471030320000",
+    "name": "蔓越莓膠囊 5mg",
+    "expected_quantity": 13
+  },
+  {
+    "barcode": "471030330000",
+    "name": "葉黃素軟膠囊 2mg",
+    "expected_quantity": 12
+  },
+  {
+    "barcode": "471030340000",
+    "name": "蜂膠噴劑 50mcg",
+    "expected_quantity": 48
+  },
+  {
+    "barcode": "471030350000",
+    "name": "感冒靈顆粒 100mg",
+    "expected_quantity": 22
+  },
+  {
+    "barcode": "471030360000",
+    "name": "川貝枇杷膏 1000mg",
+    "expected_quantity": 27
+  },
+  {
+    "barcode": "471030370000",
+    "name": "萬金油軟膏 40mg",
+    "expected_quantity": 72
+  },
+  {
+    "barcode": "471030380000",
+    "name": "德國百靈油 25mg",
+    "expected_quantity": 44
+  },
+  {
+    "barcode": "471030390000",
+    "name": "正光金絲膏 Tab",
+    "expected_quantity": 16
+  },
+  {
+    "barcode": "471030400000",
+    "name": "撒隆巴斯貼布 Cap",
+    "expected_quantity": 61
+  },
+  {
+    "barcode": "471030410000",
+    "name": "肌樂噴劑 Gel",
+    "expected_quantity": 43
+  },
+  {
+    "barcode": "471030420000",
+    "name": "熱力鎮痛貼片 Cream",
+    "expected_quantity": 80
+  },
+  {
+    "barcode": "471030430000",
+    "name": "普濟消毒飲 Syrup",
+    "expected_quantity": 16
+  },
+  {
+    "barcode": "471030440000",
+    "name": "葛根湯顆粒 Spray",
+    "expected_quantity": 43
+  },
+  {
+    "barcode": "471040010000",
+    "name": "普拿疼加強錠 (Granule)",
+    "expected_quantity": 11
+  },
+  {
+    "barcode": "471040020000",
+    "name": "阿斯匹靈腸溶錠 500mg",
+    "expected_quantity": 59
+  },
+  {
+    "barcode": "471040030000",
+    "name": "布洛芬膠囊 200mg",
+    "expected_quantity": 59
+  },
+  {
+    "barcode": "471040040000",
+    "name": "胃達樂錠 400mg",
+    "expected_quantity": 49
+  },
+  {
+    "barcode": "471040050000",
+    "name": "樂必寧止瀉錠 10mg",
+    "expected_quantity": 77
+  },
+  {
+    "barcode": "471040060000",
+    "name": "抗敏寧錠 20mg",
+    "expected_quantity": 46
+  },
+  {
+    "barcode": "471040070000",
+    "name": "安眠舒錠 5mg",
+    "expected_quantity": 34
+  },
+  {
+    "barcode": "471040080000",
+    "name": "降血糖錠 2mg",
+    "expected_quantity": 19
+  },
+  {
+    "barcode": "471040090000",
+    "name": "降血脂錠 50mcg",
+    "expected_quantity": 34
+  },
+  {
+    "barcode": "471040100000",
+    "name": "降血壓錠 100mg",
+    "expected_quantity": 24
+  },
+  {
+    "barcode": "471040110000",
+    "name": "利尿錠 1000mg",
+    "expected_quantity": 63
+  },
+  {
+    "barcode": "471040120000",
+    "name": "止咳化痰液 40mg",
+    "expected_quantity": 28
+  },
+  {
+    "barcode": "471040130000",
+    "name": "消炎止痛凝膠 25mg",
+    "expected_quantity": 50
+  },
+  {
+    "barcode": "471040140000",
+    "name": "胃潰瘍錠 Tab",
+    "expected_quantity": 70
+  },
+  {
+    "barcode": "471040150000",
+    "name": "抗憂鬱錠 Cap",
+    "expected_quantity": 10
+  },
+  {
+    "barcode": "471040160000",
+    "name": "抗生素膠囊 Gel",
+    "expected_quantity": 41
+  },
+  {
+    "barcode": "471040170000",
+    "name": "類固醇軟膏 Cream",
+    "expected_quantity": 38
+  },
+  {
+    "barcode": "471040180000",
+    "name": "抗癲癇錠 Syrup",
+    "expected_quantity": 44
+  },
+  {
+    "barcode": "471040190000",
+    "name": "甲狀腺素錠 Spray",
+    "expected_quantity": 67
+  },
+  {
+    "barcode": "471040200000",
+    "name": "抗凝血錠 Granule",
+    "expected_quantity": 64
+  },
+  {
+    "barcode": "471040210000",
+    "name": "眼藥水 500mg",
+    "expected_quantity": 30
+  },
+  {
+    "barcode": "471040220000",
+    "name": "鼻噴劑 200mg",
+    "expected_quantity": 72
+  },
+  {
+    "barcode": "471040230000",
+    "name": "綜合維他命錠 400mg",
+    "expected_quantity": 14
+  },
+  {
+    "barcode": "471040240000",
+    "name": "魚油軟膠囊 10mg",
+    "expected_quantity": 64
+  },
+  {
+    "barcode": "471040250000",
+    "name": "維生素C錠 20mg",
+    "expected_quantity": 74
+  },
+  {
+    "barcode": "471040260000",
+    "name": "鈣片咀嚼錠 5mg",
+    "expected_quantity": 55
+  },
+  {
+    "barcode": "471040270000",
+    "name": "益生菌膠囊 2mg",
+    "expected_quantity": 50
+  },
+  {
+    "barcode": "471040280000",
+    "name": "葉酸錠 50mcg",
+    "expected_quantity": 30
+  },
+  {
+    "barcode": "471040290000",
+    "name": "鐵劑錠 100mg",
+    "expected_quantity": 14
+  },
+  {
+    "barcode": "471040300000",
+    "name": "葡萄糖胺膠囊 1000mg",
+    "expected_quantity": 79
+  },
+  {
+    "barcode": "471040310000",
+    "name": "銀杏萃取錠 40mg",
+    "expected_quantity": 75
+  },
+  {
+    "barcode": "471040320000",
+    "name": "蔓越莓膠囊 25mg",
+    "expected_quantity": 61
+  },
+  {
+    "barcode": "471040330000",
+    "name": "葉黃素軟膠囊 Tab",
+    "expected_quantity": 12
+  },
+  {
+    "barcode": "471040340000",
+    "name": "蜂膠噴劑 Cap",
+    "expected_quantity": 14
+  },
+  {
+    "barcode": "471040350000",
+    "name": "感冒靈顆粒 Gel",
+    "expected_quantity": 71
+  },
+  {
+    "barcode": "471040360000",
+    "name": "川貝枇杷膏 Cream",
+    "expected_quantity": 55
+  },
+  {
+    "barcode": "471040370000",
+    "name": "萬金油軟膏 Syrup",
+    "expected_quantity": 38
+  },
+  {
+    "barcode": "471040380000",
+    "name": "德國百靈油 Spray",
+    "expected_quantity": 71
+  },
+  {
+    "barcode": "471040390000",
+    "name": "正光金絲膏 Granule",
+    "expected_quantity": 67
+  },
+  {
+    "barcode": "471040400000",
+    "name": "撒隆巴斯貼布 500mg",
+    "expected_quantity": 24
+  },
+  {
+    "barcode": "471040410000",
+    "name": "肌樂噴劑 200mg",
+    "expected_quantity": 59
+  },
+  {
+    "barcode": "471040420000",
+    "name": "熱力鎮痛貼片 400mg",
+    "expected_quantity": 49
+  },
+  {
+    "barcode": "471040430000",
+    "name": "普濟消毒飲 10mg",
+    "expected_quantity": 15
+  },
+  {
+    "barcode": "471040440000",
+    "name": "葛根湯顆粒 20mg",
+    "expected_quantity": 61
+  },
+  {
+    "barcode": "471050010000",
+    "name": "普拿疼加強錠 (5mg)",
+    "expected_quantity": 40
+  },
+  {
+    "barcode": "471050020000",
+    "name": "阿斯匹靈腸溶錠 2mg",
+    "expected_quantity": 23
+  },
+  {
+    "barcode": "471050030000",
+    "name": "布洛芬膠囊 50mcg",
+    "expected_quantity": 66
+  },
+  {
+    "barcode": "471050040000",
+    "name": "胃達樂錠 100mg",
+    "expected_quantity": 11
+  },
+  {
+    "barcode": "471050050000",
+    "name": "樂必寧止瀉錠 1000mg",
+    "expected_quantity": 59
+  },
+  {
+    "barcode": "471050060000",
+    "name": "抗敏寧錠 40mg",
+    "expected_quantity": 60
+  },
+  {
+    "barcode": "471050070000",
+    "name": "安眠舒錠 25mg",
+    "expected_quantity": 56
+  },
+  {
+    "barcode": "471050080000",
+    "name": "降血糖錠 Tab",
+    "expected_quantity": 45
+  },
+  {
+    "barcode": "471050090000",
+    "name": "降血脂錠 Cap",
+    "expected_quantity": 76
+  },
+  {
+    "barcode": "471050100000",
+    "name": "降血壓錠 Gel",
+    "expected_quantity": 16
+  },
+  {
+    "barcode": "471050110000",
+    "name": "利尿錠 Cream",
+    "expected_quantity": 44
+  },
+  {
+    "barcode": "471050120000",
+    "name": "止咳化痰液 Syrup",
+    "expected_quantity": 14
+  },
+  {
+    "barcode": "471050130000",
+    "name": "消炎止痛凝膠 Spray",
+    "expected_quantity": 18
+  },
+  {
+    "barcode": "471050140000",
+    "name": "胃潰瘍錠 Granule",
+    "expected_quantity": 67
+  },
+  {
+    "barcode": "471050150000",
+    "name": "抗憂鬱錠 500mg",
+    "expected_quantity": 11
+  },
+  {
+    "barcode": "471050160000",
+    "name": "抗生素膠囊 200mg",
+    "expected_quantity": 72
+  },
+  {
+    "barcode": "471050170000",
+    "name": "類固醇軟膏 400mg",
+    "expected_quantity": 60
+  },
+  {
+    "barcode": "471050180000",
+    "name": "抗癲癇錠 10mg",
+    "expected_quantity": 43
+  },
+  {
+    "barcode": "471050190000",
+    "name": "甲狀腺素錠 20mg",
+    "expected_quantity": 60
+  },
+  {
+    "barcode": "471050200000",
+    "name": "抗凝血錠 5mg",
+    "expected_quantity": 79
+  },
+  {
+    "barcode": "471050210000",
+    "name": "眼藥水 2mg",
+    "expected_quantity": 43
+  },
+  {
+    "barcode": "471050220000",
+    "name": "鼻噴劑 50mcg",
+    "expected_quantity": 35
+  },
+  {
+    "barcode": "471050230000",
+    "name": "綜合維他命錠 100mg",
+    "expected_quantity": 25
+  },
+  {
+    "barcode": "471050240000",
+    "name": "魚油軟膠囊 1000mg",
+    "expected_quantity": 70
+  },
+  {
+    "barcode": "471050250000",
+    "name": "維生素C錠 40mg",
+    "expected_quantity": 71
+  },
+  {
+    "barcode": "471050260000",
+    "name": "鈣片咀嚼錠 25mg",
+    "expected_quantity": 48
+  },
+  {
+    "barcode": "471050270000",
+    "name": "益生菌膠囊 Tab",
+    "expected_quantity": 78
+  },
+  {
+    "barcode": "471050280000",
+    "name": "葉酸錠 Cap",
+    "expected_quantity": 53
+  },
+  {
+    "barcode": "471050290000",
+    "name": "鐵劑錠 Gel",
+    "expected_quantity": 30
+  },
+  {
+    "barcode": "471050300000",
+    "name": "葡萄糖胺膠囊 Cream",
+    "expected_quantity": 55
+  },
+  {
+    "barcode": "471050310000",
+    "name": "銀杏萃取錠 Syrup",
+    "expected_quantity": 80
+  },
+  {
+    "barcode": "471050320000",
+    "name": "蔓越莓膠囊 Spray",
+    "expected_quantity": 71
+  },
+  {
+    "barcode": "471050330000",
+    "name": "葉黃素軟膠囊 Granule",
+    "expected_quantity": 66
+  },
+  {
+    "barcode": "471050340000",
+    "name": "蜂膠噴劑 500mg",
+    "expected_quantity": 26
+  },
+  {
+    "barcode": "471050350000",
+    "name": "感冒靈顆粒 200mg",
+    "expected_quantity": 59
+  },
+  {
+    "barcode": "471050360000",
+    "name": "川貝枇杷膏 400mg",
+    "expected_quantity": 39
+  },
+  {
+    "barcode": "471050370000",
+    "name": "萬金油軟膏 10mg",
+    "expected_quantity": 59
+  },
+  {
+    "barcode": "471050380000",
+    "name": "德國百靈油 20mg",
+    "expected_quantity": 74
+  },
+  {
+    "barcode": "471050390000",
+    "name": "正光金絲膏 5mg",
+    "expected_quantity": 75
+  },
+  {
+    "barcode": "471050400000",
+    "name": "撒隆巴斯貼布 2mg",
+    "expected_quantity": 35
+  },
+  {
+    "barcode": "471050410000",
+    "name": "肌樂噴劑 50mcg",
+    "expected_quantity": 80
+  },
+  {
+    "barcode": "471050420000",
+    "name": "熱力鎮痛貼片 100mg",
+    "expected_quantity": 10
+  },
+  {
+    "barcode": "471050430000",
+    "name": "普濟消毒飲 1000mg",
+    "expected_quantity": 19
+  },
+  {
+    "barcode": "471050440000",
+    "name": "葛根湯顆粒 40mg",
+    "expected_quantity": 22
+  },
+  {
+    "barcode": "471060010000",
+    "name": "普拿疼加強錠 (25mg)",
+    "expected_quantity": 66
+  },
+  {
+    "barcode": "471060020000",
+    "name": "阿斯匹靈腸溶錠 Tab",
+    "expected_quantity": 24
+  },
+  {
+    "barcode": "471060030000",
+    "name": "布洛芬膠囊 Cap",
+    "expected_quantity": 24
+  },
+  {
+    "barcode": "471060040000",
+    "name": "胃達樂錠 Gel",
+    "expected_quantity": 58
+  },
+  {
+    "barcode": "471060050000",
+    "name": "樂必寧止瀉錠 Cream",
+    "expected_quantity": 10
+  },
+  {
+    "barcode": "471060060000",
+    "name": "抗敏寧錠 Syrup",
+    "expected_quantity": 29
+  },
+  {
+    "barcode": "471060070000",
+    "name": "安眠舒錠 Spray",
+    "expected_quantity": 21
+  },
+  {
+    "barcode": "471060080000",
+    "name": "降血糖錠 Granule",
+    "expected_quantity": 63
+  },
+  {
+    "barcode": "471060090000",
+    "name": "降血脂錠 500mg",
+    "expected_quantity": 59
+  },
+  {
+    "barcode": "471060100000",
+    "name": "降血壓錠 200mg",
+    "expected_quantity": 59
+  },
+  {
+    "barcode": "471060110000",
+    "name": "利尿錠 400mg",
+    "expected_quantity": 21
+  },
+  {
+    "barcode": "471060120000",
+    "name": "止咳化痰液 10mg",
+    "expected_quantity": 76
+  },
+  {
+    "barcode": "471060130000",
+    "name": "消炎止痛凝膠 20mg",
+    "expected_quantity": 65
+  },
+  {
+    "barcode": "471060140000",
+    "name": "胃潰瘍錠 5mg",
+    "expected_quantity": 30
+  },
+  {
+    "barcode": "471060150000",
+    "name": "抗憂鬱錠 2mg",
+    "expected_quantity": 16
+  },
+  {
+    "barcode": "471060160000",
+    "name": "抗生素膠囊 50mcg",
+    "expected_quantity": 38
+  },
+  {
+    "barcode": "471060170000",
+    "name": "類固醇軟膏 100mg",
+    "expected_quantity": 44
+  },
+  {
+    "barcode": "471060180000",
+    "name": "抗癲癇錠 1000mg",
+    "expected_quantity": 75
+  },
+  {
+    "barcode": "471060190000",
+    "name": "甲狀腺素錠 40mg",
+    "expected_quantity": 13
+  },
+  {
+    "barcode": "471060200000",
+    "name": "抗凝血錠 25mg",
+    "expected_quantity": 45
+  },
+  {
+    "barcode": "471060210000",
+    "name": "眼藥水 Tab",
+    "expected_quantity": 47
+  },
+  {
+    "barcode": "471060220000",
+    "name": "鼻噴劑 Cap",
+    "expected_quantity": 54
+  },
+  {
+    "barcode": "471060230000",
+    "name": "綜合維他命錠 Gel",
+    "expected_quantity": 69
+  },
+  {
+    "barcode": "471060240000",
+    "name": "魚油軟膠囊 Cream",
+    "expected_quantity": 54
+  },
+  {
+    "barcode": "471060250000",
+    "name": "維生素C錠 Syrup",
+    "expected_quantity": 22
+  },
+  {
+    "barcode": "471060260000",
+    "name": "鈣片咀嚼錠 Spray",
+    "expected_quantity": 52
+  },
+  {
+    "barcode": "471060270000",
+    "name": "益生菌膠囊 Granule",
+    "expected_quantity": 66
+  },
+  {
+    "barcode": "471060280000",
+    "name": "葉酸錠 500mg",
+    "expected_quantity": 67
+  },
+  {
+    "barcode": "471060290000",
+    "name": "鐵劑錠 200mg",
+    "expected_quantity": 21
+  },
+  {
+    "barcode": "471060300000",
+    "name": "葡萄糖胺膠囊 400mg",
+    "expected_quantity": 79
+  },
+  {
+    "barcode": "471060310000",
+    "name": "銀杏萃取錠 10mg",
+    "expected_quantity": 74
+  },
+  {
+    "barcode": "471060320000",
+    "name": "蔓越莓膠囊 20mg",
+    "expected_quantity": 71
+  },
+  {
+    "barcode": "471060330000",
+    "name": "葉黃素軟膠囊 5mg",
+    "expected_quantity": 56
+  },
+  {
+    "barcode": "471060340000",
+    "name": "蜂膠噴劑 2mg",
+    "expected_quantity": 21
+  },
+  {
+    "barcode": "471060350000",
+    "name": "感冒靈顆粒 50mcg",
+    "expected_quantity": 26
+  },
+  {
+    "barcode": "471060360000",
+    "name": "川貝枇杷膏 100mg",
+    "expected_quantity": 11
+  },
+  {
+    "barcode": "471060370000",
+    "name": "萬金油軟膏 1000mg",
+    "expected_quantity": 66
+  },
+  {
+    "barcode": "471060380000",
+    "name": "德國百靈油 40mg",
+    "expected_quantity": 53
+  },
+  {
+    "barcode": "471060390000",
+    "name": "正光金絲膏 25mg",
+    "expected_quantity": 58
+  },
+  {
+    "barcode": "471060400000",
+    "name": "撒隆巴斯貼布 Tab",
+    "expected_quantity": 80
+  },
+  {
+    "barcode": "471060410000",
+    "name": "肌樂噴劑 Cap",
+    "expected_quantity": 28
+  },
+  {
+    "barcode": "471060420000",
+    "name": "熱力鎮痛貼片 Gel",
+    "expected_quantity": 40
+  },
+  {
+    "barcode": "471060430000",
+    "name": "普濟消毒飲 Cream",
+    "expected_quantity": 19
+  },
+  {
+    "barcode": "471060440000",
+    "name": "葛根湯顆粒 Syrup",
+    "expected_quantity": 25
+  },
+  {
+    "barcode": "471070010000",
+    "name": "普拿疼加強錠 (Spray)",
+    "expected_quantity": 67
+  },
+  {
+    "barcode": "471070020000",
+    "name": "阿斯匹靈腸溶錠 Granule",
+    "expected_quantity": 54
+  },
+  {
+    "barcode": "471070030000",
+    "name": "布洛芬膠囊 500mg",
+    "expected_quantity": 74
+  },
+  {
+    "barcode": "471070040000",
+    "name": "胃達樂錠 200mg",
+    "expected_quantity": 62
+  },
+  {
+    "barcode": "471070050000",
+    "name": "樂必寧止瀉錠 400mg",
+    "expected_quantity": 34
+  },
+  {
+    "barcode": "471070060000",
+    "name": "抗敏寧錠 10mg",
+    "expected_quantity": 28
+  },
+  {
+    "barcode": "471070070000",
+    "name": "安眠舒錠 20mg",
+    "expected_quantity": 24
+  },
+  {
+    "barcode": "471070080000",
+    "name": "降血糖錠 5mg",
+    "expected_quantity": 32
+  },
+  {
+    "barcode": "471070090000",
+    "name": "降血脂錠 2mg",
+    "expected_quantity": 50
+  },
+  {
+    "barcode": "471070100000",
+    "name": "降血壓錠 50mcg",
+    "expected_quantity": 21
+  },
+  {
+    "barcode": "471070110000",
+    "name": "利尿錠 100mg",
+    "expected_quantity": 20
+  },
+  {
+    "barcode": "471070120000",
+    "name": "止咳化痰液 1000mg",
+    "expected_quantity": 76
+  },
+  {
+    "barcode": "471070130000",
+    "name": "消炎止痛凝膠 40mg",
+    "expected_quantity": 67
+  },
+  {
+    "barcode": "471070140000",
+    "name": "胃潰瘍錠 25mg",
+    "expected_quantity": 17
+  },
+  {
+    "barcode": "471070150000",
+    "name": "抗憂鬱錠 Tab",
+    "expected_quantity": 42
+  },
+  {
+    "barcode": "471070160000",
+    "name": "抗生素膠囊 Cap",
+    "expected_quantity": 28
+  },
+  {
+    "barcode": "471070170000",
+    "name": "類固醇軟膏 Gel",
+    "expected_quantity": 38
+  },
+  {
+    "barcode": "471070180000",
+    "name": "抗癲癇錠 Cream",
+    "expected_quantity": 42
+  },
+  {
+    "barcode": "471070190000",
+    "name": "甲狀腺素錠 Syrup",
+    "expected_quantity": 80
+  },
+  {
+    "barcode": "471070200000",
+    "name": "抗凝血錠 Spray",
+    "expected_quantity": 10
+  },
+  {
+    "barcode": "471070210000",
+    "name": "眼藥水 Granule",
+    "expected_quantity": 11
+  },
+  {
+    "barcode": "471070220000",
+    "name": "鼻噴劑 500mg",
+    "expected_quantity": 54
+  },
+  {
+    "barcode": "471070230000",
+    "name": "綜合維他命錠 200mg",
+    "expected_quantity": 15
+  },
+  {
+    "barcode": "471070240000",
+    "name": "魚油軟膠囊 400mg",
+    "expected_quantity": 65
+  },
+  {
+    "barcode": "471070250000",
+    "name": "維生素C錠 10mg",
+    "expected_quantity": 72
+  },
+  {
+    "barcode": "471070260000",
+    "name": "鈣片咀嚼錠 20mg",
+    "expected_quantity": 79
+  },
+  {
+    "barcode": "471070270000",
+    "name": "益生菌膠囊 5mg",
+    "expected_quantity": 49
+  },
+  {
+    "barcode": "471070280000",
+    "name": "葉酸錠 2mg",
+    "expected_quantity": 27
+  },
+  {
+    "barcode": "471070290000",
+    "name": "鐵劑錠 50mcg",
+    "expected_quantity": 67
+  },
+  {
+    "barcode": "471070300000",
+    "name": "葡萄糖胺膠囊 100mg",
+    "expected_quantity": 57
+  },
+  {
+    "barcode": "471070310000",
+    "name": "銀杏萃取錠 1000mg",
+    "expected_quantity": 68
+  },
+  {
+    "barcode": "471070320000",
+    "name": "蔓越莓膠囊 40mg",
+    "expected_quantity": 39
+  },
+  {
+    "barcode": "471070330000",
+    "name": "葉黃素軟膠囊 25mg",
+    "expected_quantity": 13
+  },
+  {
+    "barcode": "471070340000",
+    "name": "蜂膠噴劑 Tab",
+    "expected_quantity": 30
+  },
+  {
+    "barcode": "471070350000",
+    "name": "感冒靈顆粒 Cap",
+    "expected_quantity": 72
+  },
+  {
+    "barcode": "471070360000",
+    "name": "川貝枇杷膏 Gel",
+    "expected_quantity": 48
+  },
+  {
+    "barcode": "471070370000",
+    "name": "萬金油軟膏 Cream",
+    "expected_quantity": 70
+  },
+  {
+    "barcode": "471070380000",
+    "name": "德國百靈油 Syrup",
+    "expected_quantity": 52
+  },
+  {
+    "barcode": "471070390000",
+    "name": "正光金絲膏 Spray",
+    "expected_quantity": 37
+  },
+  {
+    "barcode": "471070400000",
+    "name": "撒隆巴斯貼布 Granule",
+    "expected_quantity": 36
+  },
+  {
+    "barcode": "471070410000",
+    "name": "肌樂噴劑 500mg",
+    "expected_quantity": 53
+  },
+  {
+    "barcode": "471070420000",
+    "name": "熱力鎮痛貼片 200mg",
+    "expected_quantity": 73
+  },
+  {
+    "barcode": "471070430000",
+    "name": "普濟消毒飲 400mg",
+    "expected_quantity": 62
+  },
+  {
+    "barcode": "471070440000",
+    "name": "葛根湯顆粒 10mg",
+    "expected_quantity": 35
+  }
+]
