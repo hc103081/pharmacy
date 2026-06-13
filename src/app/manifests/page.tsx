@@ -5,14 +5,7 @@ import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { Package, Calendar, ChevronRight, ArrowLeft, Loader2, Trash2, AlertTriangle } from 'lucide-react';
 import { deleteManifest } from '@/app/actions/manifests/archive';
-
-interface Manifest {
-  id: string;
-  name: string;
-  total_items: number;
-  status: string;
-  created_at: string;
-}
+import type { Manifest } from '@/types';
 
 export default function ManifestsPage() {
   const [manifests, setManifests] = useState<Manifest[]>([]);
@@ -51,8 +44,9 @@ export default function ManifestsPage() {
       } else {
         alert(`刪除失敗: ${result.error}`);
       }
-    } catch (error: any) {
-      alert(`刪除過程中發生錯誤: ${error.message || '未知錯誤'}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '未知錯誤';
+      alert(`刪除過程中發生錯誤: ${message}`);
     } finally {
       setDeletingId(null);
     }
@@ -106,7 +100,7 @@ export default function ManifestsPage() {
                     <div className="flex items-center gap-3 text-xs text-slate-400">
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
-                        {new Date(m.created_at).toLocaleDateString()}
+                        {m.created_at && new Date(m.created_at).toLocaleDateString()}
                       </span>
                       <span>•</span>
                       <span>共 {m.total_items} 項藥品</span>

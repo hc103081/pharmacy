@@ -7,31 +7,13 @@ import {
   CheckCircle2, 
   AlertTriangle, 
   ArrowLeft, 
-  Package, 
   FileText,
   Loader2,
-  CheckCircle,
-  AlertCircle
+  CheckCircle
 } from 'lucide-react';
 import Link from 'next/link';
-import { archiveManifest } from '@/app/actions/manifests/archive';
 import { Download } from 'lucide-react';
-
-interface DrugItem {
-  id: string;
-  barcode: string;
-  name: string;
-  expected_quantity: number;
-  actual_quantity: number;
-  counted_status: 'pending' | 'completed' | 'error';
-}
-
-interface Manifest {
-  id: string;
-  name: string;
-  total_items: number;
-  total_discrepancy?: number;
-}
+import type { SummaryDrugItem, Manifest } from '@/types';
 
 export default function SummaryPage() {
   const params = useParams();
@@ -39,7 +21,7 @@ export default function SummaryPage() {
   const router = useRouter();
 
   const [manifest, setManifest] = useState<Manifest | null>(null);
-  const [allDrugs, setAllDrugs] = useState<DrugItem[]>([]);
+  const [allDrugs, setAllDrugs] = useState<SummaryDrugItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [archiving, setArchiving] = useState(false);
 
@@ -108,8 +90,9 @@ export default function SummaryPage() {
 
       alert(`清單已封存！結案類型: ${conclusionType === 'normal' ? '正常結案' : '差異結案'}\n總差異數量: ${totalDiff}`);
       router.push('/manifests');
-    } catch (error: any) {
-      alert(`封存失敗: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '未知錯誤';
+      alert(`封存失敗: ${message}`);
     } finally {
       setArchiving(false);
     }

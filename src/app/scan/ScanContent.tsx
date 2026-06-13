@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import {
@@ -10,7 +10,6 @@ import {
   Package,
   FileText,
   AlertCircle,
-  X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { DrugCard, ErrorDrawer, JumpDialog, PhotoPreview, BarcodeSearchBar } from './components';
@@ -40,6 +39,8 @@ export default function ScanContent() {
   const [jumpTarget, setJumpTarget] = useState<JumpTarget | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [pageInputValue, setPageInputValue] = useState<string>('');
+  const pageInputRef = useRef<HTMLInputElement>(null);
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -243,6 +244,29 @@ export default function ScanContent() {
   const pageCompletedCount = drugs.filter((d) => d.counted_status !== 'pending').length;
   const pageTotalCount = drugs.length || 44;
 
+  // 當 currentPage 因任何原因改變時，同步更新 pageInputValue
+  useEffect(() => {
+    setPageInputValue(String(currentPage));
+  }, [currentPage]);
+
+  // 本頁全部完成時自動跳到下一頁，最後一頁提示完成
+  const allPageCompleted = drugs.length > 0 && drugs.every((d) => d.counted_status !== 'pending');
+  useEffect(() => {
+    if (allPageCompleted && !loading) {
+      if (currentPage < totalPages) {
+        const timer = setTimeout(() => {
+          navigateToPage(currentPage + 1);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 800);
+        return () => clearTimeout(timer);
+      } else if (currentPage === totalPages) {
+        // 使用 queueMicrotask 避免 effect 內同步 setState
+        queueMicrotask(() => showToast('所有分頁已全部清點完成'));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allPageCompleted, currentPage, totalPages, loading]);
+
   return (
     <div className="h-screen bg-[#07142b] text-slate-200 flex flex-col overflow-hidden">
       <ErrorDrawer
@@ -328,13 +352,10 @@ export default function ScanContent() {
                   router.push('/manifests');
                 }
               }}
-              className={`p-2 rounded-full transition-all active:scale-95 ${
-                barcodeInput
-                  ? 'bg-slate-700/80 hover:bg-slate-600 text-white'
-                  : 'hover:bg-slate-800 text-slate-400'
-              }`}
+              className="p-2 rounded-full transition-all active:scale-95 hover:bg-slate-800 text-slate-400"
+              title={barcodeInput ? '清除搜尋' : '返回清單列表'}
             >
-              {barcodeInput ? <X className="w-5 h-5" /> : <ArrowLeft className="w-5 h-5" />}
+              <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
               <h1 className="font-bold text-white truncate max-w-[150px]">
@@ -381,9 +402,25 @@ export default function ScanContent() {
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
-              <span className="text-sm font-bold px-2 text-slate-300">
-                第 {currentPage}/{totalPages} 頁
-              </span>
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={pageInputValue}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  setPageInputValue(raw);
+                  if (raw === '') return;
+                  const v = parseInt(raw);
+                  if (!isNaN(v) && v >= 1 && v <= totalPages) navigateToPage(v);
+                }}
+                onFocus={() => pageInputRef.current?.select()}
+                ref={pageInputRef}
+                placeholder={String(currentPage)}
+                className="w-8 bg-transparent text-center text-sm font-bold text-slate-300 outline-none"
+                title="直接輸入頁碼"
+              />
+              <span className="text-sm font-bold text-slate-500">/ {totalPages}</span>
               <button
                 onClick={() => navigateToPage(Math.min(totalPages, currentPage + 1))}
                 disabled={currentPage === totalPages}
@@ -454,19 +491,25 @@ export default function ScanContent() {
                 const isUploading = uploadingQueue.has(drug.id);
 
                 return (
-                  <DrugCard
+                  <div
                     key={drug.id}
-                    drug={drug}
-                    isMatched={isMatched}
-                    isUploading={isUploading}
-                    isLocked={isLocked}
-                    actualQuantity={actualQuantity}
-                    selectedStatus={selectedStatus}
-                    onStatusSelect={setSelectedStatus}
-                    onActualQuantityChange={setActualQuantity}
-                    onTriggerCamera={triggerCamera}
-                    onPreviewPhoto={setPreviewImage}
-                  />
+                    className={`transition-all duration-300 ${
+                      barcodeInput && !isMatched ? 'opacity-25 grayscale scale-[0.98]' : ''
+                    }`}
+                  >
+                    <DrugCard
+                      drug={drug}
+                      isMatched={isMatched}
+                      isUploading={isUploading}
+                      isLocked={isLocked}
+                      actualQuantity={actualQuantity}
+                      selectedStatus={selectedStatus}
+                      onStatusSelect={setSelectedStatus}
+                      onActualQuantityChange={setActualQuantity}
+                      onTriggerCamera={triggerCamera}
+                      onPreviewPhoto={setPreviewImage}
+                    />
+                  </div>
                 );
               })}
           </div>
