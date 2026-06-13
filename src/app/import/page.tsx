@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 export default function ImportPage() {
   const router = useRouter();
   const [manifestName, setManifestName] = useState('');
-  const [jsonData, setJsonData] = useState('[\n  { "barcode": "12345678", "name": "藥品 A", "expected_quantity": 10 },\n  { "barcode": "87654321", "name": "藥品 B", "expected_quantity": 5 }\n]');
+  const [jsonData, setJsonData] = useState('');
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [uploadedUrls, setUploadedUrls] = useState<string[]>([]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -201,6 +201,7 @@ export default function ImportPage() {
               value={jsonData}
               onChange={(e) => setJsonData(e.target.value)}
               rows={6}
+              placeholder={`[\n  { "barcode": "12345678", "name": "藥品名稱", "expected_quantity": 10 }\n]`}
               className="tech-input w-full font-mono text-sm bg-slate-950/50"
             />
           </div>

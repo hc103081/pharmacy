@@ -45,6 +45,9 @@ export default function ScanContent() {
   const [manifestName, setManifestName] = useState('');
   const [isLocked, setIsLocked] = useState(false);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [completedTotal, setCompletedTotal] = useState(0);
+  const [errorTotal, setErrorTotal] = useState(0);
   
   // 新增：數量輸入狀態
   const [actualQuantity, setActualQuantity] = useState<string>('');
@@ -65,8 +68,27 @@ export default function ScanContent() {
       if (manifest) {
         setManifestName(manifest.name);
         setIsLocked(manifest.status === 'completed');
+        setTotalItems(manifest.total_items);
         setTotalPages(Math.ceil(manifest.total_items / 44));
       }
+
+      // 同步獲取全域已完成總數
+      const { count: completedCount } = await supabase
+        .from('drug_items')
+        .select('*', { count: 'exact', head: true })
+        .eq('manifest_id', manifestId)
+        .eq('counted_status', 'completed');
+      
+      setCompletedTotal(completedCount || 0);
+
+      // 同步獲取全域異常總數
+      const { count: errorCount } = await supabase
+        .from('drug_items')
+        .select('*', { count: 'exact', head: true })
+        .eq('manifest_id', manifestId)
+        .eq('counted_status', 'error');
+      
+      setErrorTotal(errorCount || 0);
 
       const { data, error } = await supabase
         .from('drug_items')
@@ -89,48 +111,64 @@ export default function ScanContent() {
     fetchPageData();
   }, [fetchPageData]);
 
-  // 智慧條碼/名稱模糊篩選邏輯
-  const handleBarcodeChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setBarcodeInput(value);
-
-    if (!value || value.length < 2) return; // 至少 2 個字才觸發全域搜尋，避免過多請求
-
-    // 1. 檢查當前頁面是否有匹配 (Barcode 包含 或 Name 包含)
-    const localMatch = drugs.find(d => 
-      d.barcode.includes(value) || d.name.toLowerCase().includes(value.toLowerCase())
-    );
-    if (localMatch) return;
-
-    // 2. 全域搜尋 (跨頁防呆)
-    try {
-      const { data: globalMatch, error } = await supabase
-        .from('drug_items')
-        .select('page_number, name, barcode')
-        .eq('manifest_id', manifestId!)
-        .or(`barcode.ilike.%${value}%,name.ilike.%${value}%`)
-        .order('item_order', { ascending: true })
-        .limit(1)
-        .single();
-
-      if (error || !globalMatch) return;
-
-      if (globalMatch.page_number !== currentPage) {
-        setJumpTarget({
-          page: globalMatch.page_number,
-          name: globalMatch.name
-        });
-      }
-    } catch (err) {
-      console.error('Global search error:', err);
-    }
+  // 匹配權重邏輯：完全匹配 > 條碼包含 > 名稱包含
+  const getMatchScore = (drug: DrugItem, input: string) => {
+    if (!input) return 0;
+    if (drug.barcode === input) return 3; // 完全匹配 (最高)
+    if (drug.barcode.includes(input)) return 2; // 條碼包含
+    if (drug.name.toLowerCase().includes(input.toLowerCase())) return 1; // 名稱包含
+    return 0;
   };
 
-  const matchingItem = drugs.find(d => 
-    d.barcode.includes(barcodeInput) || d.name.toLowerCase().includes(barcodeInput.toLowerCase())
-  );
+  // 找出當前頁面最佳匹配項
+  const matchingItem = drugs.reduce((best, current) => {
+    const score = getMatchScore(current, barcodeInput);
+    if (score > (best ? getMatchScore(best, barcodeInput) : -1)) {
+      return current;
+    }
+    return best;
+  }, null as DrugItem | null);
 
-  const triggerCamera = () => {
+  const handleBarcodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setBarcodeInput(e.target.value);
+  };
+
+  // 全域搜尋 Debounce 邏輯
+  useEffect(() => {
+    if (!manifestId) return;
+    if (!barcodeInput || barcodeInput.length < 2) return;
+
+    // 如果當前頁面已經有匹配項，則不觸發全域搜尋
+    const hasLocalMatch = drugs.some(d => getMatchScore(d, barcodeInput) > 0);
+    if (hasLocalMatch) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        const { data: globalMatch, error } = await supabase
+          .from('drug_items')
+          .select('page_number, name, barcode')
+          .eq('manifest_id', manifestId)
+          .or(`barcode.ilike.%${barcodeInput}%,name.ilike.%${barcodeInput}%`)
+          .order('item_order', { ascending: true })
+          .limit(1)
+          .single();
+
+        if (error || !globalMatch) return;
+
+        if (globalMatch.page_number !== currentPage) {
+          setJumpTarget({
+            page: globalMatch.page_number,
+            name: globalMatch.name
+          });
+        }
+      } catch (err) {
+        console.error('Global search error:', err);
+      }
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timer);
+  }, [barcodeInput, drugs, manifestId, currentPage]);
+ const triggerCamera = () => {
     if (!matchingItem) return;
     fileInputRef.current?.click();
   };
@@ -285,6 +323,25 @@ export default function ScanContent() {
           </div>
         </div>
 
+        <div className="grid grid-cols-4 gap-2 p-2 bg-slate-950/50 rounded-xl border border-slate-800 text-center">
+          <div className="flex flex-col items-center">
+            <span className="text-[10px] text-slate-500 uppercase font-bold">總項數</span>
+            <span className="text-sm font-mono font-bold text-slate-300">{totalItems}</span>
+          </div>
+          <div className="flex flex-col items-center border-x border-slate-800">
+            <span className="text-[10px] text-green-500 uppercase font-bold">已完成</span>
+            <span className="text-sm font-mono font-bold text-green-400">{completedTotal}</span>
+          </div>
+          <div className="flex flex-col items-center border-r border-slate-800">
+            <span className="text-[10px] text-red-500 uppercase font-bold">數量異常</span>
+            <span className="text-sm font-mono font-bold text-red-400">{errorTotal}</span>
+          </div>
+          <div className="flex flex-col items-center">
+            <span className="text-[10px] text-slate-500 uppercase font-bold">待清點</span>
+            <span className="text-sm font-mono font-bold text-slate-300">{totalItems - completedTotal - errorTotal}</span>
+          </div>
+        </div>
+
         <div className="relative overflow-hidden">
           <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
             <Search className="w-5 h-5 text-slate-500" />
@@ -334,26 +391,29 @@ export default function ScanContent() {
           </div>
         ) : (
           <div className="space-y-4">
-            {drugs.map((drug) => {
-              const isMatched = drug.barcode === barcodeInput || (barcodeInput && (drug.barcode.includes(barcodeInput) || drug.name.toLowerCase().includes(barcodeInput.toLowerCase())));
-              const isCompleted = drug.counted_status === 'completed';
-              const isError = drug.counted_status === 'error';
-              const isUploading = uploadingId === drug.id;
-              
-              // 即時比對邏輯
-              let isRealtimeError = false;
-              if (isMatched && actualQuantity !== '') {
-                isRealtimeError = parseInt(actualQuantity) !== drug.expected_quantity;
-              }
-              const isRealtimeCompleted = isMatched && actualQuantity !== '' && parseInt(actualQuantity) === drug.expected_quantity;
+            {drugs
+              .filter(drug => !barcodeInput || getMatchScore(drug, barcodeInput) > 0)
+              .map((drug) => {
+                const score = getMatchScore(drug, barcodeInput);
+                const isMatched = score > 0;
+                const isCompleted = drug.counted_status === 'completed';
+                const isError = drug.counted_status === 'error';
+                const isUploading = uploadingId === drug.id;
+                
+                // 即時比對邏輯
+                let isRealtimeError = false;
+                if (isMatched && actualQuantity !== '') {
+                  isRealtimeError = parseInt(actualQuantity) !== drug.expected_quantity;
+                }
+                const isRealtimeCompleted = isMatched && actualQuantity !== '' && parseInt(actualQuantity) === drug.expected_quantity;
 
-              return (
-                <div 
-                  key={drug.id}
-                  className={`tech-card p-4 transition-all flex flex-col gap-4 ${
-                    isMatched ? 'border-[#00f2fe] ring-2 ring-inset ring-[#00f2fe]/50 scale-[1.02] z-10' : ''
-                  } ${isError || isRealtimeError ? 'border-[#ff4b5c] bg-[#ff4b5c]/10' : ''} ${isCompleted && !isMatched ? 'opacity-40 grayscale' : ''}`}
-                >
+                return (
+                  <div 
+                    key={drug.id}
+                    className={`tech-card p-4 transition-all duration-300 flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 ${
+                      isMatched ? 'border-[#00f2fe] ring-2 ring-inset ring-[#00f2fe]/50 scale-[1.02] z-10' : ''
+                    } ${isError || isRealtimeError ? 'border-[#ff4b5c] bg-[#ff4b5c]/10' : ''} ${isCompleted && !isMatched ? 'opacity-40 grayscale' : ''}`}
+                  >
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-4 flex-1 min-w-0">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
