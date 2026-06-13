@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ArrowRightLeft } from 'lucide-react';
-import type { JumpTarget } from '../types';
+import type { JumpTarget } from '@/types';
 
 interface JumpDialogProps {
   jumpTarget: JumpTarget;

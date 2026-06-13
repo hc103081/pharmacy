@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Camera, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
-import type { DrugItem } from '../types';
+import type { DrugItem } from '@/types';
 
 interface DrugCardProps {
   drug: DrugItem;

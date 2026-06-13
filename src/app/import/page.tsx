@@ -5,9 +5,11 @@ import { importDrugs, uploadImportImages, processImagesWithGemini, ImportDrugIte
 import { FileUp, Loader2, CheckCircle2, AlertCircle, ArrowLeft, Image as ImageIcon, X, UploadCloud } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/components/AuthProvider';
 
 export default function ImportPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [manifestName, setManifestName] = useState('');
   const [jsonData, setJsonData] = useState('');
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
@@ -84,7 +86,7 @@ export default function ImportPage() {
       }
 
       setMessage('正在匯入並進行分頁處理...');
-      const result = await importDrugs(manifestName, drugs, uploadedUrls);
+      const result = await importDrugs(manifestName, drugs, user!.id, uploadedUrls);
 
       if (result.success) {
         setStatus('success');

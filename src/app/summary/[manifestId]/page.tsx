@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { 
   CheckCircle2, 
   AlertTriangle, 
@@ -12,7 +12,6 @@ import {
   CheckCircle
 } from 'lucide-react';
 import Link from 'next/link';
-import { archiveManifest } from '@/app/actions/manifests/archive';
 import { Download } from 'lucide-react';
 import type { SummaryDrugItem, Manifest } from '@/types';
 
@@ -20,6 +19,7 @@ export default function SummaryPage() {
   const params = useParams();
   const manifestId = params.manifestId as string;
   const router = useRouter();
+  const supabase = createClient();
 
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [allDrugs, setAllDrugs] = useState<SummaryDrugItem[]>([]);

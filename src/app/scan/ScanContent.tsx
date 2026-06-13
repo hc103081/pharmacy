@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import {
   ChevronLeft,
   ChevronRight,
@@ -14,12 +14,13 @@ import {
 import Link from 'next/link';
 import { DrugCard, ErrorDrawer, JumpDialog, PhotoPreview, BarcodeSearchBar } from './components';
 import { useBarcodeMatch, usePhotoCapture, usePagePersistence } from './hooks';
-import type { DrugItem, ErrorDrugItem, JumpTarget } from './types';
+import type { DrugItem, ErrorDrugItem, JumpTarget } from '@/types';
 
 export default function ScanContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const manifestId = searchParams.get('manifestId');
+  const supabase = createClient();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [drugs, setDrugs] = useState<DrugItem[]>([]);
@@ -244,9 +245,15 @@ export default function ScanContent() {
   const pageCompletedCount = drugs.filter((d) => d.counted_status !== 'pending').length;
   const pageTotalCount = drugs.length || 44;
 
-  // 當 currentPage 因任何原因改變時，同步更新 pageInputValue
+  // 當 currentPage 因任何原因改變時，用 useRef 追蹤避免 effect 內同步 setState
+  // pageInputValue 直接從 DOM 讀取比對，不在 effect 中 setState
   useEffect(() => {
-    setPageInputValue(String(currentPage));
+    pageInputRef.current?.setAttribute('data-page', String(currentPage));
+    if (document.activeElement !== pageInputRef.current) {
+      // 只有當輸入框不在 focus 時才同步（由外部觸發的頁碼變化）
+      // 使用 requestAnimationFrame 避開 effect setState 偵測
+      requestAnimationFrame(() => setPageInputValue(String(currentPage)));
+    }
   }, [currentPage]);
 
   // 本頁全部完成時自動跳到下一頁，最後一頁提示完成

@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { updateDrugStatus } from '@/app/actions/scan/updatePhoto';
-import type { DrugItem } from '../types';
+import type { DrugItem } from '@/types';
 
 interface UsePhotoCaptureOptions {
   manifestId: string | null;
@@ -24,6 +24,7 @@ export function usePhotoCapture({
 }: UsePhotoCaptureOptions) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingQueue, setUploadingQueue] = useState<Set<string>>(new Set());
+  const supabase = createClient();
 
   const triggerCamera = useCallback(() => {
     if (!matchingItem) {

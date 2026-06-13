@@ -130,7 +130,7 @@ export async function uploadImportImages(formData: FormData): Promise<{ success:
  * 匯入藥品清單並實作嚴格的 44 項邏輯分頁
  * 依據原始輸入順序 (item_order) 進行切分
  */
-export async function importDrugs(manifestName: string, drugs: ImportDrugItem[], sourceImages: string[] = []): Promise<ImportResponse> {
+export async function importDrugs(manifestName: string, drugs: ImportDrugItem[], userId: string, sourceImages: string[] = []): Promise<ImportResponse> {
   try {
     if (!drugs || drugs.length === 0) {
       return { success: false, error: '藥品清單不能為空' };
@@ -143,6 +143,7 @@ export async function importDrugs(manifestName: string, drugs: ImportDrugItem[],
         name: manifestName,
         total_items: drugs.length,
         status: 'active',
+        user_id: userId,
         source_images: sourceImages,
       })
       .select()

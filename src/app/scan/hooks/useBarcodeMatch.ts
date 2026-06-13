@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import type { DrugItem } from '../types';
+import type { DrugItem } from '@/types';
 
 export function useBarcodeMatch(drugs: DrugItem[], barcodeInput: string) {
   const getMatchScore = useCallback((drug: DrugItem, input: string) => {

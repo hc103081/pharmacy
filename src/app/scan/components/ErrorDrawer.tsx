@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { AlertCircle, CheckCircle2, ArrowLeft } from 'lucide-react';
-import type { ErrorDrugItem } from '../types';
+import type { ErrorDrugItem } from '@/types';
 
 interface ErrorDrawerProps {
   isOpen: boolean;

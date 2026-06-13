@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { Package, Calendar, ChevronRight, ArrowLeft, Loader2, Trash2, AlertTriangle } from 'lucide-react';
 import { deleteManifest } from '@/app/actions/manifests/archive';
 import type { Manifest } from '@/types';
 
 export default function ManifestsPage() {
+  const supabase = createClient();
   const [manifests, setManifests] = useState<Manifest[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
