@@ -12,6 +12,7 @@ import {
   CheckCircle
 } from 'lucide-react';
 import Link from 'next/link';
+import { archiveManifest } from '@/app/actions/manifests/archive';
 import { Download } from 'lucide-react';
 import type { SummaryDrugItem, Manifest } from '@/types';
 

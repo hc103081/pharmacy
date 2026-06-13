@@ -32,8 +32,14 @@ export async function processImagesWithGemini(urls: string[]): Promise<{ success
     // 將 URL 轉換為 Gemini 要求的 inlineData 格式
     const imageParts = await Promise.all(urls.map(async (url) => {
       const response = await fetch(url);
-      const buffer = await response.arrayBuffer();
-      const base64Data = Buffer.from(buffer).toString('base64');
+      const arrayBuffer = await response.arrayBuffer();
+      // 使用 btoa + Uint8Array 替代 Buffer（Edge Runtime 相容）
+      const bytes = new Uint8Array(arrayBuffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64Data = btoa(binary);
       const mimeType = response.headers.get('content-type') || 'image/jpeg';
       return {
         inlineData: {
