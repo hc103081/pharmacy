@@ -313,22 +313,31 @@ export default function ScanContent() {
             </div>
           </div>
           
-          <div className="flex items-center gap-2 bg-slate-950/50 p-1 rounded-xl border border-slate-800">
-            <button 
-              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}
-              className="p-1 hover:bg-slate-800 rounded disabled:opacity-30 transition-all"
+          <div className="flex items-center gap-3">
+            <Link 
+              href={`/summary/${manifestId}`}
+              className="flex items-center gap-2 px-3 py-1.5 bg-slate-950/50 text-slate-300 rounded-xl border border-slate-800 hover:bg-slate-800 transition-all text-sm font-medium"
             >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <span className="text-sm font-bold px-2 text-slate-300">第 {currentPage} 頁</span>
-            <button 
-              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-              disabled={currentPage === totalPages}
-              className="p-1 hover:bg-slate-800 rounded disabled:opacity-30 transition-all"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
+              <FileText className="w-4 h-4" />
+              <span>預覽結果</span>
+            </Link>
+            <div className="flex items-center gap-2 bg-slate-950/50 p-1 rounded-xl border border-slate-800">
+              <button 
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="p-1 hover:bg-slate-800 rounded disabled:opacity-30 transition-all"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <span className="text-sm font-bold px-2 text-slate-300">第 {currentPage} 頁</span>
+              <button 
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="p-1 hover:bg-slate-800 rounded disabled:opacity-30 transition-all"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </div>
 
