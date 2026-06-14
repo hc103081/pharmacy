@@ -1,6 +1,7 @@
 'use server';
 
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { createClient } from '@/lib/supabase/server';
 
 export interface UpdatePhotoResponse {
   success: boolean;
@@ -8,7 +9,7 @@ export interface UpdatePhotoResponse {
 }
 
 /**
- * 更新藥品清點狀態、實際數量與照片 URL
+ * 更新藥品清點狀態、實際數量與照片 URL (使用 RPC 原子化操作)
  */
 export async function updateDrugStatus(
   drugId: string, 
@@ -16,29 +17,22 @@ export async function updateDrugStatus(
   actualQuantity: number
 ): Promise<UpdatePhotoResponse> {
   try {
-    // 1. 獲取預期數量以確定狀態
-    const { data: drug, error: fetchError } = await supabaseAdmin
-      .from('drug_items')
-      .select('expected_quantity')
-      .eq('id', drugId)
-      .single();
+    // 1. 獲取當前使用者 ID (Server Side)
+    const supabaseServer = await createClient();
+    const { data: { user }, error: userError } = await supabaseServer.auth.getUser();
+    
+    if (userError || !user) throw new Error('未取得使用者認證資訊');
+    const userId = user.id;
 
-    if (fetchError || !drug) throw new Error('找不到該藥品項目');
+    // 2. 使用 RPC 原子化地完成：檢查權限 -> 計算狀態 -> 更新資料
+    const { error: rpcError } = await supabaseAdmin.rpc('update_drug_status_with_photo', {
+      p_drug_id: drugId,
+      p_photo_url: photoUrl,
+      p_actual_quantity: actualQuantity,
+      p_user_id: userId,
+    });
 
-    const status = actualQuantity === drug.expected_quantity ? 'completed' : 'error';
-
-    // 2. 更新資料庫
-    const { error: updateError } = await supabaseAdmin
-      .from('drug_items')
-      .update({
-        counted_status: status,
-        photo_url: photoUrl,
-        actual_quantity: actualQuantity,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', drugId);
-
-    if (updateError) throw updateError;
+    if (rpcError) throw rpcError;
 
     return { success: true };
   } catch (error: any) {

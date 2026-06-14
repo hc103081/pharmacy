@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Camera, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Camera, CheckCircle2, AlertCircle, Loader2, Search } from 'lucide-react';
 import type { DrugItem } from '@/types';
 
 interface DrugCardProps {
@@ -15,6 +15,7 @@ interface DrugCardProps {
   onActualQuantityChange: (value: string) => void;
   onTriggerCamera: () => void;
   onPreviewPhoto: (url: string) => void;
+  onFilterByBarcode?: (barcode: string) => void;
 }
 
 export default function DrugCard({
@@ -28,6 +29,7 @@ export default function DrugCard({
   onActualQuantityChange,
   onTriggerCamera,
   onPreviewPhoto,
+  onFilterByBarcode,
 }: DrugCardProps) {
   const isCompleted = drug.counted_status === 'completed';
   const isError = drug.counted_status === 'error';
@@ -64,12 +66,26 @@ export default function DrugCard({
               ((drug.item_order - 1) % 44) + 1
             )}
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className={`font-bold truncate text-base lg:text-lg ${isMatched ? 'text-[#00f2fe]' : 'text-white'}`}>
               {drug.name}
             </div>
-            <div className="text-[11px] font-mono text-slate-500 truncate">
-              {drug.barcode} | 預期: {drug.expected_quantity}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-mono text-slate-500 truncate">
+                {drug.barcode} | 預期: {drug.expected_quantity}
+              </span>
+              {onFilterByBarcode && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onFilterByBarcode(drug.barcode);
+                  }}
+                  title="用此條碼篩選"
+                  className="shrink-0 p-1 rounded-lg text-[#00f2fe]/60 bg-[#00f2fe]/5 border border-[#00f2fe]/10 hover:text-[#00f2fe] hover:bg-[#00f2fe]/15 hover:border-[#00f2fe]/40 hover:shadow-[0_0_8px_rgba(0,242,254,0.3)] transition-all active:scale-90"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
         </div>

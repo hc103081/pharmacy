@@ -1,0 +1,92 @@
+# PDF 匯入功能 — 開發任務清單
+
+## 核心決策紀錄
+- **提取方案**: 方案 C（規則解析）為主力 + 方案 A（Gemini Vision）為 fallback
+- **贈量處理**: 選項 A — `expected_quantity = quantity + bonus_quantity`（合併計算）
+- **出貨單號 → manifest.name**：不用手動輸入清單名稱，直接用 PDF 的出貨單號
+- **預覽確認流程**：提取後必須先顯示校驗面板，使用者確認後才寫入 DB
+
+---
+
+## 一、資料庫遷移
+
+- [ ] 新增 manifests 表欄位：`order_number` (text)、`delivery_date` (date)、`source_file` (text, 原始 PDF 檔名)
+- [ ] 新增 drug_items 表欄位：`bonus_quantity` (numeric, 贈量，供參考顯示但清點比對用合併後的 expected_quantity)
+
+## 二、TypeScript 型態更新
+
+- [ ] 更新 `src/types/index.ts`：Manifest 加 order_number, delivery_date；DrugItem 加 bonus_quantity
+- [ ] 更新 `src/app/actions/import.ts`：ImportDrugItem 加 bonus_quantity；importDrugs 參數加 order_number, delivery_date
+
+## 三、前端 PDF 提取引擎（方案 C 核心）
+
+- [ ] 新增 `src/lib/pdfParser.ts`：
+  - 使用 pdfjs-dist/legacy 在前端解析 PDF
+  - 根據 x 座標規則提取每行資料：
+    - x ∈ [10,100] → line_number + barcode（用座標空隙分隔）
+    - x ∈ [110,260] → drug_name
+    - x ∈ [250,270] → quantity
+    - x ∈ [280,300] → bonus_quantity
+  - 表頭區提取 order_number（[466,778]）、delivery_date（[466,793]）
+  - 跨頁續接行號
+  - 停止條件：遇到「以下空白」或行號不連續
+  - 輸出格式：
+    ```ts
+    {
+      order_metadata: { order_number, delivery_date, total_items },
+      items: [{ line_number, barcode, drug_name, quantity, bonus_quantity }]
+    }
+    ```
+
+## 四、校驗引擎
+
+- [ ] 新增 `src/lib/pdfValidator.ts`：
+  - 項目數校驗：提取數量 vs PDF 總計行數字
+  - 條碼格式校驗：非空、長度合理
+  - 品名亂碼偵測：含 `?` 或控制字元佔比過高
+  - 數量合理性：quantity + bonus_quantity > 0
+  - 重複條碼偵測
+  - 輸出校驗結果：每行 pass/warn/error 狀態
+
+## 五、Gemini Vision Fallback
+
+- [ ] 更新 `src/app/actions/import.ts`：
+  - 新增 `processPDFPagesWithGemini` server action
+  - 接收 PDF 某些頁的 base64 圖片
+  - 複用現有 Gemini OCR prompt，但針對出貨單格式調整：
+    - 要求提取：序號、商品代號、品名、數量、贈量
+    - 強調條碼精確度、數字不可腦補
+  - 返回結構化 JSON 修正結果
+
+## 六、前端 PDF 上傳 UI 更新
+
+- [ ] 更新 `src/app/import/page.tsx`：
+  - 新增 PDF 上傳區塊（accept=".pdf"）
+  - 上傳後前端即時解析（pdfjs-dist → pdfParser → 校驗）
+  - 顯示提取進度（「正在解析第 N 頁...」）
+  - 自動帶入出貨單號為 manifest.name（不需手動輸入）
+
+## 七、預覽校驗面板
+
+- [ ] 新增 `src/app/import/components/PreviewPanel.tsx`：
+  - 表頭：出貨單號、交貨日期、提取項目數 / 預期項目數
+  - 表格：序號、條碼、品名、數量、贈量、合併數量(expected_quantity)、校驗狀態
+  - 異常項目可 inline 修正
+  - 底部三按鈕：退回重試 / Gemini 修正 / 確認匯入
+  - 合併邏輯：expected_quantity = quantity + bonus_quantity
+
+## 八、匯入流程串接
+
+- [ ] 更新 importDrugs server action：
+  - manifest.name = order_number（來自 PDF）
+  - 寫入 order_number, delivery_date 到 manifests
+  - 寫入 bonus_quantity 到 drug_items
+  - expected_quantity = quantity + bonus_quantity
+- [ ] 更新 DrugCard (scan 頁面)：
+  - 顯示 expected_quantity 時加 tooltip：「原數量 X + 贈量 Y」
+
+## 九、錯誤處理與邊界案例
+
+- [ ] PDF 檔案過大（> 10MB）提示
+- [ ] PDF 非出貨單格式（表頭找不到出貨單號）→ 整份走 Gemini
+- [ ] 取消匯入流程（清理已上傳的 storage 檔案）

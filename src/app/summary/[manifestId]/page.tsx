@@ -55,13 +55,20 @@ export default function SummaryPage() {
     loadData();
   }, [manifestId]);
 
-  const completedCount = allDrugs.filter(d => d.counted_status === 'completed').length;
-  const errorCount = allDrugs.filter(d => d.counted_status === 'error').length;
-  const pendingCount = allDrugs.filter(d => d.counted_status === 'pending').length;
+  const { completedCount, errorCount, pendingCount, exceptions } = allDrugs.reduce(
+    (acc, d) => {
+      if (d.counted_status === 'completed') {
+        acc.completedCount++;
+      } else {
+        if (d.counted_status === 'error') acc.errorCount++;
+        else acc.pendingCount++;
+        acc.exceptions.push(d);
+      }
+      return acc;
+    },
+    { completedCount: 0, errorCount: 0, pendingCount: 0, exceptions: [] as SummaryDrugItem[] }
+  );
   const progress = manifest ? Math.round((completedCount / manifest.total_items) * 100) : 0;
-  
-  // 異常覆核清單：包含所有 status !== 'completed' 的項目
-  const exceptions = allDrugs.filter(d => d.counted_status !== 'completed');
 
   const handleArchive = async () => {
     if (!confirm('確定要封存此清單並提交最終結果嗎？')) return;
@@ -69,12 +76,18 @@ export default function SummaryPage() {
     setArchiving(true);
     try {
       // 1. 計算總差異 (實際總量 - 預期總量)
-      const totalExpected = allDrugs.reduce((sum, d) => sum + d.expected_quantity, 0);
-      const totalActual = allDrugs.reduce((sum, d) => sum + (d.actual_quantity || 0), 0);
+      const { totalExpected, totalActual } = allDrugs.reduce(
+        (acc, d) => {
+          acc.totalExpected += d.expected_quantity;
+          acc.totalActual += (d.actual_quantity || 0);
+          return acc;
+        },
+        { totalExpected: 0, totalActual: 0 }
+      );
       const totalDiff = totalActual - totalExpected;
 
       // 2. 判斷是否為差異結案
-      const hasErrors = allDrugs.some(d => d.counted_status === 'error');
+      const hasErrors = errorCount > 0;
       const conclusionType = hasErrors ? 'discrepancy' : 'normal';
 
       // 3. 更新 Manifest 狀態、結案類型與總差異
@@ -132,64 +145,73 @@ export default function SummaryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#07142b] text-slate-200 p-4 lg:p-6">
-      <div className="max-w-3xl mx-auto space-y-5 lg:space-y-6">
-        <div className="flex items-center gap-3">
-          <Link href={`/scan?manifestId=${manifestId}`} className="p-2 hover:bg-slate-800 rounded-full transition-colors">
-            <ArrowLeft className="w-5 h-5 lg:w-6 lg:h-6 text-slate-400" />
-          </Link>
-          <h1 className="text-xl lg:text-2xl font-bold text-white">清點總結報告</h1>
-        </div>
-
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 space-y-4">
-            <Loader2 className="w-10 h-10 text-[#00f2fe] animate-spin" />
-            <p className="text-slate-500">計算統計數據中...</p>
+    <div className="fixed inset-0 bg-[#07142b] text-slate-200 flex flex-col min-h-0">
+      {/* 頂部固定區：標題 */}
+      <div className="shrink-0 px-4 lg:px-6 pt-4 lg:pt-6 pb-2">
+        <div className="max-w-3xl mx-auto">
+          <div className="flex items-center gap-3">
+            <Link href={`/scan?manifestId=${manifestId}`} className="p-2 hover:bg-slate-800 rounded-full transition-colors">
+              <ArrowLeft className="w-5 h-5 lg:w-6 lg:h-6 text-slate-400" />
+            </Link>
+            <h1 className="text-xl lg:text-2xl font-bold text-white">清點總結報告</h1>
           </div>
-        ) : (
-          <>
-            {/* 概覽卡片 */}
-            <div className="tech-card p-4 lg:p-6 space-y-5 lg:space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg lg:text-xl font-bold text-white">{manifest?.name}</h2>
-                  <p className="text-xs lg:text-sm text-slate-500">清點進度概覽</p>
-                </div>
-                <div className="text-right">
-                  <div className="text-2xl lg:text-3xl font-black text-[#00f2fe]">{progress}%</div>
-                  <div className="text-[10px] lg:text-xs text-slate-500 uppercase font-bold">Completion</div>
-                </div>
-              </div>
+        </div>
+      </div>
 
-              <div className="w-full h-3 lg:h-4 bg-slate-900 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-[#00f2fe] to-blue-500 transition-all duration-500 ease-out shadow-[0_0_10px_rgba(0,242,254,0.5)]" 
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-
-              <div className="grid grid-cols-4 gap-2 lg:gap-4">
-                  <div className="p-2 lg:p-3 bg-slate-900/50 rounded-xl text-center space-y-1 border border-slate-800">
-                    <div className="text-[10px] lg:text-xs text-slate-500">總項數</div>
-                    <div className="text-sm lg:text-lg font-bold text-white">{manifest?.total_items || 0}</div>
+      {loading ? (
+        <div className="flex-1 flex flex-col items-center justify-center">
+          <Loader2 className="w-10 h-10 text-[#00f2fe] animate-spin" />
+          <p className="text-slate-500 mt-4">計算統計數據中...</p>
+        </div>
+      ) : (
+        <>
+          {/* 固定區：概覽卡片 */}
+          <div className="shrink-0 px-4 lg:px-6 pb-3">
+            <div className="max-w-3xl mx-auto">
+              <div className="tech-card p-4 lg:p-6 space-y-5 lg:space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg lg:text-xl font-bold text-white">{manifest?.name}</h2>
+                    <p className="text-xs lg:text-sm text-slate-500">清點進度概覽</p>
                   </div>
-                  <div className="p-2 lg:p-3 bg-green-500/10 rounded-xl text-center space-y-1 border border-green-500/20">
-                    <div className="text-[10px] lg:text-xs text-green-400">已完成</div>
-                    <div className="text-sm lg:text-lg font-bold text-green-400">{completedCount}</div>
-                  </div>
-                  <div className="p-2 lg:p-3 bg-red-500/10 rounded-xl text-center space-y-1 border border-red-500/20">
-                    <div className="text-[10px] lg:text-xs text-red-400">異常/未完</div>
-                    <div className="text-sm lg:text-lg font-bold text-red-400">{pendingCount + errorCount}</div>
-                  </div>
-                  <div className="p-2 lg:p-3 bg-blue-500/10 rounded-xl text-center space-y-1 border border-blue-500/20">
-                    <div className="text-[10px] lg:text-xs text-blue-400">總差異量</div>
-                    <div className="text-sm lg:text-lg font-bold text-blue-400">{manifest?.total_discrepancy || 0}</div>
+                  <div className="text-right">
+                    <div className="text-2xl lg:text-3xl font-black text-[#00f2fe]">{progress}%</div>
+                    <div className="text-[10px] lg:text-xs text-slate-500 uppercase font-bold">Completion</div>
                   </div>
                 </div>
+
+                <div className="w-full h-3 lg:h-4 bg-slate-900 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-[#00f2fe] to-blue-500 transition-all duration-500 ease-out shadow-[0_0_10px_rgba(0,242,254,0.5)]" 
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 gap-2 lg:gap-4">
+                    <div className="p-2 lg:p-3 bg-slate-900/50 rounded-xl text-center space-y-1 border border-slate-800">
+                      <div className="text-[10px] lg:text-xs text-slate-500">總項數</div>
+                      <div className="text-sm lg:text-lg font-bold text-white">{manifest?.total_items || 0}</div>
+                    </div>
+                    <div className="p-2 lg:p-3 bg-green-500/10 rounded-xl text-center space-y-1 border border-green-500/20">
+                      <div className="text-[10px] lg:text-xs text-green-400">已完成</div>
+                      <div className="text-sm lg:text-lg font-bold text-green-400">{completedCount}</div>
+                    </div>
+                    <div className="p-2 lg:p-3 bg-red-500/10 rounded-xl text-center space-y-1 border border-red-500/20">
+                      <div className="text-[10px] lg:text-xs text-red-400">異常/未完</div>
+                      <div className="text-sm lg:text-lg font-bold text-red-400">{pendingCount + errorCount}</div>
+                    </div>
+                    <div className="p-2 lg:p-3 bg-blue-500/10 rounded-xl text-center space-y-1 border border-blue-500/20">
+                      <div className="text-[10px] lg:text-xs text-blue-400">總差異量</div>
+                      <div className="text-sm lg:text-lg font-bold text-blue-400">{manifest?.total_discrepancy || 0}</div>
+                    </div>
+                  </div>
+              </div>
             </div>
+          </div>
 
-            {/* 異常覆核面板 */}
-            <div className="space-y-3 lg:space-y-4">
+          {/* 滾動區：異常覆核面板 */}
+          <div className="flex-1 min-h-0 px-4 lg:px-6 overflow-y-auto">
+            <div className="max-w-3xl mx-auto space-y-3 lg:space-y-4 pb-2">
               <div className="flex items-center gap-2 text-[#ff4b5c]">
                 <AlertTriangle className="w-4 h-4 lg:w-5 lg:h-5" />
                 <h3 className="font-bold text-sm lg:text-base">異常覆核清單 ({exceptions.length})</h3>
@@ -245,9 +267,11 @@ export default function SummaryPage() {
                 </div>
               )}
             </div>
+          </div>
 
-            {/* 操作按鈕 */}
-            <div className="pt-4 lg:pt-6 flex flex-col sm:flex-row gap-3 lg:gap-4">
+          {/* 固定區：操作按鈕 */}
+          <div className="shrink-0 px-4 lg:px-6 py-4 lg:py-6 border-t border-blue-500/20">
+            <div className="max-w-3xl mx-auto flex flex-col sm:flex-row gap-3 lg:gap-4">
               <button 
                 onClick={handleExportCSV}
                 className="tech-button flex-1 py-3 lg:py-4 bg-slate-700 text-slate-200 hover:bg-slate-600 transition-all flex items-center justify-center gap-2 border border-slate-600"
@@ -268,9 +292,9 @@ export default function SummaryPage() {
                 {exceptions.length === 0 ? '確認封存清單' : '提交差異結案'}
               </button>
             </div>
-          </>
-        )}
-      </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

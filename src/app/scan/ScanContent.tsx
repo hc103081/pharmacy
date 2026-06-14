@@ -45,38 +45,58 @@ export default function ScanContent() {
   const pageInputRef = useRef<HTMLInputElement>(null);
   const [isStatsExpanded, setIsStatsExpanded] = useState(false);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const shouldJumpToNextRef = useRef(false);
+  const requestRef = useRef<{ manifestId: string | null; currentPage: number } | null>(null);
+  const prevManifestIdRef = useRef<string | null>(null);
 
   const showToast = useCallback((message: string) => {
     setToast(message);
     setTimeout(() => setToast(null), 2000);
   }, []);
 
+  // 取得清單名稱
+  useEffect(() => {
+    if (!manifestId) {
+      setManifestName('');
+      return;
+    }
+
+    const fetchManifestName = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('manifests')
+          .select('name')
+          .eq('id', manifestId)
+          .single();
+
+        if (error) throw error;
+        if (data) setManifestName(data.name);
+      } catch (err) {
+        console.error('Error fetching manifest name:', err);
+        setManifestName('未知清單');
+      }
+    };
+
+    fetchManifestName();
+  }, [manifestId, supabase]);
+
   const { initializedRef, lastVisitedPage, setLastVisitedPage, lastVisitedPageRef, lastScrollY, setLastScrollY, lastScrollYRef, saveState, restorePage } = usePagePersistence(manifestId);
   const { matchingItem, getMatchScore } = useBarcodeMatch(drugs, barcodeInput);
 
   const navigateToPage = (page: number) => {
+    shouldJumpToNextRef.current = true;
     setCurrentPage(page);
   };
 
   const fetchPageData = useCallback(async () => {
     if (!manifestId) return;
 
+    // Mark this as the current request
+    requestRef.current = { manifestId, currentPage };
+
     setLoading(true);
     try {
-      const { data: manifest } = await supabase
-        .from('manifests')
-        .select('name, status, total_items')
-        .eq('id', manifestId)
-        .single();
-
-      if (manifest) {
-        setManifestName(manifest.name);
-        setIsLocked(manifest.status === 'completed');
-        setTotalItems(manifest.total_items);
-        setTotalPages(Math.ceil(manifest.total_items / 44));
-      }
-
-      const [completedRes, errorRes, pageRes, errorItemsRes] = await Promise.all([
+      const [completedRes, pageRes, errorItemsRes] = await Promise.all([
         supabase
           .from('drug_items')
           .select('*', { count: 'exact', head: true })
@@ -84,12 +104,7 @@ export default function ScanContent() {
           .eq('counted_status', 'completed'),
         supabase
           .from('drug_items')
-          .select('*', { count: 'exact', head: true })
-          .eq('manifest_id', manifestId)
-          .eq('counted_status', 'error'),
-        supabase
-          .from('drug_items')
-          .select('*')
+          .select('id, manifest_id, page_number, name, barcode, actual_quantity, expected_quantity, counted_status, item_order, photo_url')
           .eq('manifest_id', manifestId)
           .eq('page_number', currentPage)
           .order('item_order', { ascending: true }),
@@ -101,36 +116,69 @@ export default function ScanContent() {
           .order('page_number', { ascending: true }),
       ]);
 
+      // Check if this request is still the latest one
+      if (
+        requestRef.current?.manifestId !== manifestId ||
+        requestRef.current?.currentPage !== currentPage
+      ) {
+        return;
+      }
+
       setCompletedTotal(completedRes.count || 0);
-      setErrorTotal(errorRes.count || 0);
+      setErrorTotal(errorItemsRes.data?.length || 0);
       setErrorDrugs(errorItemsRes.data || []);
 
       if (pageRes.error) throw pageRes.error;
-      setDrugs(pageRes.data || []);
+      const fetchedDrugs: DrugItem[] = pageRes.data || [];
+      setDrugs(fetchedDrugs);
+
+      // 拍照上傳完成後：清除搜尋並滾動到第一個未清點項
+      if (shouldJumpToNextRef.current) {
+        shouldJumpToNextRef.current = false;
+        setBarcodeInput('');
+        const nextPending = fetchedDrugs.find((d) => d.counted_status === 'pending');
+        if (nextPending) {
+          setTimeout(() => {
+            const element = document.querySelector(`[data-drug-id="${nextPending.id}"]`);
+            element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 80);
+        }
+      }
     } catch (error) {
+      // Check again before showing error alert
+      if (
+        requestRef.current?.manifestId !== manifestId ||
+        requestRef.current?.currentPage !== currentPage
+      ) {
+        return;
+      }
       console.error('Error fetching page data:', error);
       alert('載入數據失敗，請刷新頁面');
     } finally {
-      setLoading(false);
+      // Only set loading to false if this is still the current request
+      if (
+        requestRef.current?.manifestId === manifestId &&
+        requestRef.current?.currentPage === currentPage
+      ) {
+        setLoading(false);
+      }
     }
   }, [manifestId, currentPage]);
 
+  // 清除搜尋並平滑滾動到第一個未清點項
+  const clearBarcodeAndJumpToPending = useCallback(() => {
+    setBarcodeInput('');
+    const nextPending = drugs.find((d) => d.counted_status === 'pending');
+    if (nextPending) {
+      setTimeout(() => {
+        const element = document.querySelector(`[data-drug-id="${nextPending.id}"]`);
+        element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 80);
+    }
+  }, [drugs]);
+
   
-
-  const autoJumpToNext = useCallback(
-    (currentDrugs: DrugItem[]) => {
-      const nextPending = currentDrugs.find((d) => d.counted_status === 'pending');
-      if (nextPending) {
-        setBarcodeInput(nextPending.barcode);
-        setTimeout(() => {
-          const element = document.querySelector(`[data-drug-id="${nextPending.id}"]`);
-          element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 100);
-      }
-    },
-    []
-  );
-
+  
   const { fileInputRef, uploadingQueue, triggerCamera, handleFileUpload } = usePhotoCapture({
     manifestId,
     matchingItem,
@@ -142,7 +190,7 @@ export default function ScanContent() {
       setBarcodeInput('');
       setActualQuantity('');
       setSelectedStatus(null);
-      autoJumpToNext(drugs);
+      shouldJumpToNextRef.current = true;
     },
   });
 
@@ -160,12 +208,27 @@ export default function ScanContent() {
   // 頁碼變更時持久化並載入資料
   useEffect(() => {
     if (!manifestId) return;
+
+    // Detect manifest change and reset state
+    if (prevManifestIdRef.current !== null && prevManifestIdRef.current !== manifestId) {
+      setDrugs([]);
+      setErrorDrugs([]);
+      setErrorTotal(0);
+      setCompletedTotal(0);
+      setBarcodeInput('');
+      setActualQuantity('');
+      setSelectedStatus(null);
+    }
+    prevManifestIdRef.current = manifestId;
+
     if (!initializedRef.current) {
       initializedRef.current = true;
+      shouldJumpToNextRef.current = true;
       fetchPageData();
       return;
     }
     saveState(currentPage);
+    shouldJumpToNextRef.current = true;
     fetchPageData();
   }, [currentPage, manifestId]);
 
@@ -320,7 +383,7 @@ export default function ScanContent() {
         <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
           <button
             onClick={() => {
-              setBarcodeInput('');
+              clearBarcodeAndJumpToPending();
               setCurrentPage(lastVisitedPage!);
               setLastVisitedPage(null);
 
@@ -365,7 +428,7 @@ export default function ScanContent() {
               <button
                 onClick={() => {
                   if (barcodeInput) {
-                    setBarcodeInput('');
+                    clearBarcodeAndJumpToPending();
                   } else {
                     router.push('/manifests');
                   }
@@ -420,7 +483,7 @@ export default function ScanContent() {
           <BarcodeSearchBar
             value={barcodeInput}
             onChange={setBarcodeInput}
-            onClear={() => setBarcodeInput('')}
+            onClear={clearBarcodeAndJumpToPending}
             hasMatch={!!matchingItem}
             isLocked={isLocked}
           />
@@ -517,6 +580,7 @@ export default function ScanContent() {
                         onActualQuantityChange={setActualQuantity}
                         onTriggerCamera={triggerCamera}
                         onPreviewPhoto={setPreviewImage}
+                        onFilterByBarcode={setBarcodeInput}
                       />
                     </div>
                   );
@@ -559,7 +623,7 @@ export default function ScanContent() {
                 onFocus={() => pageInputRef.current?.select()}
                 ref={pageInputRef}
                 placeholder={String(currentPage)}
-                className="w-10 bg-transparent text-center text-base font-bold text-[#00f2fe] outline-none"
+                className="w-10 bg-transparent text-center text-base font-bold text-[#00f2fe] outline-none box-border"
                 title="直接輸入頁碼"
               />
               <span className="text-sm font-bold text-slate-500">/ {totalPages}</span>
@@ -569,7 +633,7 @@ export default function ScanContent() {
             <button
               onClick={() => navigateToPage(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages}
-              className="flex items-center justify-center gap-1 px-4 py-2.5 bg-slate-700 rounded-xl border border-slate-600 text-slate-200 disabled:opacity-30 transition-all active:scale-95 hover:bg-slate-600"
+              className="flex items-center justify-center gap-1 px-4 py-2.5 bg-slate-700 rounded-xl border border-slate.600 text-slate-200 disabled:opacity-30 transition-all active:scale-95 hover:bg-slate.700"
             >
               <span className="text-xs font-bold">下一頁</span>
               <ChevronRight className="w-5 h-5" />
@@ -631,7 +695,7 @@ export default function ScanContent() {
             <BarcodeSearchBar
               value={barcodeInput}
               onChange={setBarcodeInput}
-              onClear={() => setBarcodeInput('')}
+              onClear={clearBarcodeAndJumpToPending}
               hasMatch={!!matchingItem}
               isLocked={isLocked}
             />
@@ -673,11 +737,11 @@ export default function ScanContent() {
               <button
                 onClick={() => navigateToPage(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}
-                className="p-2 bg-slate-700 rounded-lg border border-slate-600 text-slate-200 disabled:opacity-30 transition-all active:scale-95 hover:bg-slate-600"
+                className="p-2 bg-slate-700 rounded-lg border border-slate.600 text-slate-200 disabled:opacity-30 transition-all active:scale-95 hover:bg-slate.700"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
-              <div className="flex items-center gap-2 bg-slate-950/50 rounded-lg border border-slate-800 px-3 py-2">
+              <div className="flex items-center gap-2 bg-slate.950/50 rounded-lg border border-slate.800 px-3 py-2">
                 <input
                   type="text"
                   inputMode="numeric"
@@ -693,15 +757,15 @@ export default function ScanContent() {
                   onFocus={() => pageInputRef.current?.select()}
                   ref={pageInputRef}
                   placeholder={String(currentPage)}
-                  className="w-10 bg-transparent text-center text-base font-bold text-[#00f2fe] outline-none"
+                  className="w-10 bg-transparent text-center text-base font-bold text-[#00f2fe] outline-none box-border"
                   title="直接輸入頁碼"
                 />
-                <span className="text-sm font-bold text-slate-500">/ {totalPages}</span>
+                <span className="text-sm font-bold text-slate.500">/ {totalPages}</span>
               </div>
               <button
                 onClick={() => navigateToPage(Math.min(totalPages, currentPage + 1))}
                 disabled={currentPage === totalPages}
-                className="p-2 bg-slate-700 rounded-lg border border-slate-600 text-slate-200 disabled:opacity-30 transition-all active:scale-95 hover:bg-slate-600"
+                className="p-2 bg-slate.700 rounded-lg border border-slate.600 text-slate-200 disabled:opacity-30 transition-all active:scale-95 hover:bg-slate.700"
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
@@ -756,6 +820,7 @@ export default function ScanContent() {
                         onActualQuantityChange={setActualQuantity}
                         onTriggerCamera={triggerCamera}
                         onPreviewPhoto={setPreviewImage}
+                        onFilterByBarcode={setBarcodeInput}
                       />
                     </div>
                   );

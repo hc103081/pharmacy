@@ -91,7 +91,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen bg-[#07142b] text-slate-200 flex items-center justify-center p-6">
+    <div className="fixed inset-0 bg-[#07142b] text-slate-200 flex items-center justify-center p-4 lg:p-6 overflow-y-auto">
       <Suspense fallback={
         <div className="tech-card p-8 max-w-md w-full text-center">
           <Loader2 className="w-8 h-8 text-[#00f2fe] animate-spin mx-auto" />

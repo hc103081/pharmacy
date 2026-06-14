@@ -54,13 +54,13 @@ export default function ManifestsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#07142b] text-slate-200 p-6">
-      <div className="max-w-2xl mx-auto space-y-6">
-        <div className="flex items-center gap-4">
+    <div className="fixed inset-0 bg-[#07142b] text-slate-200 p-4 lg:p-6 overflow-y-auto">
+      <div className="max-w-2xl mx-auto space-y-5 lg:space-y-6">
+        <div className="flex items-center gap-3">
           <Link href="/" className="p-2 hover:bg-slate-800 rounded-full transition-colors">
-            <ArrowLeft className="w-6 h-6 text-slate-400" />
+            <ArrowLeft className="w-5 h-5 lg:w-6 lg:h-6 text-slate-400" />
           </Link>
-          <h1 className="text-2xl font-bold text-white">選擇清點清單</h1>
+          <h1 className="text-xl lg:text-2xl font-bold text-white">選擇清點清單</h1>
         </div>
 
         {loading ? (
@@ -114,7 +114,7 @@ export default function ManifestsPage() {
                       e.preventDefault();
                       setConfirmDeleteId(m.id);
                     }}
-                    className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                    className="p-2 rounded-lg text-[#ff4b5c]/60 bg-[#ff4b5c]/5 border border-[#ff4b5c]/10 hover:text-[#ff4b5c] hover:bg-[#ff4b5c]/15 hover:border-[#ff4b5c]/40 hover:shadow-[0_0_8px_rgba(255,75,92,0.3)] transition-all active:scale-90"
                     title="刪除清單"
                   >
                     <Trash2 className="w-5 h-5" />

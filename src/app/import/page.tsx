@@ -105,32 +105,32 @@ export default function ImportPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#07142b] text-slate-200 p-6">
-      <div className="max-w-3xl mx-auto space-y-6">
-        <div className="flex items-center gap-4">
+    <div className="fixed inset-0 bg-[#07142b] text-slate-200 p-4 lg:p-6 overflow-y-auto">
+      <div className="max-w-3xl mx-auto space-y-5 lg:space-y-6">
+        <div className="flex items-center gap-3">
           <Link href="/" className="p-2 hover:bg-slate-800 rounded-full transition-colors">
-            <ArrowLeft className="w-6 h-6 text-slate-400" />
+            <ArrowLeft className="w-5 h-5 lg:w-6 lg:h-6 text-slate-400" />
           </Link>
-          <h1 className="text-2xl font-bold text-white">匯入藥品清單</h1>
+          <h1 className="text-xl lg:text-2xl font-bold text-white">匯入藥品清單</h1>
         </div>
 
-        <div className="tech-card p-6 space-y-6">
+        <div className="tech-card p-4 lg:p-6 space-y-5 lg:space-y-6">
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-400">清單名稱</label>
+            <label className="block text-xs lg:text-sm font-medium text-slate-400">清單名稱</label>
             <input
               type="text"
               value={manifestName}
               onChange={(e) => setManifestName(e.target.value)}
               placeholder="例如: 2026-06-12 早班清點"
-              className="tech-input w-full"
+              className="tech-input w-full text-sm lg:text-base"
             />
           </div>
 
           {/* 圖片上傳區塊 */}
-          <div className="space-y-4">
-            <label className="block text-sm font-medium text-slate-400">步驟 1: 上傳清單截圖 (OCR 辨識)</label>
+          <div className="space-y-3 lg:space-y-4">
+            <label className="block text-xs lg:text-sm font-medium text-slate-400">步驟 1: 上傳清單截圖 (OCR 辨識)</label>
             <div 
-              className="border-2 border-dashed border-slate-700 rounded-xl p-8 text-center hover:border-cyan-500/50 transition-colors group cursor-pointer relative bg-slate-900/30"
+              className="border-2 border-dashed border-slate-700 rounded-xl p-6 lg:p-8 text-center hover:border-cyan-500/50 transition-colors group cursor-pointer relative bg-slate-900/30"
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
                 e.preventDefault();
@@ -148,14 +148,14 @@ export default function ImportPage() {
                 className="hidden" 
                 onChange={handleFileChange} 
               />
-              <UploadCloud className="w-12 h-12 text-slate-500 mx-auto mb-4 group-hover:text-cyan-400 transition-colors" />
-              <p className="text-slate-300 font-medium">點擊或拖曳圖片至此上傳</p>
-              <p className="text-xs text-slate-500 mt-2">支援 JPG, PNG, WebP 格式</p>
+              <UploadCloud className="w-10 h-10 lg:w-12 lg:h-12 text-slate-500 mx-auto mb-3 lg:mb-4 group-hover:text-cyan-400 transition-colors" />
+              <p className="text-slate-300 font-medium text-sm lg:text-base">點擊或拖曳圖片至此上傳</p>
+              <p className="text-[11px] lg:text-xs text-slate-500 mt-1 lg:mt-2">支援 JPG, PNG, WebP 格式</p>
             </div>
 
             {/* 預覽區塊 */}
             {(selectedImages.length > 0 || uploadedUrls.length > 0) && (
-              <div className="grid grid-cols-4 gap-4 mt-4">
+              <div className="grid grid-cols-3 lg:grid-cols-4 gap-3 lg:gap-4 mt-3 lg:mt-4">
                 {selectedImages.map((file, i) => (
                   <div key={`sel-${i}`} className="relative aspect-square rounded-lg overflow-hidden border border-slate-700 group">
                     <img 
@@ -184,7 +184,7 @@ export default function ImportPage() {
               <button
                 onClick={handleUploadImages}
                 disabled={status === 'loading'}
-                className="tech-button w-full py-2 text-sm flex items-center justify-center gap-2"
+                className="tech-button w-full py-2.5 lg:py-2 text-sm flex items-center justify-center gap-2"
               >
                 {status === 'loading' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
                 上傳 {selectedImages.length} 張圖片
@@ -192,19 +192,19 @@ export default function ImportPage() {
             )}
           </div>
 
-          <div className="relative py-4">
+          <div className="relative py-3 lg:py-4">
             <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-slate-800"></span></div>
-            <div className="relative flex justify-center text-xs uppercase"><span className="bg-[#07142b] px-2 text-slate-500">或者使用 JSON 快速匯入</span></div>
+            <div className="relative flex justify-center text-[11px] lg:text-xs uppercase"><span className="bg-[#07142b] px-2 text-slate-500">或者使用 JSON 快速匯入</span></div>
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-400">藥品數據 (JSON 格式)</label>
+            <label className="block text-xs lg:text-sm font-medium text-slate-400">藥品數據 (JSON 格式)</label>
             <textarea
               value={jsonData}
               onChange={(e) => setJsonData(e.target.value)}
               rows={6}
               placeholder={`[\n  { "barcode": "12345678", "name": "藥品名稱", "expected_quantity": 10 }\n]`}
-              className="tech-input w-full font-mono text-sm bg-slate-950/50"
+              className="tech-input w-full font-mono text-xs lg:text-sm bg-slate-950/50"
             />
           </div>
 
@@ -230,11 +230,11 @@ export default function ImportPage() {
         </div>
 
         {status !== 'idle' && (
-          <div className={`p-4 rounded-xl border flex items-start gap-3 animate-in fade-in slide-in-from-bottom-2 ${
+          <div className={`p-3 lg:p-4 rounded-xl border flex items-start gap-3 animate-in fade-in slide-in-from-bottom-2 ${
             status === 'success' ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'
           }`}>
-            {status === 'success' ? <CheckCircle2 className="w-5 h-5 mt-0.5" /> : <AlertCircle className="w-5 h-5 mt-0.5" />}
-            <p className="text-sm font-medium">{message}</p>
+            {status === 'success' ? <CheckCircle2 className="w-4 h-4 lg:w-5 lg:h-5 mt-0.5 shrink-0" /> : <AlertCircle className="w-4 h-4 lg:w-5 lg:h-5 mt-0.5 shrink-0" />}
+            <p className="text-xs lg:text-sm font-medium">{message}</p>
           </div>
         )}
       </div>
