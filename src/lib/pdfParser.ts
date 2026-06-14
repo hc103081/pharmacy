@@ -1,11 +1,12 @@
-import * as pdfjs from 'pdfjs-dist/legacy/build/pdf';
+import * as pdfjs from 'pdfjs-dist';
 
-// Configure worker for browser environment
-if (typeof window !== 'undefined' && !pdfjs.GlobalWorkerOptions.workerSrc) {
-  pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
-}
+// Set worker source for pdfjs
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url,
+).toString();
 
-export interface ParsedPdfItems {
+export interface ParsedItem {
   line_number: number;
   barcode: string;
   drug_name: string;
@@ -13,191 +14,149 @@ export interface ParsedPdfItems {
   bonus_quantity: number;
 }
 
-export interface ParsedPdfMetadata {
-  order_number: string;
-  delivery_date: string;
-  total_items: number;
-}
-
 export interface ParsedPdf {
-  order_metadata: ParsedPdfMetadata;
-  items: ParsedPdfItems[];
+  order_metadata: {
+    order_number: string;
+    delivery_date: string;
+    total_items: number;
+  };
+  items: ParsedItem[];
 }
 
 /**
- * Parses a PDF file (as Uint8Array) to extract pharmacy shipment order data.
- * Based on a fixed layout using coordinate-based parsing.
+ * 基于坐标规则的 PDF 出货单解析引擎
  */
-export async function parsePdf(data: Uint8Array): Promise<ParsedPdf> {
+export async function parsePdf(
+  data: Uint8Array,
+  onProgress?: (page: number, total: number) => void
+): Promise<ParsedPdf> {
   const loadingTask = pdfjs.getDocument({ data });
   const pdf = await loadingTask.promise;
-
-  const order_metadata: ParsedPdfMetadata = {
-    order_number: '',
-    delivery_date: '',
-    total_items: 0,
-  };
-
-  const items: ParsedPdfItems[] = [];
-  let lastLineNumber = 0;
-
-  // Coordinate ranges from analysis
-  const RANGES = {
-    LINE_BARCODE: { min: 10, max: 100 },
-    DRUG_NAME: { min: 110, max: 260 },
-    QUANTITY: { min: 250, max: 270 }, // Note: overlap with name? Let's be careful.
-    BONUS_QUANTITY: { min: 280, max: 300 },
-    HEADER_ORDER: { min: 466, max: 778 },
-    HEADER_DATE: { min: 466, max: 793 }, // Same X, but likely different Y
-  };
+  
+  let order_number = '';
+  let delivery_date = '';
+  const items: ParsedItem[] = [];
+  let globalLineNumber = 0;
 
   for (let i = 1; i <= pdf.numPages; i++) {
+    if (onProgress) onProgress(i, pdf.numPages);
     const page = await pdf.getPage(i);
     const textContent = await page.getTextContent();
-    
-    // Group text items by Y coordinate (with tolerance)
-    const lines: { y: number; items: { x: number; text: string }[] }[] = [];
-    const Y_TOLERANCE = 2;
+    const itemsOnPage = textContent.items as any[];
 
-    for (const item of textContent.items) {
-      const x = item.transform[4];
-      const y = item.transform[5];
-      const text = item.str.trim();
-
-      if (!text) continue;
-
-      let line = lines.find(l => Math.abs(l.y - y) <= Y_TOLERANCE);
-      if (!line) {
-        line = { y, items: [] };
-        lines.push(line);
-      }
-      line.items.push({ x, text });
-    }
-
-    // Sort lines by Y descending (top to bottom)
-    lines.sort((a, b) => b.y - a.y);
-    // Sort items within each line by X ascending (left to right)
-    lines.forEach(line => line.items.sort((a, b) => a.x - b.x));
-
-    for (const line of lines) {
-      // 1. Check if it's a header line (Order Number or Date)
-      // We search for text in the header X ranges.
-      // Since they might have same X, we check Y position or just try to match content.
-      
-      // Simplified header detection: check if X is in header range and it's early in the page
-      // In a real implementation, we'd be more precise about Y.
-      
-      // Let's check if this line contains order_number or delivery_date.
-      // We'll look for the text that falls into the header X ranges.
-      const headerText = line.items.map(it => it.text).join(' ');
-      
-      // For now, let's try to match patterns or just check if it's not a data line.
-      // Data lines usually start with a number (line_number) in the [10, 100] range.
-      
-      const firstItem = line.items[0];
-      if (!firstItem) continue;
-
-      // Try to detect header lines first
-      if (firstItem.x >= RANGES.HEADER_ORDER.min && firstItem.x <= RANGES.HEADER_ORDER.max) {
-        // This is a potential header line. 
-        // If it's the first page and we haven't found order_number yet.
-        if (order_metadata.order_number === '' && i === 1) {
-           // We need to distinguish between order_number and delivery_date.
-           // In the PDF, they are likely on different lines.
-           // Let's use the Y coordinate or just check the text content.
-           // For simplicity, let's assume the first one found is order_number, second is date.
-           // A better way is to check if the text matches a pattern.
-           if (order_metadata.order_number === '') {
-             order_metadata.order_number = headerText;
-           } else if (order_metadata.delivery_date === '') {
-             order_metadata.delivery_date = headerText;
-           }
-           continue;
-        }
-      }
-
-      // 2. Data Line Detection
-      // A data line must have a line number in [10, 100]
-      const line_number_match = firstItem.text.match(/^(\d+)$/);
-      if (line_number_match && firstItem.x >= RANGES.LINE_BARCODE.min && firstItem.x <= RANGES.LINE_BARCODE.max) {
-        const lineNumber = parseInt(line_number_match[1], 10);
+    // 1. 提取表头 (通常在第一页)
+    if (i === 1) {
+      // 寻找 order_number ([466, 778]) 和 delivery_date ([466, 793])
+      // 注意：pdfjs 的坐标系是从左下角开始的，y轴向上
+      // 这里我们需要根据实际观察的 x 坐标来过滤
+      for (const item of itemsOnPage) {
+        const x = item.transform[4];
+        const text = item.str.trim();
         
-        // Check for continuous line numbers
-        if (lastLineNumber !== 0 && lineNumber !== lastLineNumber + 1) {
-          // Stop condition: line number gap detected (as per todo)
-          // But wait, first page might start at 1.
-          // If lastLineNumber was 0, it's fine.
-          // If we are on page 1, lastLineNumber will be updated.
-          // On page 2, it should be lastLineNumber + 1.
-          if (i > 1 || (lineNumber !== 1 && lastLineNumber !== 0)) {
-            break; 
+        if (!text) continue;
+
+        // 简单的启发式提取：查找包含 "單號" 或 "日期" 关键字附近的文本
+        // 这里的坐标 [466, 778] 可能是相对于某种缩放的，我们使用相对范围
+        if (x >= 400 && x <= 800) {
+          if (/單號|單號\s*[:：]/.test(text)) {
+            // 尝试在同一行后面寻找数字
+            const sameLine = itemsOnPage.filter(it => Math.abs(it.transform[5] - item.transform[5]) < 5 && it.transform[4] > x);
+            if (sameLine.length > 0) order_number = sameLine[0].str.trim();
           }
-        }
-        lastLineNumber = lineNumber;
-
-        // Extract other fields based on X ranges
-        let barcode = '';
-        let drug_name = '';
-        let quantity = 0;
-        let bonus_quantity = 0;
-
-        // We need to look at all items in the line because the first item might be line_number
-        // and the second item might be the barcode.
-        
-        // Re-parse line items to find fields by X
-        for (const item of line.items) {
-          if (item.x >= RANGES.LINE_BARCODE.min && item.x <= RANGES.LINE_BARCODE.max) {
-            // This could be line_number or barcode. 
-            // If it matches the line_number regex, it's line_number.
-            // Otherwise, it's barcode.
-            if (!line_number_match || item.text !== line_number_match[1]) {
-               barcode = item.text;
-            }
-          } else if (item.x >= RANGES.DRUG_NAME.min && item.x <= RANGES.DRUG_NAME.max) {
-            drug_name = item.text;
-          } else if (item.x >= RANGES.QUANTITY.min && item.x <= RANGES.QUANTITY.max) {
-            quantity = parseInt(item.text, 10) || 0;
-          } else if (item.x >= RANGES.BONUS_QUANTITY.min && item.x <= RANGES.BONUS_QUANTITY.max) {
-            bonus_quantity = parseInt(item.text, 10) || 0;
+          if (/日期|日期\s*[:：]/.test(text)) {
+            const sameLine = itemsOnPage.filter(it => Math.abs(it.transform[5] - item.transform[5]) < 5 && it.transform[4] > x);
+            if (sameLine.length > 0) delivery_date = sameLine[0].str.trim();
           }
-        }
-
-        // Fallback: if barcode is still empty, maybe it was part of the first item?
-        // e.g. "1 12345678"
-        if (barcode === '' && line_number_match) {
-           // This is tricky. Let's try to see if there's another item in the same range.
-           // The loop above already handles multiple items in the same range.
-        }
-
-        if (drug_name || barcode) {
-          items.push({
-            line_number: lineNumber,
-            barcode,
-            drug_name,
-            quantity,
-            bonus_quantity,
-          });
-        }
-      } else {
-        // If it's not a data line and not a header line, and it's not an empty line...
-        // Check for "以下空白" (End of list)
-        if (headerText.includes('以下空白')) {
-           break;
         }
       }
     }
-    
-    if (items.length > 0 && i > 1 && items[0].line_number !== lastLineNumber + 1) {
-        // This handles the case where we might have finished the list on a previous page
-        // but the loop continues.
-        // However, the break inside the loop should handle it.
+
+    // 2. 提取行数据
+    // 将文本项按 y 坐标分组 (同一行)
+    const lines: Map<number, any[]> = new Map();
+    for (const item of itemsOnPage) {
+      const y = Math.round(item.transform[5]);
+      if (!lines.has(y)) lines.set(y, []);
+      lines.get(y)!.push(item);
+    }
+
+    // 按 y 坐标从高到低排序 (从页顶向下)
+    const sortedY = Array.from(lines.keys()).sort((a, b) => b - a);
+
+    for (const y of sortedY) {
+      const lineItems = lines.get(y)!;
+      // 按 x 坐标排序
+      lineItems.sort((a, b) => a.transform[4] - b.transform[4]);
+
+      let line_number = 0;
+      let barcode = '';
+      let drug_name = '';
+      let quantity = 0;
+      let bonus_quantity = 0;
+
+      for (const item of lineItems) {
+        const x = item.transform[4];
+        const text = item.str.trim();
+        if (!text) continue;
+
+        // x ∈ [10, 100] → line_number + barcode
+        if (x >= 10 && x <= 110) {
+          // 尝试解析 "1 12345678" 这种格式
+          const match = text.match(/^(\\d+)\\s+(.+)$/);
+          if (match) {
+            line_number = parseInt(match[1]);
+            barcode = match[2];
+          } else if (/^\\d+$/.test(text)) {
+            // 可能是行号，后面会有条码
+            line_number = parseInt(text);
+          } else {
+            barcode = text;
+          }
+        } 
+        // x ∈ [110, 260] → drug_name
+        else if (x >= 110 && x <= 260) {
+          drug_name += (drug_name ? ' ' : '') + text;
+        }
+        // x ∈ [250, 270] → quantity
+        else if (x >= 250 && x <= 275) {
+          const num = parseInt(text);
+          if (!isNaN(num)) quantity = num;
+        }
+        // x ∈ [280, 300] → bonus_quantity
+        else if (x >= 280 && x <= 310) {
+          const num = parseInt(text);
+          if (!isNaN(num)) bonus_quantity = num;
+        }
+      }
+
+      // 停止条件：遇到「以下空白」
+      const fullLineText = lineItems.map(it => it.str).join(' ');
+      if (fullLineText.includes('以下空白')) break;
+
+      // 只有当条码或品名存在时才认为是有效数据行
+      if (barcode || drug_name) {
+        // 如果提取到了行号，则更新全局行号用于连续性检查
+        if (line_number > 0) {
+          globalLineNumber = line_number;
+        }
+
+        items.push({
+          line_number: line_number || items.length + 1,
+          barcode: barcode.trim(),
+          drug_name: drug_name.trim(),
+          quantity,
+          bonus_quantity,
+        });
+      }
     }
   }
 
-  order_metadata.total_items = items.length;
-
   return {
-    order_metadata,
+    order_metadata: {
+      order_number: order_number || '未知單號',
+      delivery_date: delivery_date || '',
+      total_items: items.length,
+    },
     items,
   };
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Camera, CheckCircle2, AlertCircle, Loader2, Search } from 'lucide-react';
+import { Camera, CheckCircle2, AlertCircle, Loader2, Search, Info } from 'lucide-react';
 import type { DrugItem } from '@/types';
 
 interface DrugCardProps {
@@ -74,6 +74,12 @@ export default function DrugCard({
               <span className="text-[11px] font-mono text-slate-500 truncate">
                 {drug.barcode} | 預期: {drug.expected_quantity}
               </span>
+              {drug.bonus_quantity > 0 && (
+                <Info 
+                  className="w-3 h-3 shrink-0 cursor-help" 
+                  title={`原數量: ${drug.expected_quantity - drug.bonus_quantity} + 贈量: ${drug.bonus_quantity}`} 
+                />
+              )}
               {onFilterByBarcode && (
                 <button
                   onClick={(e) => {

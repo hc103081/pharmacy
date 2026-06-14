@@ -86,6 +86,82 @@ export async function processImagesWithGemini(urls: string[]): Promise<{ success
 }
 
 /**
+ * 使用 Gemini Vision 進行 PDF 頁面的 OCR 修正 (Fallback)
+ * 處理規則解析可能失敗或出現亂碼的情況
+ */
+export async function processPDFPagesWithGemini(base64Images: string[]): Promise<{ success: boolean; order_metadata?: { order_number: string; delivery_date: string }; drugs?: ImportDrugItem[]; error?: string }> {
+  try {
+    const apiKey = process.env.GOOGLE_API_KEY;
+    if (!apiKey) {
+      return { success: false, error: '伺服器未配置 GOOGLE_API_KEY' };
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' }); // Use flash for speed and vision support
+
+    const imageParts = base64Images.map((base64) => ({
+      inlineData: {
+        data: base64.split(',')[1] || base64, // Ensure only the base64 part is sent
+        mimeType: 'image/jpeg',
+      },
+    }));
+
+    const prompt = `
+      你是一個精準的醫藥清單 OCR 提取專家。
+      請分析提供的圖片（這些是出貨單的截圖），提取出所有相關資訊。
+      
+      提取要求：
+      1. 必須提取以下資訊，並以 JSON 格式輸出：
+         - order_metadata:
+           - order_number: 出貨單號 (請務必精確)
+           - delivery_date: 交貨日期 (格式: YYYY-MM-DD)
+         - items: 藥品項目陣列
+           - barcode: 藥品條碼 (請務必精確，不要腦補，若不確定請設為空字串)
+           - name: 藥品名稱 (請務必精確，若有亂碼請根據上下文推斷正確名稱)
+           - quantity: 應有數量 (數字)
+           - bonus_quantity: 贈量 (數字，若無則設為 0)
+           - line_number: 序號 (數字)
+      2. 忽略所有表格樣式、頁碼、標題或其他雜訊。
+      3. 保持項目在圖片中出現的物理順序。
+      4. 如果某個欄位缺失，請設為 0 或空字串。
+      5. 輸出格式必須是嚴格的 JSON 物件，例如:
+         {
+           "order_metadata": { "order_number": "SN12345", "delivery_date": "2026-06-14" },
+           "items": [
+             { "line_number": 1, "barcode": "12345678", "name": "藥品 A", "quantity": 10, "bonus_quantity": 2 },
+             { "line_number": 2, "barcode": "87654321", "name": "藥品 B", "quantity": 5, "bonus_quantity": 0 }
+           ]
+         }
+      不要輸出任何 Markdown 程式碼塊標記 (如 \`\`\`json)，只要純 JSON。
+    `;
+
+    const result = await model.generateContent([prompt, ...imageParts]);
+    const response = await result.response;
+    const text = response.text();
+    
+    const cleanedText = text.replace(/```json|```/g, '').trim();
+    const parsedData = JSON.parse(cleanedText);
+
+    // Map items to ImportDrugItem structure
+    const mappedDrugs: ImportDrugItem[] = parsedData.items.map((d: any) => ({
+      barcode: d.barcode,
+      name: d.name,
+      expected_quantity: (d.quantity || 0) + (d.bonus_quantity || 0),
+      bonus_quantity: d.bonus_quantity || 0,
+    }));
+
+    return { 
+      success: true, 
+      order_metadata: parsedData.order_metadata,
+      drugs: mappedDrugs 
+    };
+  } catch (error: any) {
+    console.error('Gemini Vision Fallback Error:', error);
+    return { success: false, error: error.message || 'Gemini Vision 辨識失敗' };
+  }
+}
+
+/**
  * 上傳匯入截圖至 Supabase Storage
  * 返回上傳後的檔案路徑清單
  */
@@ -128,9 +204,22 @@ export async function uploadImportImages(formData: FormData): Promise<{ success:
 }
 
 /**
- * 匯入藥品清單並實作嚴格的 44 項邏輯分頁
- * 依據原始輸入順序 (item_order) 進行切分
+ * 從 Supabase Storage 中刪除匯入的圖片
  */
+export async function deleteImportImages(urls: string[]): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabaseAdmin.storage
+      .from('import_screenshots')
+      .remove(urls.map(url => url.split('/').pop()!)); // 取得檔名進行刪除
+
+    if (error) throw error;
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Delete Images Error:', error);
+    return { success: false, error: error.message || '刪除圖片失敗' };
+  }
+}
 export async function importDrugs(
   manifestName: string, 
   drugs: ImportDrugItem[], 
