@@ -7,6 +7,7 @@ export interface ImportDrugItem {
   barcode: string;
   name: string;
   expected_quantity: number;
+  bonus_quantity: number;
 }
 
 export interface ImportResponse {
@@ -130,7 +131,12 @@ export async function uploadImportImages(formData: FormData): Promise<{ success:
  * 匯入藥品清單並實作嚴格的 44 項邏輯分頁
  * 依據原始輸入順序 (item_order) 進行切分
  */
-export async function importDrugs(manifestName: string, drugs: ImportDrugItem[], userId: string, sourceImages: string[] = []): Promise<ImportResponse> {
+export async function importDrugs(
+  manifestName: string, 
+  drugs: ImportDrugItem[], 
+  userId: string, 
+  options: { order_number?: string, delivery_date?: string, source_file?: string, source_images?: string[] } = {}
+): Promise<ImportResponse> {
   try {
     if (!drugs || drugs.length === 0) {
       return { success: false, error: '藥品清單不能為空' };
@@ -141,10 +147,13 @@ export async function importDrugs(manifestName: string, drugs: ImportDrugItem[],
       .from('manifests')
       .insert({
         name: manifestName,
+        order_number: options.order_number,
+        delivery_date: options.delivery_date,
+        source_file: options.source_file,
         total_items: drugs.length,
         status: 'active',
         user_id: userId,
-        source_images: sourceImages,
+        source_images: options.source_images,
       })
       .select()
       .single();
@@ -166,6 +175,7 @@ export async function importDrugs(manifestName: string, drugs: ImportDrugItem[],
         barcode: drug.barcode,
         name: drug.name,
         expected_quantity: drug.expected_quantity,
+        bonus_quantity: drug.bonus_quantity,
         counted_status: 'pending',
       };
     });

@@ -6,6 +6,7 @@ export interface DrugItem {
   barcode: string;
   name: string;
   expected_quantity: number;
+  bonus_quantity: number;
   actual_quantity: number;
   counted_status: 'pending' | 'completed' | 'error';
   photo_url: string | null;
@@ -39,6 +40,9 @@ export interface JumpTarget {
 export interface Manifest {
   id: string;
   name: string;
+  order_number?: string;
+  delivery_date?: string;
+  source_file?: string;
   total_items: number;
   status: string;
   created_at?: string;

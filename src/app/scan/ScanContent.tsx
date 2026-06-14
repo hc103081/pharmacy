@@ -96,7 +96,24 @@ export default function ScanContent() {
 
     setLoading(true);
     try {
-      const [completedRes, pageRes, errorItemsRes] = await Promise.all([
+      const [
+        totalRes,
+        maxPageRes,
+        completedRes,
+        pageRes,
+        errorItemsRes,
+      ] = await Promise.all([
+        supabase
+          .from('drug_items')
+          .select('*', { count: 'exact', head: true })
+          .eq('manifest_id', manifestId),
+        supabase
+          .from('drug_items')
+          .select('page_number')
+          .eq('manifest_id', manifestId)
+          .order('page_number', { ascending: false })
+          .limit(1)
+          .single(),
         supabase
           .from('drug_items')
           .select('*', { count: 'exact', head: true })
@@ -124,6 +141,8 @@ export default function ScanContent() {
         return;
       }
 
+      setTotalItems(totalRes.count || 0);
+      setTotalPages(maxPageRes.data?.page_number || 1);
       setCompletedTotal(completedRes.count || 0);
       setErrorTotal(errorItemsRes.data?.length || 0);
       setErrorDrugs(errorItemsRes.data || []);
