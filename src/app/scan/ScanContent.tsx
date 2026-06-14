@@ -10,6 +10,7 @@ import {
   Package,
   FileText,
   AlertCircle,
+  ChevronDown,
 } from 'lucide-react';
 import Link from 'next/link';
 import { DrugCard, ErrorDrawer, JumpDialog, PhotoPreview, BarcodeSearchBar } from './components';
@@ -42,6 +43,8 @@ export default function ScanContent() {
   const [toast, setToast] = useState<string | null>(null);
   const [pageInputValue, setPageInputValue] = useState<string>('');
   const pageInputRef = useRef<HTMLInputElement>(null);
+  const [isStatsExpanded, setIsStatsExpanded] = useState(false);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -166,12 +169,17 @@ export default function ScanContent() {
     fetchPageData();
   }, [currentPage, manifestId]);
 
-  // 行動裝置鍵盤彈出時自動將輸入框滾動到可視區域
+  // 行動裝置鍵盤彈出時自動將輸入框滾動到可視區域，並隱藏底部導覽列
   useEffect(() => {
     if (typeof window === 'undefined' || !window.visualViewport) return;
 
     const handleResize = () => {
       const inputEl = document.getElementById('search-barcode');
+      const viewportHeight = window.visualViewport!.height;
+      const windowHeight = window.innerHeight;
+      // 鍵盤彈出時 viewport 高度會顯著小於 window 高度
+      setIsKeyboardOpen(viewportHeight < windowHeight * 0.85);
+
       if (!inputEl || document.activeElement !== inputEl) return;
       setTimeout(() => {
         inputEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -275,7 +283,7 @@ export default function ScanContent() {
   }, [allPageCompleted, currentPage, totalPages, loading]);
 
   return (
-    <div className="h-screen bg-[#07142b] text-slate-200 flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-[#07142b] text-slate-200 flex flex-col overflow-hidden">
       <ErrorDrawer
         isOpen={isErrorDrawerOpen}
         errorDrugs={errorDrugs}
@@ -309,7 +317,7 @@ export default function ScanContent() {
 
       {/* 跳轉回溯標籤 */}
       {lastVisitedPage && lastVisitedPage !== currentPage && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
           <button
             onClick={() => {
               setBarcodeInput('');
@@ -348,67 +356,194 @@ export default function ScanContent() {
         <PhotoPreview imageUrl={previewImage} onClose={() => setPreviewImage(null)} />
       )}
 
-      <header className="bg-[#162a56]/80 backdrop-blur-sm border-b border-blue-500/20 sticky top-0 z-10 p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => {
-                if (barcodeInput) {
-                  setBarcodeInput('');
-                } else {
-                  router.push('/manifests');
-                }
-              }}
-              className="p-2 rounded-full transition-all active:scale-95 hover:bg-slate-800 text-slate-400"
-              title={barcodeInput ? '清除搜尋' : '返回清單列表'}
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div>
-              <h1 className="font-bold text-white truncate max-w-[150px]">
-                {manifestName || '載入中...'}
-              </h1>
-              <div className="flex items-center gap-2">
-                <p className="text-xs text-slate-500">分頁清點模式</p>
-                <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[10px] font-bold border border-blue-500/30">
-                  本頁 {pageCompletedCount}/{pageTotalCount}
-                </span>
-                {isLocked && (
-                  <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 text-[10px] font-bold border border-red-500/30">
-                    已封存 (唯讀)
+      {/* ========== 手機端佈局 (< lg) ========== */}
+      <div className="flex flex-col min-h-0 h-full lg:hidden">
+        {/* 精簡 Header */}
+        <header className="shrink-0 bg-[#162a56]/80 backdrop-blur-sm border-b border-blue-500/20 z-10 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <button
+                onClick={() => {
+                  if (barcodeInput) {
+                    setBarcodeInput('');
+                  } else {
+                    router.push('/manifests');
+                  }
+                }}
+                className="p-2 rounded-full transition-all active:scale-95 hover:bg-slate-800 text-slate-400 shrink-0"
+                title={barcodeInput ? '清除搜尋' : '返回清單列表'}
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div className="min-w-0">
+                <h1 className="font-bold text-white truncate max-w-[180px] text-sm">
+                  {manifestName || '載入中...'}
+                </h1>
+                <div className="flex items-center gap-1.5">
+                  <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[10px] font-bold border border-blue-500/30">
+                    本頁 {pageCompletedCount}/{pageTotalCount}
                   </span>
-                )}
+                  {isLocked && (
+                    <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 text-[10px] font-bold border border-red-500/30">
+                      唯讀
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-3">
-            <Link
-              href={`/summary/${manifestId}`}
-              className="flex items-center gap-2 px-3 py-1.5 bg-slate-950/50 text-slate-300 rounded-xl border border-slate-800 hover:bg-slate-800 transition-all text-sm font-medium"
-            >
-              <FileText className="w-4 h-4" />
-              <span>預覽結果</span>
-            </Link>
-            <button
-              onClick={() => setIsErrorDrawerOpen(true)}
-              className={`flex items-center gap-2 px-3 py-1.5 bg-slate-950/50 text-slate-300 rounded-xl border transition-all text-sm font-medium ${
-                errorTotal > 0
-                  ? 'border-red-500/50 text-red-400 hover:bg-red-500/10'
-                  : 'border-slate-800 hover:bg-slate-800'
-              }`}
-            >
-              <AlertCircle className="w-4 h-4" />
-              <span>異常清單 ({errorTotal})</span>
-            </button>
-            <div className="flex items-center gap-2 bg-slate-950/50 p-1 rounded-xl border border-slate-800">
-              <button
-                onClick={() => navigateToPage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-                className="p-1 hover:bg-slate-800 rounded disabled:opacity-30 transition-all active:scale-95"
+            <div className="flex items-center gap-2 shrink-0">
+              <Link
+                href={`/summary/${manifestId}`}
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-950/50 text-slate-300 rounded-xl border border-slate-800 hover:bg-slate-800 transition-all text-xs font-medium"
               >
-                <ChevronLeft className="w-5 h-5" />
+                <FileText className="w-3.5 h-3.5" />
+                <span>預覽</span>
+              </Link>
+              <button
+                onClick={() => setIsErrorDrawerOpen(true)}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border transition-all text-xs font-medium ${
+                  errorTotal > 0
+                    ? 'bg-red-500/10 border-red-500/50 text-red-400'
+                    : 'bg-slate-950/50 border-slate-800 text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                <AlertCircle className="w-3.5 h-3.5" />
+                <span>異常 {errorTotal > 0 ? `(${errorTotal})` : ''}</span>
               </button>
+            </div>
+          </div>
+        </header>
+
+        {/* 搜尋欄 (始終可見) */}
+        <div className="shrink-0 px-4 py-2 bg-[#07142b]">
+          <BarcodeSearchBar
+            value={barcodeInput}
+            onChange={setBarcodeInput}
+            onClear={() => setBarcodeInput('')}
+            hasMatch={!!matchingItem}
+            isLocked={isLocked}
+          />
+        </div>
+
+        {/* 可折疊統計面板 */}
+        <div className="shrink-0 px-4 pb-2 bg-[#07142b]">
+          {/* 統計摘要列 (點擊展開/收合) */}
+          <button
+            onClick={() => setIsStatsExpanded(!isStatsExpanded)}
+            className="w-full flex items-center justify-between px-3 py-2 bg-slate-950/50 rounded-xl border border-slate-800 text-left transition-all hover:border-slate-700 active:scale-[0.99]"
+          >
+            <span className="text-xs text-slate-400">
+              已完成{' '}
+              <span className="text-[#00f2fe] font-bold">{completedTotal}</span>
+              <span className="text-slate-500"> / {totalItems} 項</span>
+            </span>
+            <ChevronDown
+              className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${
+                isStatsExpanded ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+
+          {/* 展開的 4 欄統計 */}
+          {isStatsExpanded && (
+            <div className="grid grid-cols-4 gap-2 p-3 mt-2 bg-slate-950/50 rounded-xl border border-slate-800 text-center animate-in fade-in slide-in-from-top-1 duration-200">
+              <div className="flex flex-col items-center">
+                <span className="text-[10px] text-slate-500 uppercase font-bold">總項數</span>
+                <span className="text-sm font-mono font-bold text-slate-300">{totalItems}</span>
+              </div>
+              <div className="flex flex-col items-center border-x border-slate-800">
+                <span className="text-[10px] text-green-500 uppercase font-bold">已完成</span>
+                <span className="text-sm font-mono font-bold text-green-400">{completedTotal}</span>
+              </div>
+              <div className="flex flex-col items-center border-r border-slate-800">
+                <span className="text-[10px] text-red-500 uppercase font-bold">數量異常</span>
+                <span className="text-sm font-mono font-bold text-red-400">{errorTotal}</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <span className="text-[10px] text-slate-500 uppercase font-bold">待清點</span>
+                <span className="text-sm font-mono font-bold text-slate-300">
+                  {totalItems - completedTotal - errorTotal}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 藥品列表 */}
+        <main className="flex-1 min-h-0 px-4 overflow-y-auto pb-4">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+          />
+
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-20 space-y-4">
+              <div className="w-10 h-10 border-4 border-[#00f2fe] border-t-transparent rounded-full animate-spin" />
+              <p className="text-slate-500 animate-pulse">載入數據中...</p>
+            </div>
+          ) : drugs.length === 0 ? (
+            <div className="text-center py-20 tech-card border-dashed border-slate-700 space-y-4">
+              <Package className="w-12 h-12 text-slate-600 mx-auto" />
+              <p className="text-slate-500">本頁沒有藥品項目</p>
+            </div>
+          ) : (
+            <div className="space-y-3 pt-2">
+              {drugs
+                .filter((drug) => !barcodeInput || getMatchScore(drug, barcodeInput) > 0)
+                .map((drug) => {
+                  const isMatched = getMatchScore(drug, barcodeInput) > 0;
+                  const isUploading = uploadingQueue.has(drug.id);
+
+                  return (
+                    <div
+                      key={drug.id}
+                      className={`transition-all duration-300 ${
+                        barcodeInput && !isMatched ? 'opacity-25 grayscale scale-[0.98]' : ''
+                      }`}
+                    >
+                      <DrugCard
+                        drug={drug}
+                        isMatched={isMatched}
+                        isUploading={isUploading}
+                        isLocked={isLocked}
+                        actualQuantity={actualQuantity}
+                        selectedStatus={selectedStatus}
+                        onStatusSelect={setSelectedStatus}
+                        onActualQuantityChange={setActualQuantity}
+                        onTriggerCamera={triggerCamera}
+                        onPreviewPhoto={setPreviewImage}
+                      />
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </main>
+
+        {/* 底部浮動導覽列 (鍵盤彈出時隱藏) */}
+        <div
+          className={`shrink-0 px-4 py-2 bg-[#162a56]/90 backdrop-blur-sm border-t border-blue-500/20 transition-all duration-300 ${
+            isKeyboardOpen ? 'opacity-0 translate-y-full pointer-events-none' : ''
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2">
+            {/* 上一頁 */}
+            <button
+              onClick={() => navigateToPage(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+              className="flex items-center justify-center gap-1 px-4 py-2.5 bg-slate-700 rounded-xl border border-slate-600 text-slate-200 disabled:opacity-30 transition-all active:scale-95 hover:bg-slate-600"
+            >
+              <ChevronLeft className="w-5 h-5" />
+              <span className="text-xs font-bold">上一頁</span>
+            </button>
+
+            {/* 頁碼顯示 */}
+            <div className="flex items-center gap-1.5 bg-slate-950/50 rounded-xl border border-slate-800 px-3 py-2.5">
               <input
                 type="text"
                 inputMode="numeric"
@@ -424,110 +559,211 @@ export default function ScanContent() {
                 onFocus={() => pageInputRef.current?.select()}
                 ref={pageInputRef}
                 placeholder={String(currentPage)}
-                className="w-8 bg-transparent text-center text-sm font-bold text-slate-300 outline-none"
+                className="w-10 bg-transparent text-center text-base font-bold text-[#00f2fe] outline-none"
                 title="直接輸入頁碼"
               />
               <span className="text-sm font-bold text-slate-500">/ {totalPages}</span>
+            </div>
+
+            {/* 下一頁 */}
+            <button
+              onClick={() => navigateToPage(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+              className="flex items-center justify-center gap-1 px-4 py-2.5 bg-slate-700 rounded-xl border border-slate-600 text-slate-200 disabled:opacity-30 transition-all active:scale-95 hover:bg-slate-600"
+            >
+              <span className="text-xs font-bold">下一頁</span>
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ========== 電腦端佈局 (>= lg) ========== */}
+      <div className="hidden lg:flex h-full">
+        {/* 左側固定側欄 */}
+        <aside className="w-80 shrink-0 bg-[#0d1f3e] border-r border-blue-500/20 flex flex-col h-full overflow-hidden">
+          {/* 側欄 Header */}
+          <div className="p-4 border-b border-blue-500/20">
+            <div className="flex items-center gap-3 mb-3">
+              <button
+                onClick={() => router.push('/manifests')}
+                className="p-2 rounded-full transition-all active:scale-95 hover:bg-slate-800 text-slate-400 shrink-0"
+                title="返回清單列表"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div className="min-w-0">
+                <h1 className="font-bold text-white truncate text-base">
+                  {manifestName || '載入中...'}
+                </h1>
+                {isLocked && (
+                  <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 text-[10px] font-bold border border-red-500/30 inline-block mt-1">
+                    已封存 (唯讀)
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/summary/${manifestId}`}
+                className="flex items-center gap-1 px-3 py-1.5 bg-slate-950/50 text-slate-300 rounded-xl border border-slate-800 hover:bg-slate-800 transition-all text-xs font-medium flex-1 justify-center"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>預覽結果</span>
+              </Link>
+              <button
+                onClick={() => setIsErrorDrawerOpen(true)}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-xl border transition-all text-xs font-medium flex-1 justify-center ${
+                  errorTotal > 0
+                    ? 'bg-red-500/10 border-red-500/50 text-red-400'
+                    : 'bg-slate-950/50 border-slate-800 text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                <AlertCircle className="w-3.5 h-3.5" />
+                <span>異常清單 ({errorTotal})</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 側欄搜尋 */}
+          <div className="px-4 py-3">
+            <BarcodeSearchBar
+              value={barcodeInput}
+              onChange={setBarcodeInput}
+              onClear={() => setBarcodeInput('')}
+              hasMatch={!!matchingItem}
+              isLocked={isLocked}
+            />
+          </div>
+
+          {/* 側欄統計 (始終展開) */}
+          <div className="px-4 py-3">
+            <div className="grid grid-cols-2 gap-2 p-3 bg-slate-950/50 rounded-xl border border-slate-800 text-center">
+              <div className="flex flex-col items-center p-1">
+                <span className="text-[10px] text-slate-500 uppercase font-bold">總項數</span>
+                <span className="text-base font-mono font-bold text-slate-300">{totalItems}</span>
+              </div>
+              <div className="flex flex-col items-center p-1">
+                <span className="text-[10px] text-green-500 uppercase font-bold">已完成</span>
+                <span className="text-base font-mono font-bold text-green-400">{completedTotal}</span>
+              </div>
+              <div className="flex flex-col items-center p-1">
+                <span className="text-[10px] text-red-500 uppercase font-bold">數量異常</span>
+                <span className="text-base font-mono font-bold text-red-400">{errorTotal}</span>
+              </div>
+              <div className="flex flex-col items-center p-1">
+                <span className="text-[10px] text-slate-500 uppercase font-bold">待清點</span>
+                <span className="text-base font-mono font-bold text-slate-300">
+                  {totalItems - completedTotal - errorTotal}
+                </span>
+              </div>
+            </div>
+            {/* 本頁進度 */}
+            <div className="mt-2 px-1">
+              <span className="text-[10px] text-slate-500">
+                本頁: {pageCompletedCount}/{pageTotalCount}
+              </span>
+            </div>
+          </div>
+
+          {/* 側欄頁碼導覽 */}
+          <div className="px-4 py-3 border-t border-blue-500/20 mt-auto">
+            <div className="flex items-center justify-between gap-2">
+              <button
+                onClick={() => navigateToPage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+                className="p-2 bg-slate-700 rounded-lg border border-slate-600 text-slate-200 disabled:opacity-30 transition-all active:scale-95 hover:bg-slate-600"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <div className="flex items-center gap-2 bg-slate-950/50 rounded-lg border border-slate-800 px-3 py-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={pageInputValue}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    setPageInputValue(raw);
+                    if (raw === '') return;
+                    const v = parseInt(raw);
+                    if (!isNaN(v) && v >= 1 && v <= totalPages) navigateToPage(v);
+                  }}
+                  onFocus={() => pageInputRef.current?.select()}
+                  ref={pageInputRef}
+                  placeholder={String(currentPage)}
+                  className="w-10 bg-transparent text-center text-base font-bold text-[#00f2fe] outline-none"
+                  title="直接輸入頁碼"
+                />
+                <span className="text-sm font-bold text-slate-500">/ {totalPages}</span>
+              </div>
               <button
                 onClick={() => navigateToPage(Math.min(totalPages, currentPage + 1))}
                 disabled={currentPage === totalPages}
-                className="p-1 hover:bg-slate-800 rounded disabled:opacity-30 transition-all active:scale-95"
+                className="p-2 bg-slate-700 rounded-lg border border-slate-600 text-slate-200 disabled:opacity-30 transition-all active:scale-95 hover:bg-slate-600"
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
             </div>
           </div>
-        </div>
+        </aside>
 
-        <div className="grid grid-cols-4 gap-2 p-2 bg-slate-950/50 rounded-xl border border-slate-800 text-center">
-          <div className="flex flex-col items-center">
-            <span className="text-[10px] text-slate-500 uppercase font-bold">總項數</span>
-            <span className="text-sm font-mono font-bold text-slate-300">{totalItems}</span>
-          </div>
-          <div className="flex flex-col items-center border-x border-slate-800">
-            <span className="text-[10px] text-green-500 uppercase font-bold">已完成</span>
-            <span className="text-sm font-mono font-bold text-green-400">{completedTotal}</span>
-          </div>
-          <div className="flex flex-col items-center border-r border-slate-800">
-            <span className="text-[10px] text-red-500 uppercase font-bold">數量異常</span>
-            <span className="text-sm font-mono font-bold text-red-400">{errorTotal}</span>
-          </div>
-          <div className="flex flex-col items-center">
-            <span className="text-[10px] text-slate-500 uppercase font-bold">待清點</span>
-            <span className="text-sm font-mono font-bold text-slate-300">
-              {totalItems - completedTotal - errorTotal}
-            </span>
-          </div>
-        </div>
+        {/* 右側主區域: 藥品列表 */}
+        <main className="flex-1 overflow-y-auto p-6">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+          />
 
-        <BarcodeSearchBar
-          value={barcodeInput}
-          onChange={setBarcodeInput}
-          onClear={() => setBarcodeInput('')}
-          hasMatch={!!matchingItem}
-          isLocked={isLocked}
-        />
-      </header>
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-20 space-y-4">
+              <div className="w-10 h-10 border-4 border-[#00f2fe] border-t-transparent rounded-full animate-spin" />
+              <p className="text-slate-500 animate-pulse">載入數據中...</p>
+            </div>
+          ) : drugs.length === 0 ? (
+            <div className="text-center py-20 tech-card border-dashed border-slate-700 space-y-4">
+              <Package className="w-12 h-12 text-slate-600 mx-auto" />
+              <p className="text-slate-500">本頁沒有藥品項目</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              {drugs
+                .filter((drug) => !barcodeInput || getMatchScore(drug, barcodeInput) > 0)
+                .map((drug) => {
+                  const isMatched = getMatchScore(drug, barcodeInput) > 0;
+                  const isUploading = uploadingQueue.has(drug.id);
 
-      <main className="flex-1 p-4 overflow-y-auto">
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileUpload}
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-        />
-
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 space-y-4">
-            <div className="w-10 h-10 border-4 border-[#00f2fe] border-t-transparent rounded-full animate-spin" />
-            <p className="text-slate-500 animate-pulse">載入數據中...</p>
-          </div>
-        ) : drugs.length === 0 ? (
-          <div className="text-center py-20 tech-card border-dashed border-slate-700 space-y-4">
-            <Package className="w-12 h-12 text-slate-600 mx-auto" />
-            <p className="text-slate-500">本頁沒有藥品項目</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {drugs
-              .filter((drug) => !barcodeInput || getMatchScore(drug, barcodeInput) > 0)
-              .map((drug) => {
-                const isMatched = getMatchScore(drug, barcodeInput) > 0;
-                const isUploading = uploadingQueue.has(drug.id);
-
-                return (
-                  <div
-                    key={drug.id}
-                    className={`transition-all duration-300 ${
-                      barcodeInput && !isMatched ? 'opacity-25 grayscale scale-[0.98]' : ''
-                    }`}
-                  >
-                    <DrugCard
-                      drug={drug}
-                      isMatched={isMatched}
-                      isUploading={isUploading}
-                      isLocked={isLocked}
-                      actualQuantity={actualQuantity}
-                      selectedStatus={selectedStatus}
-                      onStatusSelect={setSelectedStatus}
-                      onActualQuantityChange={setActualQuantity}
-                      onTriggerCamera={triggerCamera}
-                      onPreviewPhoto={setPreviewImage}
-                    />
-                  </div>
-                );
-              })}
-          </div>
-        )}
-      </main>
-
-      <footer className="p-4 bg-[#07142b] border-t border-slate-800 text-center">
-        <p className="text-xs text-slate-500 font-medium">
-          請掃描條碼以激活數量輸入與拍照按鈕
-        </p>
-      </footer>
+                  return (
+                    <div
+                      key={drug.id}
+                      className={`transition-all duration-300 ${
+                        barcodeInput && !isMatched ? 'opacity-25 grayscale scale-[0.98]' : ''
+                      }`}
+                    >
+                      <DrugCard
+                        drug={drug}
+                        isMatched={isMatched}
+                        isUploading={isUploading}
+                        isLocked={isLocked}
+                        actualQuantity={actualQuantity}
+                        selectedStatus={selectedStatus}
+                        onStatusSelect={setSelectedStatus}
+                        onActualQuantityChange={setActualQuantity}
+                        onTriggerCamera={triggerCamera}
+                        onPreviewPhoto={setPreviewImage}
+                      />
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </main>
+      </div>
     </div>
   );
 }
