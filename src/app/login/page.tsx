@@ -1,15 +1,27 @@
 'use client';
 
-import { useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { Suspense, useState, useEffect } from 'react';
 import { login } from './actions';
 import { Mail, Loader2 } from 'lucide-react';
+import { useAuth } from '@/components/AuthProvider';
 
 function LoginForm() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const { user } = useAuth();
   const sent = searchParams.get('sent');
   const error = searchParams.get('error');
   const [loading, setLoading] = useState(false);
+
+  // 已登入自動跳轉
+  useEffect(() => {
+    if (user) {
+      router.push('/');
+    }
+  }, [user, router]);
+
+  if (user) return null;
 
   if (sent === 'true') {
     return (
@@ -22,6 +34,7 @@ function LoginForm() {
           <p className="text-sm text-slate-400">
             我們已發送一組 Magic Link 到你的 Email，點擊連結即可登入。
           </p>
+          <p className="text-xs text-slate-500">驗證成功後將自動跳轉至主頁面...</p>
         </div>
       </div>
     );
