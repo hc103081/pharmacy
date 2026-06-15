@@ -1,0 +1,856 @@
+[
+  {
+    "line_number": 1,
+    "barcode": "068060264824",
+    "drug_name": "3M細滑牙線棒180支",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 2,
+    "barcode": "081364362560",
+    "drug_name": "京都念慈安金桔潤喉糖/60G",
+    "quantity": 4,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 6,
+    "barcode": "4710066803236",
+    "drug_name": "好貼雙氧水 500cc",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 7,
+    "barcode": "4710066803236",
+    "drug_name": "好貼雙氧水 500cc",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 8,
+    "barcode": "4710366311332",
+    "drug_name": "三多女性B群Plus鐵鎂錠-60錠/盒",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 12,
+    "barcode": "4710367403630",
+    "drug_name": "3M嬰幼兒專用膠帶-1吋",
+    "quantity": 2,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 13,
+    "barcode": "4710367490579",
+    "drug_name": "3M免縫膠帶-1546PP(30條)",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 14,
+    "barcode": "4710367663232",
+    "drug_name": "3M溫和剝離矽膠帶-1吋x1.37m/",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 18,
+    "barcode": "47105201",
+    "drug_name": "綠油精10g",
+    "quantity": 3,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 19,
+    "barcode": "47105256",
+    "drug_name": "金十字胃腸藥95g",
+    "quantity": 2,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 20,
+    "barcode": "4710591899308",
+    "drug_name": "速治疼軟膠囊(ibuprofen) 400毫克",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 21,
+    "barcode": "4710596060031",
+    "drug_name": "菲那絲1mg膜衣錠30s",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 25,
+    "barcode": "4710736639677",
+    "drug_name": "潤喉丸-48粒/盒^三友",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 26,
+    "barcode": "4710782495975",
+    "drug_name": "醫康透氣紙膠1吋-白無台",
+    "quantity": 3,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 27,
+    "barcode": "4710782496064",
+    "drug_name": "醫康透氣低過敏醫療膠帶1吋無台",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 31,
+    "barcode": "4710961050544",
+    "drug_name": "思媚乳膏-12gm/條^壽元",
+    "quantity": 4,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 32,
+    "barcode": "4710961050544",
+    "drug_name": "思媚乳膏-12gm/條^壽元",
+    "quantity": 4,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 33,
+    "barcode": "4710982313048",
+    "drug_name": "奈森克林粗軸棉花棒-600支/包",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 37,
+    "barcode": "4711064218831",
+    "drug_name": "紅牛聰勁即溶乳清蛋白･曼特寧500",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 38,
+    "barcode": "4711064218886",
+    "drug_name": "紅牛聰勁即溶乳清蛋白･濃情巧克力500",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 39,
+    "barcode": "4711091008115",
+    "drug_name": "貝林爽身粉(紅)",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 43,
+    "barcode": "4711144270216",
+    "drug_name": "YASMIN悅己 第1天",
+    "quantity": 3,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 44,
+    "barcode": "4711144271282",
+    "drug_name": "悅姿錠28粒 第1天",
+    "quantity": 2,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 45,
+    "barcode": "4711162620079",
+    "drug_name": "婕朵驗孕筆",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 46,
+    "barcode": "4711162620079",
+    "drug_name": "婕朵驗孕筆",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 47,
+    "barcode": "4711365678013",
+    "drug_name": "八仙果-60g/罐",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 51,
+    "barcode": "4711457462230",
+    "drug_name": "舒維療乳膏-5g/支^元宙",
+    "quantity": 4,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 52,
+    "barcode": "4711542360939",
+    "drug_name": "舒必克蜂膠兒童喉片(葡萄)-30",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 53,
+    "barcode": "4711558120138",
+    "drug_name": "果汁C片(檸檬)",
+    "quantity": 2,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 57,
+    "barcode": "4711916012280",
+    "drug_name": "麥迪森潤視洗眼液-10mlx16支/盒",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 58,
+    "barcode": "4711946462796",
+    "drug_name": "膚立淨乳膏10gm",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 59,
+    "barcode": "4711946463502",
+    "drug_name": "冠丞益生菌-2gx30包/盒",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 63,
+    "barcode": "4712206996846",
+    "drug_name": "延壽金門一條根精油軟膏100GM",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 64,
+    "barcode": "4712462001117",
+    "drug_name": "斯斯舒痛軟膠囊10s",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 65,
+    "barcode": "4712462302412",
+    "drug_name": "敏肝寧40s",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 66,
+    "barcode": "4712462303211",
+    "drug_name": "斯斯感冒膠囊-20s/盒",
+    "quantity": 2,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 70,
+    "barcode": "4712462308117",
+    "drug_name": "斯斯咳嗽膠囊-10s",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 71,
+    "barcode": "4712602425612",
+    "drug_name": "永猷平面大童(7-12y)醫用口罩-50",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 72,
+    "barcode": "4712646961329",
+    "drug_name": "優芮珂絲(樂伊妥)-28caps/罐",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 76,
+    "barcode": "4712831955652",
+    "drug_name": "護民舒痛炎藥膠布Ketoprofen30mg-6",
+    "quantity": 3,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 77,
+    "barcode": "4712831955652",
+    "drug_name": "護民舒痛炎藥膠布Ketoprofen30mg-6",
+    "quantity": 3,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 78,
+    "barcode": "4712893660624",
+    "drug_name": "全新生醫人工皮ok絆-27十片裝",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 82,
+    "barcode": "4712893661225",
+    "drug_name": "全新生醫人工皮親水敷料-57 四片裝",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 83,
+    "barcode": "4712893661263",
+    "drug_name": "全新生醫人工皮親水敷料-5x5-",
+    "quantity": 2,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 84,
+    "barcode": "4712909860925",
+    "drug_name": "寶淨V-10白纖柔護齒可替換刷毛10入0.8-0.9",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 88,
+    "barcode": "4713435580417",
+    "drug_name": "鼻隨通-10粒/盒",
+    "quantity": 3,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 89,
+    "barcode": "4713435583159",
+    "drug_name": "利悅錠-10錠/盒^溫士頓",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 90,
+    "barcode": "4713435584446",
+    "drug_name": "晴凝人工淚液-15ml2^溫士頓",
+    "quantity": 4,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 91,
+    "barcode": "4713435584491",
+    "drug_name": "溫好殺菌軟膏-20g/支^溫士頓",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 92,
+    "barcode": "4713524600019",
+    "drug_name": "福海(福谷)指套(大)-1入",
+    "quantity": 12,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 96,
+    "barcode": "4713680395613",
+    "drug_name": "樂軒昂【1粒】膜衣錠20MG",
+    "quantity": 8,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 97,
+    "barcode": "4713889002039",
+    "drug_name": "補遼養名-500G/罐^大豐",
+    "quantity": 2,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 98,
+    "barcode": "4713889013028",
+    "drug_name": "解暈糖漿-20cc/罐 大豐",
+    "quantity": 6,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 102,
+    "barcode": "4713945804621",
+    "drug_name": "甘胺酸螯合鎂錠-30s/盒^嘉恩",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 103,
+    "barcode": "4714062620316",
+    "drug_name": "利膚外傷軟膏15g",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 104,
+    "barcode": "4714123863041",
+    "drug_name": "金博氏保衛菌益生菌-30包/盒^安昌",
+    "quantity": 4,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 108,
+    "barcode": "4714221331411",
+    "drug_name": "麗吉柔20ml-噴劑",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 109,
+    "barcode": "4714345999511",
+    "drug_name": "硼酸-6兩^瑞龍",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 110,
+    "barcode": "4714421801776",
+    "drug_name": "人生浣腸-10顆/盒",
+    "quantity": 10,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 111,
+    "barcode": "4714421801936",
+    "drug_name": "人生-噴速點鼻液20cc",
+    "quantity": 8,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 115,
+    "barcode": "4714421806047",
+    "drug_name": "恩捷感冒熱飲(兒童)",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 116,
+    "barcode": "4714421806429",
+    "drug_name": "恩捷感冒熱飲加強-6入",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 117,
+    "barcode": "4714483254121",
+    "drug_name": "克痛液噴劑-120ml/罐^寶齡富錦",
+    "quantity": 2,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 121,
+    "barcode": "4714741488893",
+    "drug_name": "爵立凝膠",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 122,
+    "barcode": "4715105582219",
+    "drug_name": "明大筋?痛膠囊-10s/盒(安昌)",
+    "quantity": 2,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 123,
+    "barcode": "4715139000802",
+    "drug_name": "優盛血壓壓脈帶-M(24-36)",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 127,
+    "barcode": "4715364110413",
+    "drug_name": "康之田貼樂好-10片/包^三帆",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 128,
+    "barcode": "4715364110413",
+    "drug_name": "康之田貼樂好-10片/包^三帆",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 129,
+    "barcode": "4715364110574",
+    "drug_name": "三帆青草藥膠布10片/包",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 133,
+    "barcode": "4716329942339",
+    "drug_name": "舒膚貼疤痕貼片(透明)-5x8cm-1",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 134,
+    "barcode": "4716329942339",
+    "drug_name": "舒膚貼疤痕貼片(透明)-5x8cm-1",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 135,
+    "barcode": "4716521001018",
+    "drug_name": "普拿疼肌立水性酸痛貼布5s",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 136,
+    "barcode": "4716521011123",
+    "drug_name": "普拿疼止痛加強錠(新)20T",
+    "quantity": 2,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 137,
+    "barcode": "4716521250256",
+    "drug_name": "普拿疼伏冒-熱飲(檸檬)10包",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 141,
+    "barcode": "4716521772727",
+    "drug_name": "保麗淨假牙黏著劑70g(原味)",
+    "quantity": 2,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 142,
+    "barcode": "4716544000036",
+    "drug_name": "廣東苜藥粉-5gm/盒(10904漲價)",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 143,
+    "barcode": "4716544000036",
+    "drug_name": "廣東苜藥粉-5gm/盒(10904漲價)",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 147,
+    "barcode": "4716872204328",
+    "drug_name": "晶潤視葉黃素explus軟膠囊-60",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 148,
+    "barcode": "4717216014085",
+    "drug_name": "攝勇 tadafil-5mg-30粒/盒 井田",
+    "quantity": 4,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 149,
+    "barcode": "4717216026255",
+    "drug_name": "口炎可舒5g",
+    "quantity": 4,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 153,
+    "barcode": "4717216115232",
+    "drug_name": "胃之盟錠無盒10粒/排",
+    "quantity": 2,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 154,
+    "barcode": "4717216117120",
+    "drug_name": "感冒寧膠囊-10s/盒^井田",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 155,
+    "barcode": "4717216117168",
+    "drug_name": "痛可止加強錠-10S/盒^井田",
+    "quantity": 2,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 156,
+    "barcode": "4717216122094",
+    "drug_name": "力波膜衣錠-10s/盒 井田",
+    "quantity": 2,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 160,
+    "barcode": "4717216215239",
+    "drug_name": "胃之盟錠-20粒/盒",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 161,
+    "barcode": "4717216220196",
+    "drug_name": "依普炎(ibuprofen 600mg)-10s/",
+    "quantity": 11,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 162,
+    "barcode": "4717216315311",
+    "drug_name": "治逆潰腸溶膜衣錠-28s/盒 井田",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 166,
+    "barcode": "4717282251117",
+    "drug_name": "咳精-散",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 167,
+    "barcode": "4717282321001",
+    "drug_name": "友露安消炎止痛400mg",
+    "quantity": 2,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 168,
+    "barcode": "4717282321001",
+    "drug_name": "友露安消炎止痛400mg",
+    "quantity": 2,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 172,
+    "barcode": "4717989799455",
+    "drug_name": "百樂潔漱口水600ml",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 173,
+    "barcode": "4718231100425",
+    "drug_name": "1065那柏瑞特透氣伸縮膠布-10",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 174,
+    "barcode": "4718231100425",
+    "drug_name": "1065那柏瑞特透氣伸縮膠布-10",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 178,
+    "barcode": "4718231102108",
+    "drug_name": "7305那柏瑞特防水膠布-5s/盒",
+    "quantity": 4,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 179,
+    "barcode": "4718231301129",
+    "drug_name": "必佳恩眼藥水-5ml/瓶 萬泰",
+    "quantity": 5,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 180,
+    "barcode": "4719021000086",
+    "drug_name": "快通甘油浣腸15％-10入",
+    "quantity": 10,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 181,
+    "barcode": "4719021001120",
+    "drug_name": "健康 咳得憐120ML",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 182,
+    "barcode": "4719021001120",
+    "drug_name": "健康 咳得憐120ML",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 186,
+    "barcode": "4719579630636",
+    "drug_name": "麥迪森人工淚液0.8mlx20支",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 187,
+    "barcode": "4719855200218",
+    "drug_name": "理膚寧乳膏-20G/支",
+    "quantity": 3,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 188,
+    "barcode": "4719857260258",
+    "drug_name": "SATO雅寧糖衣錠",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 192,
+    "barcode": "4719871983065",
+    "drug_name": "普拿疼速效膜衣錠 (10粒)",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 193,
+    "barcode": "4719871983171",
+    "drug_name": "普拿疼膜衣錠-24粒/盒",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 194,
+    "barcode": "4719871983430",
+    "drug_name": "保麗淨假牙黏著劑好穩固全方位密合70",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 198,
+    "barcode": "4719878105064",
+    "drug_name": "永旺不織布紗布-4x4-3片/包",
+    "quantity": 19,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 199,
+    "barcode": "4719878107020",
+    "drug_name": "雙線細滑牙線棒-50支/袋^永旺",
+    "quantity": 3,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 200,
+    "barcode": "4719878890014",
+    "drug_name": "感冒膠囊-10S/盒^成大",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 201,
+    "barcode": "4719881452025",
+    "drug_name": "銀貝貝滅菌紗布塊3X3純棉紗",
+    "quantity": 20,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 205,
+    "barcode": "4719881452131",
+    "drug_name": "銀貝貝普通棉棒滅菌10支",
+    "quantity": 4,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 206,
+    "barcode": "4897022620981",
+    "drug_name": "京都念慈庵川貝枇杷膏(無糖)-198",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 207,
+    "barcode": "4903301192046",
+    "drug_name": "獅美露康德目耀pure眼藥水-12",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 211,
+    "barcode": "4987033904016",
+    "drug_name": "太田胃散-75g/罐^太田",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 212,
+    "barcode": "4987033904023",
+    "drug_name": "太田胃散140g(盒)",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 213,
+    "barcode": "4987036412631",
+    "drug_name": "近江兄弟歐米薄荷潤脣膏^人生",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 217,
+    "barcode": "4987240609803",
+    "drug_name": "龍角散喉糖10粒",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 218,
+    "barcode": "4987241104246",
+    "drug_name": "曼秀雷敦75g",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 219,
+    "barcode": "4987306786684",
+    "drug_name": "欣表飛鳴錠 350錠",
+    "quantity": 2,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 223,
+    "barcode": "768455148721",
+    "drug_name": "多愛膚超薄型人工皮1010^龍生",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 224,
+    "barcode": "8428097864916",
+    "drug_name": "雅膚免縫膠帶-小傷口-0.6x3.8-36",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 328,
+    "barcode": "4716329940144",
+    "drug_name": "舒膚貼泡棉敷料10×10CM",
+    "quantity": 1,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 329,
+    "barcode": "4713435584958",
+    "drug_name": "溫舒眼潤眼油6G沁涼配方",
+    "quantity": 5,
+    "bonus_quantity": 0
+  },
+  {
+    "line_number": 330,
+    "barcode": "4710739485110",
+    "drug_name": "欣莉達牙科手用器械三合一口腔保健組",
+    "quantity": 1,
+    "bonus_quantity": 0
+  }
+]
