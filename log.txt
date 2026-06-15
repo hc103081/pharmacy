@@ -1,0 +1,619 @@
+Error in event handler: Error: invalid arguments to extensionAdapter.sendMessageToTab
+    at e.sendMessageToTab (<網址>)
+    at e.handleMessage (<網址>)
+    at <網址>
+    at <網址>
+Error in event handler: Error: invalid arguments to extensionAdapter.sendMessageToTab
+    at e.sendMessageToTab (<網址>)
+    at e.handleMessage (<網址>)
+    at <網址>
+    at <網址>
+Error in event handler: Error: invalid arguments to extensionAdapter.sendMessageToTab
+    at e.sendMessageToTab (<網址>)
+    at e.handleMessage (<網址>)
+    at <網址>
+    at <網址>
+Error in event handler: Error: invalid arguments to extensionAdapter.sendMessageToTab
+    at e.sendMessageToTab (<網址>)
+    at e.handleMessage (<網址>)
+    at <網址>
+    at <網址>
+Error in event handler: Error: invalid arguments to extensionAdapter.sendMessageToTab
+    at e.sendMessageToTab (<網址>)
+    at e.handleMessage (<網址>)
+    at <網址>
+    at <網址>
+Error in event handler: Error: invalid arguments to extensionAdapter.sendMessageToTab
+    at e.sendMessageToTab (<網址>)
+    at e.handleMessage (<網址>)
+    at <網址>
+    at <網址>
+Error in event handler: Error: invalid arguments to extensionAdapter.sendMessageToTab
+    at e.sendMessageToTab (<網址>)
+    at e.handleMessage (<網址>)
+    at <網址>
+    at <網址>
+Error in event handler: Error: invalid arguments to extensionAdapter.sendMessageToTab
+    at e.sendMessageToTab (<網址>)
+    at e.handleMessage (<網址>)
+    at <網址>
+    at <網址>
+Error in event handler: Error: invalid arguments to extensionAdapter.sendMessageToTab
+    at e.sendMessageToTab (<網址>)
+    at e.handleMessage (<網址>)
+    at <網址>
+    at <網址>
+Error in event handler: Error: invalid arguments to extensionAdapter.sendMessageToTab
+    at e.sendMessageToTab (<網址>)
+    at e.handleMessage (<網址>)
+    at <網址>
+    at <網址>
+Error in event handler: Error: invalid arguments to extensionAdapter.sendMessageToTab
+    at e.sendMessageToTab (<網址>)
+    at e.handleMessage (<網址>)
+    at <網址>
+    at <網址>
+Error in event handler: Error: invalid arguments to extensionAdapter.sendMessageToTab
+    at e.sendMessageToTab (<網址>)
+    at e.handleMessage (<網址>)
+    at <網址>
+    at <網址>
+Error in event handler: Error: invalid arguments to extensionAdapter.sendMessageToTab
+    at e.sendMessageToTab (<網址>)
+    at e.handleMessage (<網址>)
+    at <網址>
+    at <網址>
+Error in event handler: Error: invalid arguments to extensionAdapter.sendMessageToTab
+    at e.sendMessageToTab (<網址>)
+    at e.handleMessage (<網址>)
+    at <網址>
+    at <網址>
+Error in event handler: Error: invalid arguments to extensionAdapter.sendMessageToTab
+    at e.sendMessageToTab (<網址>)
+    at e.handleMessage (<網址>)
+    at <網址>
+    at <網址>
+Error in event handler: Error: invalid arguments to extensionAdapter.sendMessageToTab
+    at e.sendMessageToTab (<網址>)
+    at e.handleMessage (<網址>)
+    at <網址>
+    at <網址>
+Error in event handler: Error: invalid arguments to extensionAdapter.sendMessageToTab
+    at e.sendMessageToTab (<網址>)
+    at e.handleMessage (<網址>)
+    at <網址>
+    at <網址>
+Error in event handler: Error: invalid arguments to extensionAdapter.sendMessageToTab
+    at e.sendMessageToTab (<網址>)
+    at e.handleMessage (<網址>)
+    at <網址>
+    at <網址>
+:3000/import:1 The resource http://localhost:3000/_next/static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+:3000/import:1 The resource http://localhost:3000/_next/static/media/caa3a2e1cccd8315-s.p.0wgildi0cnwt9.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+pdfParser.ts:132 [PDF Debug] Y:827 | Raw: { idx: "", barcode: "", name: "", qty: "安得福藥局", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:725 | Raw: { idx: "送貨地址:", barcode: "", name: "", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:708 | Raw: { idx: "序商品代號", barcode: "", name: "品名數", qty: "量 /贈量", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:691 | Raw: { idx: "1068060264824", barcode: "", name: "3M細滑牙線棒180支", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:677 | Raw: { idx: "2081364362560", barcode: "", name: "京都念慈安金桔潤喉糖/60G", qty: "4.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:663 | Raw: { idx: "32007710", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:662 | Raw: { idx: "", barcode: "", name: "黴可清陰道錠(6粒一排)", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:649 | Raw: { idx: "42012661", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:648 | Raw: { idx: "", barcode: "", name: "知母時餵藥器", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:635 | Raw: { idx: "54015630006779", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:634 | Raw: { idx: "", barcode: "", name: "羅氏舒柔採血針200支(盛加450)", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:620 | Raw: { idx: "64710066803236", barcode: "", name: "好貼雙氧水 500cc", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:606 | Raw: { idx: "74710066803236", barcode: "", name: "好貼雙氧水 500cc", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:592 | Raw: { idx: "84710366311332", barcode: "", name: "三多女性B群Plus鐵鎂錠-60錠/盒", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:578 | Raw: { idx: "94710366311349", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:577 | Raw: { idx: "", barcode: "", name: "三多B群Plus鋅硒糖衣錠60錠", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:564 | Raw: { idx: "104710367400028", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:563 | Raw: { idx: "", barcode: "", name: "3M白色透氣膠帶-1吋(有台)", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:550 | Raw: { idx: "114710367400035", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:549 | Raw: { idx: "", barcode: "", name: "3M白色透氣膠帶-半吋(有台)", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:535 | Raw: { idx: "124710367403630", barcode: "", name: "3M嬰幼兒專用膠帶-1吋", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:521 | Raw: { idx: "134710367490579", barcode: "", name: "3M免縫膠帶-1546PP(30條)", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:507 | Raw: { idx: "144710367663232", barcode: "", name: "3M溫和剝離矽膠帶-1吋x1.37m/", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:493 | Raw: { idx: "154710367676041", barcode: "", name: "", qty: "3.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:492 | Raw: { idx: "", barcode: "", name: "3m不沾黏吸收棉墊2x2-5片/包", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:479 | Raw: { idx: "164710367676041", barcode: "", name: "", qty: "3.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:478 | Raw: { idx: "", barcode: "", name: "3m不沾黏吸收棉墊2x2-5片/包", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:465 | Raw: { idx: "1747105195", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:464 | Raw: { idx: "", barcode: "", name: "綠油精5g", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:450 | Raw: { idx: "1847105201", barcode: "", name: "綠油精10g", qty: "3.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:436 | Raw: { idx: "1947105256", barcode: "", name: "金十字胃腸藥95g", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:422 | Raw: { idx: "204710591899308", barcode: "", name: "速治疼軟膠囊(ibuprofen) 400毫克", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:408 | Raw: { idx: "214710596060031", barcode: "", name: "菲那絲1mg膜衣錠30s", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:394 | Raw: { idx: "224710596060031", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:393 | Raw: { idx: "", barcode: "", name: "菲那絲1mg膜衣錠30s", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:380 | Raw: { idx: "234710596392088", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:379 | Raw: { idx: "", barcode: "", name: "強力施美藥膏100gm", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:366 | Raw: { idx: "244710736635884", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:365 | Raw: { idx: "", barcode: "", name: "健胃散-80g/罐^三友", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:351 | Raw: { idx: "254710736639677", barcode: "", name: "潤喉丸-48粒/盒^三友", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:337 | Raw: { idx: "264710782495975", barcode: "", name: "醫康透氣紙膠1吋-白無台", qty: "3.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:323 | Raw: { idx: "274710782496064", barcode: "", name: "醫康透氣低過敏醫療膠帶1吋無台", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:309 | Raw: { idx: "284710782497344", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:308 | Raw: { idx: "", barcode: "", name: "醫康透氣紙膠1吋-白有台", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:295 | Raw: { idx: "294710945640020", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:294 | Raw: { idx: "", barcode: "", name: "士康洗鼻鹽(3.1g/包)-24包/盒", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:281 | Raw: { idx: "304710945790213", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:280 | Raw: { idx: "", barcode: "", name: "多功能冰溫袋 9"", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:266 | Raw: { idx: "314710961050544", barcode: "", name: "思媚乳膏-12gm/條^壽元", qty: "4.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:252 | Raw: { idx: "324710961050544", barcode: "", name: "思媚乳膏-12gm/條^壽元", qty: "4.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:238 | Raw: { idx: "334710982313048", barcode: "", name: "奈森克林粗軸棉花棒-600支/包", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:224 | Raw: { idx: "344710982319309", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:223 | Raw: { idx: "", barcode: "", name: "奈森克林抗菌I型牙間刷-S(綠)-10支/排", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:210 | Raw: { idx: "354710993902712", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:209 | Raw: { idx: "", barcode: "", name: "卡洛塔妮羊乳片-24顆/袋", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:196 | Raw: { idx: "364710993902712", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:195 | Raw: { idx: "", barcode: "", name: "卡洛塔妮羊乳片-24顆/袋", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:181 | Raw: { idx: "374711064218831", barcode: "", name: "紅牛聰勁即溶乳清蛋白･曼特寧500", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:167 | Raw: { idx: "384711064218886", barcode: "", name: "紅牛聰勁即溶乳清蛋白･濃情巧克力500", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:153 | Raw: { idx: "394711091008115", barcode: "", name: "貝林爽身粉(紅)", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:139 | Raw: { idx: "404711118000016", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:138 | Raw: { idx: "", barcode: "", name: "白花油1號20cc", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:125 | Raw: { idx: "414711118000016", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:124 | Raw: { idx: "", barcode: "", name: "白花油1號20cc", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:111 | Raw: { idx: "424711144230210", barcode: "", name: "", qty: "3.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:110 | Raw: { idx: "", barcode: "", name: "祈麗安-21S/盒^拜耳", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:96 | Raw: { idx: "434711144270216", barcode: "", name: "YASMIN悅己 第1天", qty: "3.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:82 | Raw: { idx: "444711144271282", barcode: "", name: "悅姿錠28粒 第1天", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:68 | Raw: { idx: "454711162620079", barcode: "", name: "婕朵驗孕筆", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:45 | Raw: { idx: "頁計", barcode: "9,610.54", name: "已收0.00折扣", qty: "", bonus: "0.00" }
+pdfParser.ts:132 [PDF Debug] Y:26 | Raw: { idx: "", barcode: "", name: "", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:7 | Raw: { idx: "業務員姓名:", barcode: "彭喜燻", name: "", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:827 | Raw: { idx: "", barcode: "", name: "", qty: "安得福藥局", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:725 | Raw: { idx: "送貨地址:", barcode: "", name: "", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:708 | Raw: { idx: "序商品代號", barcode: "", name: "品名數", qty: "量 /贈量", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:691 | Raw: { idx: "464711162620079", barcode: "", name: "婕朵驗孕筆", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:677 | Raw: { idx: "474711365678013", barcode: "", name: "八仙果-60g/罐", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:663 | Raw: { idx: "484711394840801", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:662 | Raw: { idx: "", barcode: "", name: "金博氏靈健膠補30包/盒", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:649 | Raw: { idx: "494711394840887", barcode: "", name: "", qty: "3.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:648 | Raw: { idx: "", barcode: "", name: "金博氏賢者之石60錠", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:635 | Raw: { idx: "504711457460526", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:634 | Raw: { idx: "", barcode: "", name: "黛安膚乳膏-10g/支^元宙", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:620 | Raw: { idx: "514711457462230", barcode: "", name: "舒維療乳膏-5g/支^元宙", qty: "4.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:606 | Raw: { idx: "524711542360939", barcode: "", name: "舒必克蜂膠兒童喉片(葡萄)-30", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:592 | Raw: { idx: "534711558120138", barcode: "", name: "果汁C片(檸檬)", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:578 | Raw: { idx: "544711558120138", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:577 | Raw: { idx: "", barcode: "", name: "果汁C片(檸檬)", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:564 | Raw: { idx: "554711558120244", barcode: "", name: "", qty: "3.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:563 | Raw: { idx: "", barcode: "", name: "果汁C片(柳橙)", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:550 | Raw: { idx: "564711908601645", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:549 | Raw: { idx: "", barcode: "", name: "中衛酒精棉片 (藍)100片", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:535 | Raw: { idx: "574711916012280", barcode: "", name: "麥迪森潤視洗眼液-10mlx16支/盒", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:521 | Raw: { idx: "584711946462796", barcode: "", name: "膚立淨乳膏10gm", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:507 | Raw: { idx: "594711946463502", barcode: "", name: "冠丞益生菌-2gx30包/盒", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:493 | Raw: { idx: "604712123613819", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:492 | Raw: { idx: "", barcode: "", name: "福元四聯乳膏-30G/支", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:479 | Raw: { idx: "614712176150071", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:478 | Raw: { idx: "", barcode: "", name: "克潰淨外用液-10ml/瓶", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:465 | Raw: { idx: "624712206996846", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:464 | Raw: { idx: "", barcode: "", name: "延壽金門一條根精油軟膏100GM", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:450 | Raw: { idx: "634712206996846", barcode: "", name: "延壽金門一條根精油軟膏100GM", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:436 | Raw: { idx: "644712462001117", barcode: "", name: "斯斯舒痛軟膠囊10s", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:422 | Raw: { idx: "654712462302412", barcode: "", name: "敏肝寧40s", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:408 | Raw: { idx: "664712462303211", barcode: "", name: "斯斯感冒膠囊-20s/盒", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:394 | Raw: { idx: "674712462303211", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:393 | Raw: { idx: "", barcode: "", name: "斯斯感冒膠囊-20s/盒", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:380 | Raw: { idx: "684712462304119", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:379 | Raw: { idx: "", barcode: "", name: "斯斯(鼻炎-藍)", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:366 | Raw: { idx: "694712462308117", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:365 | Raw: { idx: "", barcode: "", name: "斯斯咳嗽膠囊-10s", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:351 | Raw: { idx: "704712462308117", barcode: "", name: "斯斯咳嗽膠囊-10s", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:337 | Raw: { idx: "714712602425612", barcode: "", name: "永猷平面大童(7-12y)醫用口罩-50", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:323 | Raw: { idx: "724712646961329", barcode: "", name: "優芮珂絲(樂伊妥)-28caps/罐", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:309 | Raw: { idx: "734712757325713", barcode: "", name: "", qty: "3.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:308 | Raw: { idx: "", barcode: "", name: "金博氏輕酵素-120s/瓶 安昌", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:295 | Raw: { idx: "744712757325997", barcode: "", name: "", qty: "60.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:294 | Raw: { idx: "", barcode: "", name: "輕酵素-2s/包(3包100元) 金博氏(安昌)", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:281 | Raw: { idx: "754712831955447", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:280 | Raw: { idx: "", barcode: "", name: "勁讚酸痛藥洗外用液115ml", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:266 | Raw: { idx: "764712831955652", barcode: "", name: "護民舒痛炎藥膠布Ketoprofen30mg-6", qty: "3.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:252 | Raw: { idx: "774712831955652", barcode: "", name: "護民舒痛炎藥膠布Ketoprofen30mg-6", qty: "3.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:238 | Raw: { idx: "784712893660624", barcode: "", name: "全新生醫人工皮ok絆-27十片裝", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:224 | Raw: { idx: "794712893660648", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:223 | Raw: { idx: "", barcode: "", name: "全新生醫人工皮ok絆-4.5 7五片裝", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:210 | Raw: { idx: "804712893661126", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:209 | Raw: { idx: "", barcode: "", name: "全新生醫人工皮親水敷料-1010厚二片裝", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:196 | Raw: { idx: "814712893661140", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:195 | Raw: { idx: "", barcode: "", name: "全新生醫人工皮親水敷料-520一片裝", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:181 | Raw: { idx: "824712893661225", barcode: "", name: "全新生醫人工皮親水敷料-57 四片裝", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:167 | Raw: { idx: "834712893661263", barcode: "", name: "全新生醫人工皮親水敷料-5x5-", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:153 | Raw: { idx: "844712909860925", barcode: "", name: "寶淨V-10白纖柔護齒可替換刷毛10入0.8-0.9", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:139 | Raw: { idx: "854712930010443", barcode: "", name: "", qty: "60.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:138 | Raw: { idx: "", barcode: "", name: "國安-60ml/罐", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:125 | Raw: { idx: "864713270301444", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:124 | Raw: { idx: "", barcode: "", name: "剋力痛藥膠布", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:111 | Raw: { idx: "874713358101010", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:110 | Raw: { idx: "", barcode: "", name: "鄭杏泰-救肺散(50g)", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:96 | Raw: { idx: "884713435580417", barcode: "", name: "鼻隨通-10粒/盒", qty: "3.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:82 | Raw: { idx: "894713435583159", barcode: "", name: "利悅錠-10錠/盒^溫士頓", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:68 | Raw: { idx: "904713435584446", barcode: "", name: "晴凝人工淚液-15ml2^溫士頓", qty: "4.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:45 | Raw: { idx: "頁計", barcode: "10,702.47", name: "已收0.00折扣", qty: "", bonus: "0.00" }
+pdfParser.ts:132 [PDF Debug] Y:26 | Raw: { idx: "", barcode: "", name: "", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:7 | Raw: { idx: "業務員姓名:", barcode: "彭喜燻", name: "", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:827 | Raw: { idx: "", barcode: "", name: "", qty: "安得福藥局", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:725 | Raw: { idx: "送貨地址:", barcode: "", name: "", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:708 | Raw: { idx: "序商品代號", barcode: "", name: "品名數", qty: "量 /贈量", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:691 | Raw: { idx: "914713435584491", barcode: "", name: "溫好殺菌軟膏-20g/支^溫士頓", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:677 | Raw: { idx: "924713524600019", barcode: "", name: "福海(福谷)指套(大)-1入", qty: "12.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:663 | Raw: { idx: "934713648750317", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:662 | Raw: { idx: "", barcode: "", name: "富髮生髮液5-60ml^人人", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:649 | Raw: { idx: "944713648750317", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:648 | Raw: { idx: "", barcode: "", name: "富髮生髮液5-60ml^人人", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:635 | Raw: { idx: "954713680395613", barcode: "", name: "", qty: "8.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:634 | Raw: { idx: "", barcode: "", name: "樂軒昂【1粒】膜衣錠20MG", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:620 | Raw: { idx: "964713680395613", barcode: "", name: "樂軒昂【1粒】膜衣錠20MG", qty: "8.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:606 | Raw: { idx: "974713889002039", barcode: "", name: "補遼養名-500G/罐^大豐", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:592 | Raw: { idx: "984713889013028", barcode: "", name: "解暈糖漿-20cc/罐 大豐", qty: "6.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:578 | Raw: { idx: "994713889013028", barcode: "", name: "", qty: "6.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:577 | Raw: { idx: "", barcode: "", name: "解暈糖漿-20cc/罐 大豐", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:564 | Raw: { idx: "100 4713917970262", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:563 | Raw: { idx: "", barcode: "", name: "正光勁油(桂花)-12ml/瓶", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:550 | Raw: { idx: "101 4713917970262", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:549 | Raw: { idx: "", barcode: "", name: "正光勁油(桂花)-12ml/瓶", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:535 | Raw: { idx: "102 4713945804621", barcode: "", name: "甘胺酸螯合鎂錠-30s/盒^嘉恩", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:521 | Raw: { idx: "103 4714062620316", barcode: "", name: "利膚外傷軟膏15g", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:507 | Raw: { idx: "104 4714123863041", barcode: "", name: "金博氏保衛菌益生菌-30包/盒^安昌", qty: "4.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:493 | Raw: { idx: "105 4714123864215", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:492 | Raw: { idx: "", barcode: "", name: "金博氏深萃魚油-60s/罐 金博氏(安昌)", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:479 | Raw: { idx: "106 4714123865151", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:478 | Raw: { idx: "", barcode: "", name: "活萃力 vit C+D+Zin發泡錠-20粒/罐 安昌", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:465 | Raw: { idx: "107 4714221331411", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:464 | Raw: { idx: "", barcode: "", name: "麗吉柔20ml-噴劑", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:450 | Raw: { idx: "108 4714221331411", barcode: "", name: "麗吉柔20ml-噴劑", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:436 | Raw: { idx: "109 4714345999511", barcode: "", name: "硼酸-6兩^瑞龍", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:422 | Raw: { idx: "110 4714421801776", barcode: "", name: "人生浣腸-10顆/盒", qty: "10.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:408 | Raw: { idx: "111 4714421801936", barcode: "", name: "人生-噴速點鼻液20cc", qty: "8.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:394 | Raw: { idx: "112 4714421802308", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:393 | Raw: { idx: "", barcode: "", name: "人生近江白藥水-70ml", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:380 | Raw: { idx: "113 4714421803077", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:379 | Raw: { idx: "", barcode: "", name: "恩捷感冒熱飲-6入", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:366 | Raw: { idx: "114 4714421804265", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:365 | Raw: { idx: "", barcode: "", name: "龍風嗽散18g^人生", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:351 | Raw: { idx: "115 4714421806047", barcode: "", name: "恩捷感冒熱飲(兒童)", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:337 | Raw: { idx: "116 4714421806429", barcode: "", name: "恩捷感冒熱飲加強-6入", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:323 | Raw: { idx: "117 4714483254121", barcode: "", name: "克痛液噴劑-120ml/罐^寶齡富錦", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:309 | Raw: { idx: "118 4714687000388", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:308 | Raw: { idx: "", barcode: "", name: "大正百保能感冒膠囊12粒", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:295 | Raw: { idx: "119 4714687000890", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:294 | Raw: { idx: "", barcode: "", name: "大正百保能感冒顆粒6包", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:281 | Raw: { idx: "120 4714741405050", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:280 | Raw: { idx: "", barcode: "", name: "得力必滅鼠100g(塊狀)", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:266 | Raw: { idx: "121 4714741488893", barcode: "", name: "爵立凝膠", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:252 | Raw: { idx: "122 4715105582219", barcode: "", name: "明大筋?痛膠囊-10s/盒(安昌)", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:238 | Raw: { idx: "123 4715139000802", barcode: "", name: "優盛血壓壓脈帶-M(24-36)", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:224 | Raw: { idx: "124 4715168110107", barcode: "", name: "", qty: "4.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:223 | Raw: { idx: "", barcode: "", name: "非炎酸痛水性貼布6片", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:210 | Raw: { idx: "125 4715168110107", barcode: "", name: "", qty: "4.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:209 | Raw: { idx: "", barcode: "", name: "非炎酸痛水性貼布6片", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:196 | Raw: { idx: "126 4715168110114", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:195 | Raw: { idx: "", barcode: "", name: "非炎酸痛水性藥布2片", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:181 | Raw: { idx: "127 4715364110413", barcode: "", name: "康之田貼樂好-10片/包^三帆", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:167 | Raw: { idx: "128 4715364110413", barcode: "", name: "康之田貼樂好-10片/包^三帆", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:153 | Raw: { idx: "129 4715364110574", barcode: "", name: "三帆青草藥膠布10片/包", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:139 | Raw: { idx: "130 4715718597013", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:138 | Raw: { idx: "", barcode: "", name: "conmezole 150mg 康黴樂膠囊-1粒 南光", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:125 | Raw: { idx: "131 4716140200816", barcode: "", name: "", qty: "5.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:124 | Raw: { idx: "", barcode: "", name: "ligetin 莉潔婷錠 1.5mg-1錠/盒", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:111 | Raw: { idx: "132 4716217001896", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:110 | Raw: { idx: "", barcode: "", name: "氧化鋅-30g/條 宏翔", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:96 | Raw: { idx: "133 4716329942339", barcode: "", name: "舒膚貼疤痕貼片(透明)-5x8cm-1", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:82 | Raw: { idx: "134 4716329942339", barcode: "", name: "舒膚貼疤痕貼片(透明)-5x8cm-1", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:68 | Raw: { idx: "135 4716521001018", barcode: "", name: "普拿疼肌立水性酸痛貼布5s", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:45 | Raw: { idx: "頁計", barcode: "10,915.69", name: "已收0.00折扣", qty: "", bonus: "0.00" }
+pdfParser.ts:132 [PDF Debug] Y:26 | Raw: { idx: "", barcode: "", name: "", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:7 | Raw: { idx: "業務員姓名:", barcode: "彭喜燻", name: "", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:827 | Raw: { idx: "", barcode: "", name: "", qty: "安得福藥局", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:725 | Raw: { idx: "送貨地址:", barcode: "", name: "", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:708 | Raw: { idx: "序商品代號", barcode: "", name: "品名數", qty: "量 /贈量", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:691 | Raw: { idx: "136 4716521011123", barcode: "", name: "普拿疼止痛加強錠(新)20T", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:677 | Raw: { idx: "137 4716521250256", barcode: "", name: "普拿疼伏冒-熱飲(檸檬)10包", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:663 | Raw: { idx: "138 4716521250263", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:662 | Raw: { idx: "", barcode: "", name: "普拿疼伏冒加強16錠", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:649 | Raw: { idx: "139 4716521260088", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:648 | Raw: { idx: "", barcode: "", name: "普拿疼伏冒-熱飲加強(金桔檸檬)10包", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:635 | Raw: { idx: "140 4716521732301", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:634 | Raw: { idx: "", barcode: "", name: "舒酸定專業修護抗敏牙膏", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:620 | Raw: { idx: "141 4716521772727", barcode: "", name: "保麗淨假牙黏著劑70g(原味)", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:606 | Raw: { idx: "142 4716544000036", barcode: "", name: "廣東苜藥粉-5gm/盒(10904漲價)", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:592 | Raw: { idx: "143 4716544000036", barcode: "", name: "廣東苜藥粉-5gm/盒(10904漲價)", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:578 | Raw: { idx: "144 4716743259037", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:577 | Raw: { idx: "", barcode: "", name: "妥治安濃縮液-5ml/瓶", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:564 | Raw: { idx: "145 4716791204133", barcode: "", name: "", qty: "3.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:563 | Raw: { idx: "", barcode: "", name: "久仁良碘-30ml", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:550 | Raw: { idx: "146 4716791214446", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:549 | Raw: { idx: "", barcode: "", name: "良碘100ml(久仁)", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:535 | Raw: { idx: "147 4716872204328", barcode: "", name: "晶潤視葉黃素explus軟膠囊-60", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:521 | Raw: { idx: "148 4717216014085", barcode: "", name: "攝勇 tadafil-5mg-30粒/盒 井田", qty: "4.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:507 | Raw: { idx: "149 4717216026255", barcode: "", name: "口炎可舒5g", qty: "4.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:493 | Raw: { idx: "150 4717216033116", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:492 | Raw: { idx: "", barcode: "", name: "感冒格嗽膠囊-10s/盒^天下", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:479 | Raw: { idx: "151 4717216066237", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:478 | Raw: { idx: "", barcode: "", name: "痛可止趕冒加強錠-10粒/盒 井田(天下)", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:465 | Raw: { idx: "152 4717216113214", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:464 | Raw: { idx: "", barcode: "", name: "綜合咳嗽膠囊-10s/盒^井田", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:450 | Raw: { idx: "153 4717216115232", barcode: "", name: "胃之盟錠無盒10粒/排", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:436 | Raw: { idx: "154 4717216117120", barcode: "", name: "感冒寧膠囊-10s/盒^井田", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:422 | Raw: { idx: "155 4717216117168", barcode: "", name: "痛可止加強錠-10S/盒^井田", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:408 | Raw: { idx: "156 4717216122094", barcode: "", name: "力波膜衣錠-10s/盒 井田", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:394 | Raw: { idx: "157 4717216122605", barcode: "", name: "", qty: "13.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:393 | Raw: { idx: "", barcode: "", name: "femin揮敏膜衣錠-10s/盒^井田", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:380 | Raw: { idx: "158 4717216155061", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:379 | Raw: { idx: "", barcode: "", name: "敏炎寧-20g/支^天下", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:366 | Raw: { idx: "159 4717216155061", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:365 | Raw: { idx: "", barcode: "", name: "敏炎寧-20g/支^天下", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:351 | Raw: { idx: "160 4717216215239", barcode: "", name: "胃之盟錠-20粒/盒", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:337 | Raw: { idx: "161 4717216220196", barcode: "", name: "依普炎(ibuprofen 600mg)-10s/", qty: "11.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:323 | Raw: { idx: "162 4717216315311", barcode: "", name: "治逆潰腸溶膜衣錠-28s/盒 井田", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:309 | Raw: { idx: "163 4717216326010", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:308 | Raw: { idx: "", barcode: "", name: "癒黴乳膏EYME-40GM/支 井田", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:295 | Raw: { idx: "164 4717216517166", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:294 | Raw: { idx: "", barcode: "", name: "痛可止加強錠-30S/盒^井田", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:281 | Raw: { idx: "165 4717216526021", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:280 | Raw: { idx: "", barcode: "", name: "真好乳膏-20g(綠)/支^井田", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:266 | Raw: { idx: "166 4717282251117", barcode: "", name: "咳精-散", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:252 | Raw: { idx: "167 4717282321001", barcode: "", name: "友露安消炎止痛400mg", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:238 | Raw: { idx: "168 4717282321001", barcode: "", name: "友露安消炎止痛400mg", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:224 | Raw: { idx: "169 4717818087159", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:223 | Raw: { idx: "", barcode: "", name: "可必淨乳膏15G 愛康", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:210 | Raw: { idx: "170 4717904440165", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:209 | Raw: { idx: "", barcode: "", name: "巨人棉花片-1片裝", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:196 | Raw: { idx: "171 4717904440165", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:195 | Raw: { idx: "", barcode: "", name: "巨人棉花片-1片裝", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:181 | Raw: { idx: "172 4717989799455", barcode: "", name: "百樂潔漱口水600ml", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:167 | Raw: { idx: "173 4718231100425", barcode: "", name: "1065那柏瑞特透氣伸縮膠布-10", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:153 | Raw: { idx: "174 4718231100425", barcode: "", name: "1065那柏瑞特透氣伸縮膠布-10", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:139 | Raw: { idx: "175 4718231101088", barcode: "", name: "", qty: "14.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:138 | Raw: { idx: "", barcode: "", name: "2465那柏瑞特不織布透氣敷料(低過敏)-20", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:125 | Raw: { idx: "176 4718231101156", barcode: "", name: "", qty: "5.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:124 | Raw: { idx: "", barcode: "", name: "2765那柏瑞特半透明透氣-25片/盒", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:111 | Raw: { idx: "177 4718231101491", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:110 | Raw: { idx: "", barcode: "", name: "7316那柏瑞特100防水膠布-16", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:96 | Raw: { idx: "178 4718231102108", barcode: "", name: "7305那柏瑞特防水膠布-5s/盒", qty: "4.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:82 | Raw: { idx: "179 4718231301129", barcode: "", name: "必佳恩眼藥水-5ml/瓶 萬泰", qty: "5.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:68 | Raw: { idx: "180 4719021000086", barcode: "", name: "快通甘油浣腸15％-10入", qty: "10.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:45 | Raw: { idx: "頁計", barcode: "9,077.21", name: "已收0.00折扣", qty: "", bonus: "0.00" }
+pdfParser.ts:132 [PDF Debug] Y:26 | Raw: { idx: "", barcode: "", name: "", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:7 | Raw: { idx: "業務員姓名:", barcode: "彭喜燻", name: "", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:827 | Raw: { idx: "", barcode: "", name: "", qty: "安得福藥局", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:725 | Raw: { idx: "送貨地址:", barcode: "", name: "", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:708 | Raw: { idx: "序商品代號", barcode: "", name: "品名數", qty: "量 /贈量", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:691 | Raw: { idx: "181 4719021001120", barcode: "", name: "健康 咳得憐120ML", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:677 | Raw: { idx: "182 4719021001120", barcode: "", name: "健康 咳得憐120ML", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:663 | Raw: { idx: "183 4719120410151", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:662 | Raw: { idx: "", barcode: "", name: "鬥雞富力康親水性乳膏 30G 1支", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:649 | Raw: { idx: "184 4719552680795", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:648 | Raw: { idx: "", barcode: "", name: "樂補膠原檸檬酸鈣60包", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:635 | Raw: { idx: "185 4719579630414", barcode: "", name: "", qty: "3.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:634 | Raw: { idx: "", barcode: "", name: "麥迪森沖洗用食鹽水10ML-8支一排", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:620 | Raw: { idx: "186 4719579630636", barcode: "", name: "麥迪森人工淚液0.8mlx20支", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:606 | Raw: { idx: "187 4719855200218", barcode: "", name: "理膚寧乳膏-20G/支", qty: "3.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:592 | Raw: { idx: "188 4719857260258", barcode: "", name: "SATO雅寧糖衣錠", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:578 | Raw: { idx: "189 4719858943495", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:577 | Raw: { idx: "", barcode: "", name: "欣鼻通-20ml^強生", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:564 | Raw: { idx: "190 4719866710249", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:563 | Raw: { idx: "", barcode: "", name: "優碘軟膏 10g/條^惠民", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:550 | Raw: { idx: "191 4719869702418", barcode: "", name: "", qty: "10.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:549 | Raw: { idx: "", barcode: "", name: "良測藍芽血糖試紙(HT100-B)50", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:535 | Raw: { idx: "192 4719871983065", barcode: "", name: "普拿疼速效膜衣錠 (10粒)", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:521 | Raw: { idx: "193 4719871983171", barcode: "", name: "普拿疼膜衣錠-24粒/盒", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:507 | Raw: { idx: "194 4719871983430", barcode: "", name: "保麗淨假牙黏著劑好穩固全方位密合70", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:493 | Raw: { idx: "195 4719875250682", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:492 | Raw: { idx: "", barcode: "", name: "酒精噴頭", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:479 | Raw: { idx: "196 4719878105057", barcode: "", name: "", qty: "24.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:478 | Raw: { idx: "", barcode: "", name: "永旺不織布紗布-3x3-5片/包", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:465 | Raw: { idx: "197 4719878105064", barcode: "", name: "", qty: "5.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:464 | Raw: { idx: "", barcode: "", name: "永旺不織布紗布-4x4-3片/包", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:450 | Raw: { idx: "198 4719878105064", barcode: "", name: "永旺不織布紗布-4x4-3片/包", qty: "19.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:436 | Raw: { idx: "199 4719878107020", barcode: "", name: "雙線細滑牙線棒-50支/袋^永旺", qty: "3.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:422 | Raw: { idx: "200 4719878890014", barcode: "", name: "感冒膠囊-10S/盒^成大", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:408 | Raw: { idx: "201 4719881452025", barcode: "", name: "銀貝貝滅菌紗布塊3X3純棉紗", qty: "20.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:394 | Raw: { idx: "202 4719881452032", barcode: "", name: "", qty: "20.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:393 | Raw: { idx: "", barcode: "", name: "銀貝貝滅菌紗布塊4X4純棉紗", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:380 | Raw: { idx: "203 4719881452124", barcode: "", name: "", qty: "80.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:379 | Raw: { idx: "", barcode: "", name: "銀貝貝3吋棉棒滅菌10支", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:366 | Raw: { idx: "204 4719881452124", barcode: "", name: "", qty: "10.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:365 | Raw: { idx: "", barcode: "", name: "銀貝貝3吋棉棒滅菌10支", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:351 | Raw: { idx: "205 4719881452131", barcode: "", name: "銀貝貝普通棉棒滅菌10支", qty: "4.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:337 | Raw: { idx: "206 4897022620981", barcode: "", name: "京都念慈庵川貝枇杷膏(無糖)-198", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:323 | Raw: { idx: "207 4903301192046", barcode: "", name: "獅美露康德目耀pure眼藥水-12", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:309 | Raw: { idx: "208 4903301296676", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:308 | Raw: { idx: "", barcode: "", name: "獅美露活視捷premium-15ml/瓶^中化", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:295 | Raw: { idx: "209 4962204500006", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:294 | Raw: { idx: "", barcode: "", name: "新鮮視人工淚液10ml", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:281 | Raw: { idx: "210 4987033705019", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:280 | Raw: { idx: "", barcode: "", name: "太田胃散-1.3gx16包/盒^太田", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:266 | Raw: { idx: "211 4987033904016", barcode: "", name: "太田胃散-75g/罐^太田", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:252 | Raw: { idx: "212 4987033904023", barcode: "", name: "太田胃散140g(盒)", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:238 | Raw: { idx: "213 4987036412631", barcode: "", name: "近江兄弟歐米薄荷潤脣膏^人生", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:224 | Raw: { idx: "214 4987110002512", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:223 | Raw: { idx: "", barcode: "", name: "正露丸100粒(大幸)", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:210 | Raw: { idx: "215 4987205000294", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:209 | Raw: { idx: "", barcode: "", name: "美源快速染髮霜(明亮栗色)-4號", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:196 | Raw: { idx: "216 4987240215110", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:195 | Raw: { idx: "", barcode: "", name: "龍角散18g(小)", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:181 | Raw: { idx: "217 4987240609803", barcode: "", name: "龍角散喉糖10粒", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:167 | Raw: { idx: "218 4987241104246", barcode: "", name: "曼秀雷敦75g", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:153 | Raw: { idx: "219 4987306786684", barcode: "", name: "欣表飛鳴錠 350錠", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:139 | Raw: { idx: "220 4987312155269", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:138 | Raw: { idx: "", barcode: "", name: "妙利散1gx42包入", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:125 | Raw: { idx: "221 625349120297", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:124 | Raw: { idx: "", barcode: "", name: "九泰利可舒精油錠/40粒入", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:111 | Raw: { idx: "222 6253491219114", barcode: "", name: "", qty: "3.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:110 | Raw: { idx: "", barcode: "", name: "金博氏金鈣補力胺基酸螯合鈣-60", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:96 | Raw: { idx: "223 768455148721", barcode: "", name: "多愛膚超薄型人工皮1010^龍生", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:82 | Raw: { idx: "224 8428097864916", barcode: "", name: "雅膚免縫膠帶-小傷口-0.6x3.8-36", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:68 | Raw: { idx: "225 A029828100", barcode: "", name: "KASCOAL TABLETS 40MG (DIMETHYLPOLYSILOXANE)100.0", qty: "", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:45 | Raw: { idx: "頁計", barcode: "10,824.52", name: "已收0.00折扣", qty: "", bonus: "0.00" }
+pdfParser.ts:132 [PDF Debug] Y:26 | Raw: { idx: "", barcode: "", name: "", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:7 | Raw: { idx: "業務員姓名:", barcode: "彭喜燻", name: "", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:827 | Raw: { idx: "", barcode: "", name: "", qty: "安得福藥局", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:725 | Raw: { idx: "送貨地址:", barcode: "", name: "", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:708 | Raw: { idx: "序商品代號", barcode: "", name: "品名數", qty: "量 /贈量", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:691 | Raw: { idx: "226 A039349345", barcode: "", name: "VOREN-G GEL 10MG/GM (DICLOFENAC)", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:677 | Raw: { idx: "227 AB46242151", barcode: "", name: "WEMPTY SUSPENSION"CENTER" 1MG/ML", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:663 | Raw: { idx: "228 AC16496100", barcode: "", name: "1,000.0", qty: "", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:662 | Raw: { idx: "", barcode: "", name: "Decadron的剎美剎松0.75MG DEXAMETHASONE TABLETS"C.L"", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:649 | Raw: { idx: "229 AC21924336", barcode: "", name: "", qty: "5.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:648 | Raw: { idx: "", barcode: "", name: "MY COMB CREAM 16G "SINPHAR"", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:635 | Raw: { idx: "230 AC22867421", barcode: "", name: "", qty: "3.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:634 | Raw: { idx: "", barcode: "", name: "MYCOMB OTIC DROPS "SINPHAR"", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:620 | Raw: { idx: "231 AC403991G0", barcode: "", name: "FORFLOW SUSTAINEDRELEASED TABLETS 400MG (PENTOXIFYLLINE) "M.", qty: "20.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:606 | Raw: { idx: "232 AC415351G0", barcode: "", name: "PENTOP S.R TABLET 400MG"YU SHENG"(PENTOXIFYLLINE)(", qty: "6.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:592 | Raw: { idx: "233 AC426871G0", barcode: "", name: "REGROW SUSTAINED RELEASE F.C. TABLET 60MG(", qty: "69.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:578 | Raw: { idx: "234 AC426871G0", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:577 | Raw: { idx: "", barcode: "", name: "REGROW SUSTAINED RELEASE F.C. TABLET 60MG(", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:564 | Raw: { idx: "235 AC427541G0", barcode: "", name: "213.0", qty: "", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:563 | Raw: { idx: "", barcode: "", name: "EURICON TAB. 50MG (BENZBROMARONE)(", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:550 | Raw: { idx: "236 AC427541G0", barcode: "", name: "", qty: "87.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:549 | Raw: { idx: "", barcode: "", name: "EURICON TAB. 50MG (BENZBROMARONE)(", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:535 | Raw: { idx: "237 AC45960435", barcode: "", name: "SINOMIN OPHTHALMIC SOLUTION", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:521 | Raw: { idx: "238 AC46699100", barcode: "", name: "SYNTREND TABLETS 6.25MG", qty: "20.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:507 | Raw: { idx: "239 AC46990429", barcode: "", name: "EYEHELP EYE DROPS 0.01% 10ML", qty: "5.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:493 | Raw: { idx: "240 AC470861G0", barcode: "", name: "112.0", qty: "", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:492 | Raw: { idx: "", barcode: "", name: "ANKOMIN TABLETS 500MG(鋁箔/膠箔)", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:479 | Raw: { idx: "242 AC481221G0", barcode: "", name: "", qty: "25.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:478 | Raw: { idx: "", barcode: "", name: "NARIX SR F.C. TABLETS 1.5 MG(", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:465 | Raw: { idx: "243 AC56633100", barcode: "", name: "", qty: "13.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:464 | Raw: { idx: "", barcode: "", name: "CONIEL F.C. TABLETS 4MG", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:450 | Raw: { idx: "244 AC56633100", barcode: "", name: "CONIEL F.C. TABLETS 4MG", qty: "15.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:436 | Raw: { idx: "245 AC577911G0", barcode: "", name: "FAMOTIDINE F.C. TABLETS 20MG "CYH"(", qty: "45.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:422 | Raw: { idx: "246 AC577911G0", barcode: "", name: "FAMOTIDINE F.C. TABLETS 20MG "CYH"(155.0", qty: "", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:408 | Raw: { idx: "247 AC58548100", barcode: "", name: "TAMLOSIN D TABLETS 0.2MG", qty: "16.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:394 | Raw: { idx: "248 AC58548100", barcode: "", name: "", qty: "96.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:393 | Raw: { idx: "", barcode: "", name: "TAMLOSIN D TABLETS 0.2MG", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:380 | Raw: { idx: "249 AC59036157", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:379 | Raw: { idx: "", barcode: "", name: "COMPOUND GLYCYRRHIZA MIXTURE 120MLORAL SOLUTION "CENTER"", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:366 | Raw: { idx: "250 BC182311G0", barcode: "", name: "", qty: "8.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:365 | Raw: { idx: "", barcode: "", name: "GLUCOPHAGE TABLET 850MG(鋁箔/膠箔)", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:351 | Raw: { idx: "251 BC182311G0", barcode: "", name: "GLUCOPHAGE TABLET 850MG(鋁箔/膠箔)", qty: "62.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:337 | Raw: { idx: "252 BC20251100", barcode: "", name: "SINEMET 25/100 TABLETS100.0", qty: "", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:323 | Raw: { idx: "253 BC21571100", barcode: "", name: "NORVASC TABLETS 5MG", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:309 | Raw: { idx: "254 BC21571100", barcode: "", name: "166.0", qty: "", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:308 | Raw: { idx: "", barcode: "", name: "NORVASC TABLETS 5MG", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:295 | Raw: { idx: "255 BC22779100", barcode: "", name: "", qty: "19.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:294 | Raw: { idx: "", barcode: "", name: "SINGULAIR CHEWABLE TAB. 5MG", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:281 | Raw: { idx: "256 BC22779100", barcode: "", name: "", qty: "9.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:280 | Raw: { idx: "", barcode: "", name: "SINGULAIR CHEWABLE TAB. 5MG", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:266 | Raw: { idx: "257 BC22889100", barcode: "", name: "LIPITOR FILM-COATED TABLETS 40MG", qty: "28.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:252 | Raw: { idx: "258 BC22890100", barcode: "", name: "LIPITOR FILM-COATED TABLETS 20MG", qty: "56.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:238 | Raw: { idx: "259 BC22890100", barcode: "", name: "LIPITOR FILM-COATED TABLETS 20MG", qty: "21.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:224 | Raw: { idx: "260 BC22890100", barcode: "", name: "", qty: "7.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:223 | Raw: { idx: "", barcode: "", name: "LIPITOR FILM-COATED TABLETS 20MG", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:210 | Raw: { idx: "261 BC23161100", barcode: "", name: "", qty: "24.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:209 | Raw: { idx: "", barcode: "", name: "MICARDIS TABLETS 【80mg】", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:196 | Raw: { idx: "262 BC23161100", barcode: "", name: "", qty: "6.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:195 | Raw: { idx: "", barcode: "", name: "MICARDIS TABLETS 【80mg】", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:181 | Raw: { idx: "263 BC23220100", barcode: "", name: "CO-DIOVAN 160/12.5 FILM COATED TABLETS", qty: "6.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:167 | Raw: { idx: "264 BC23220100", barcode: "", name: "CO-DIOVAN 160/12.5 FILM COATED TABLETS", qty: "50.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:153 | Raw: { idx: "265 BC232651E7", barcode: "", name: "SYMBICORT TURBUHALER 160/4.5UG/DOSE", qty: "1.0", bonus: "120 DOSES/BOT0.0" }
+pdfParser.ts:132 [PDF Debug] Y:139 | Raw: { idx: "266 BC23373100", barcode: "", name: "196.0", qty: "", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:138 | Raw: { idx: "", barcode: "", name: "DIOVAN FILM-COATED TAB. 80MG", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:125 | Raw: { idx: "267 BC23374100", barcode: "", name: "", qty: "90.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:124 | Raw: { idx: "", barcode: "", name: "DIOVAN FILM-COATED TABLETS 160MG", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:111 | Raw: { idx: "268 BC23374100", barcode: "", name: "", qty: "22.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:110 | Raw: { idx: "", barcode: "", name: "DIOVAN FILM-COATED TABLETS 160MG", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:96 | Raw: { idx: "269 BC23568100", barcode: "", name: "DETRUSITOL SR PROLONGED-RELEASE CAPSULES 4MG", qty: "28.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:82 | Raw: { idx: "270 BC23711100", barcode: "", name: "DOXABEN XL TABLETS 4MG", qty: "27.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:68 | Raw: { idx: "271 BC23711100", barcode: "", name: "DOXABEN XL TABLETS 4MG", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:45 | Raw: { idx: "頁計", barcode: "7,415.64", name: "已收0.00折扣", qty: "", bonus: "0.00" }
+pdfParser.ts:132 [PDF Debug] Y:26 | Raw: { idx: "", barcode: "", name: "", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:7 | Raw: { idx: "業務員姓名:", barcode: "彭喜燻", name: "", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:827 | Raw: { idx: "", barcode: "", name: "", qty: "安得福藥局", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:725 | Raw: { idx: "送貨地址:", barcode: "", name: "", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:708 | Raw: { idx: "序商品代號", barcode: "", name: "品名數", qty: "量 /贈量", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:691 | Raw: { idx: "272 BC23792100", barcode: "", name: "XYZAL FILM-COATED TABLETS 5MG", qty: "91.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:677 | Raw: { idx: "273 BC23792100", barcode: "", name: "XYZAL FILM-COATED TABLETS 5MG", qty: "9.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:663 | Raw: { idx: "274 BC23889100", barcode: "", name: "", qty: "60.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:662 | Raw: { idx: "", barcode: "", name: "KEPPRA FILM-COATED TABLETS 500MG", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:649 | Raw: { idx: "275 BC240391G0", barcode: "", name: "420.0", qty: "", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:648 | Raw: { idx: "", barcode: "", name: "CONCOR 1.25(鋁箔/膠箔)", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:635 | Raw: { idx: "276 BC240391G0", barcode: "", name: "", qty: "90.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:634 | Raw: { idx: "", barcode: "", name: "CONCOR 1.25(鋁箔/膠箔)", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:620 | Raw: { idx: "277 BC24058100", barcode: "", name: "EZETROL TABLETS 10MG", qty: "58.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:606 | Raw: { idx: "278 BC24058100", barcode: "", name: "EZETROL TABLETS 10MG", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:592 | Raw: { idx: "279 BC24131100", barcode: "", name: "CRESTOR 10MG FILM-COATED TABLETS140.0", qty: "", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:578 | Raw: { idx: "280 BC24131100", barcode: "", name: "", qty: "56.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:577 | Raw: { idx: "", barcode: "", name: "CRESTOR 10MG FILM-COATED TABLETS", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:564 | Raw: { idx: "281 BC24131100", barcode: "", name: "", qty: "28.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:563 | Raw: { idx: "", barcode: "", name: "CRESTOR 10MG FILM-COATED TABLETS", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:550 | Raw: { idx: "282 BC24131100", barcode: "", name: "868.0", qty: "", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:549 | Raw: { idx: "", barcode: "", name: "CRESTOR 10MG FILM-COATED TABLETS", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:535 | Raw: { idx: "283 BC24273100", barcode: "", name: "TAKEPRON OD 30MG TABLETS", qty: "52.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:521 | Raw: { idx: "284 BC24273100", barcode: "", name: "TAKEPRON OD 30MG TABLETS", qty: "18.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:507 | Raw: { idx: "285 BC24391100", barcode: "", name: "CADUET 5MG/10MG TABLET", qty: "49.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:493 | Raw: { idx: "286 BC24391100", barcode: "", name: "", qty: "7.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:492 | Raw: { idx: "", barcode: "", name: "CADUET 5MG/10MG TABLET", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:479 | Raw: { idx: "287 BC24437100", barcode: "", name: "", qty: "30.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:478 | Raw: { idx: "", barcode: "", name: "Vesicare film-coated tablets 5mg", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:465 | Raw: { idx: "288 BC24824100", barcode: "", name: "", qty: "84.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:464 | Raw: { idx: "", barcode: "", name: "EXFORGE FILM-COATED TABLET 5/80MG", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:450 | Raw: { idx: "289 BC24929100", barcode: "", name: "SEVIKAR 5/20MG FILM COATED TABLETS", qty: "25.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:436 | Raw: { idx: "290 BC24929100", barcode: "", name: "SEVIKAR 5/20MG FILM COATED TABLETS", qty: "3.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:422 | Raw: { idx: "291 BC25072100", barcode: "", name: "EXFORGE FILM-COATED TABLET 5/160MG176.0", qty: "", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:408 | Raw: { idx: "292 BC25072100", barcode: "", name: "EXFORGE FILM-COATED TABLET 5/160MG", qty: "20.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:394 | Raw: { idx: "293 BC25072100", barcode: "", name: "", qty: "84.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:393 | Raw: { idx: "", barcode: "", name: "EXFORGE FILM-COATED TABLET 5/160MG", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:380 | Raw: { idx: "294 BC25350100", barcode: "", name: "126.0", qty: "", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:379 | Raw: { idx: "", barcode: "", name: "LIVALO TABLETS 2MG", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:366 | Raw: { idx: "295 BC25350100", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:365 | Raw: { idx: "", barcode: "", name: "LIVALO TABLETS 2MG", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:351 | Raw: { idx: "296 BC25350100", barcode: "", name: "LIVALO TABLETS 2MG", qty: "27.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:337 | Raw: { idx: "297 BC25413100", barcode: "", name: "HARNALIDGE OCAS PROLONGED RELEASE TABLETS 0.4 MG", qty: "21.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:323 | Raw: { idx: "298 BC25413100", barcode: "", name: "HARNALIDGE OCAS PROLONGED RELEASE TABLETS 0.4 MG", qty: "9.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:309 | Raw: { idx: "299 BC25419100", barcode: "", name: "", qty: "28.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:308 | Raw: { idx: "", barcode: "", name: "EXFORGE HCT FILM COATED TABLETS 5/160/12.5 MG", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:295 | Raw: { idx: "300 BC25419100", barcode: "", name: "", qty: "28.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:294 | Raw: { idx: "", barcode: "", name: "EXFORGE HCT FILM COATED TABLETS 5/160/12.5 MG", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:281 | Raw: { idx: "301 BC25427100", barcode: "", name: "", qty: "56.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:280 | Raw: { idx: "", barcode: "", name: "FEBURIC 80 MG FILM COATED TABLETS", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:266 | Raw: { idx: "302 BC25446100", barcode: "", name: "TWYNSTA TABLETS 80/5 MG", qty: "20.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:252 | Raw: { idx: "303 BC25446100", barcode: "", name: "TWYNSTA TABLETS 80/5 MG", qty: "8.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:238 | Raw: { idx: "304 BC25481100", barcode: "", name: "GALVUS MET 50/850 FILM-COATED TABLETS", qty: "23.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:224 | Raw: { idx: "305 BC25481100", barcode: "", name: "", qty: "33.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:223 | Raw: { idx: "", barcode: "", name: "GALVUS MET 50/850 FILM-COATED TABLETS", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:210 | Raw: { idx: "306 BC25756100", barcode: "", name: "", qty: "56.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:209 | Raw: { idx: "", barcode: "", name: "EDARBI TABLETS 40MG", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:196 | Raw: { idx: "307 BC25877100", barcode: "", name: "", qty: "8.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:195 | Raw: { idx: "", barcode: "", name: "DAFIRO 5/160MG FILM-COATED TABLETS", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:181 | Raw: { idx: "308 BC25877100", barcode: "", name: "DAFIRO 5/160MG FILM-COATED TABLETS", qty: "20.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:167 | Raw: { idx: "309 BC26169100", barcode: "", name: "PRAVAFEN 40MG/160MG HARD CAPSULES", qty: "26.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:153 | Raw: { idx: "310 BC26169100", barcode: "", name: "PRAVAFEN 40MG/160MG HARD CAPSULES", qty: "4.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:139 | Raw: { idx: "311 BC26315143", barcode: "", name: "", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:138 | Raw: { idx: "", barcode: "", name: "ANORO ELLIPTA 55/22 MCG INHALATION POWDER", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:125 | Raw: { idx: "312 BC26406100", barcode: "", name: "", qty: "42.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:124 | Raw: { idx: "", barcode: "", name: "JARDIANCE 10MG FILM-COATED TABLETS", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:111 | Raw: { idx: "313 BC26406100", barcode: "", name: "", qty: "18.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:110 | Raw: { idx: "", barcode: "", name: "JARDIANCE 10MG FILM-COATED TABLETS", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:96 | Raw: { idx: "314 BC26455100", barcode: "", name: "VALACYCLOVIR MYLAN疹可癒 500MG", qty: "7.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:82 | Raw: { idx: "315 BC26455100", barcode: "", name: "VALACYCLOVIR MYLAN疹可癒 500MG", qty: "5.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:68 | Raw: { idx: "316 BC26476100", barcode: "", name: "FORXIGA FILM-COATED TABLETS 10MG", qty: "56.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:45 | Raw: { idx: "頁計", barcode: "22,201.57", name: "已收0.00折扣", qty: "", bonus: "0.00" }
+pdfParser.ts:132 [PDF Debug] Y:26 | Raw: { idx: "", barcode: "", name: "", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:7 | Raw: { idx: "業務員姓名:", barcode: "彭喜燻", name: "", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:827 | Raw: { idx: "", barcode: "", name: "", qty: "安得福藥局", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:725 | Raw: { idx: "送貨地址:", barcode: "", name: "", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:708 | Raw: { idx: "序商品代號", barcode: "", name: "品名數", qty: "量 /贈量", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:691 | Raw: { idx: "317 BC26476100", barcode: "", name: "FORXIGA FILM-COATED TABLETS 10MG", qty: "40.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:677 | Raw: { idx: "318 BC26476100", barcode: "", name: "FORXIGA FILM-COATED TABLETS 10MG", qty: "16.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:663 | Raw: { idx: "319 BC26700100", barcode: "", name: "130.0", qty: "", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:662 | Raw: { idx: "", barcode: "", name: "NEBILET 5 MG", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:649 | Raw: { idx: "320 BC26700100", barcode: "", name: "", qty: "10.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:648 | Raw: { idx: "", barcode: "", name: "NEBILET 5 MG", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:635 | Raw: { idx: "321 BC27039100", barcode: "", name: "", qty: "59.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:634 | Raw: { idx: "", barcode: "", name: "JARDIANCE DUO 12.5/850MG FILM-COATED TABLETS", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:620 | Raw: { idx: "322 BC27039100", barcode: "", name: "JARDIANCE DUO 12.5/850MG FILM-COATED TABLETS", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:606 | Raw: { idx: "323 BC27467100", barcode: "", name: "QTERN 5MG/10MG FILM-COATED TABLETS", qty: "26.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:592 | Raw: { idx: "324 BC27467100", barcode: "", name: "QTERN 5MG/10MG FILM-COATED TABLETS", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:578 | Raw: { idx: "325 KC01053216", barcode: "", name: "", qty: "3.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:577 | Raw: { idx: "", barcode: "", name: "Ryzodeg? FlexTouch?", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:564 | Raw: { idx: "326 KC01053216", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:563 | Raw: { idx: "", barcode: "", name: "Ryzodeg? FlexTouch?", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:550 | Raw: { idx: "327 N004550321", barcode: "", name: "", qty: "2.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:549 | Raw: { idx: "", barcode: "", name: "C.B. OINTMENT "STRONG"強力施美5", qty: "", bonus: "" }
+pdfParser.ts:132 [PDF Debug] Y:535 | Raw: { idx: "328 4716329940144", barcode: "", name: "舒膚貼泡棉敷料10×10CM", qty: "1.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:521 | Raw: { idx: "329 4713435584958", barcode: "", name: "溫舒眼潤眼油6G沁涼配方", qty: "5.0", bonus: "0.0" }
+pdfParser.ts:132 [PDF Debug] Y:507 | Raw: { idx: "330 4710739485110", barcode: "", name: "欣莉達牙科手用器械三合一口腔保健組", qty: "1.0", bonus: "0.0" }

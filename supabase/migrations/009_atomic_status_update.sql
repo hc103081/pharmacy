@@ -44,7 +44,7 @@ BEGIN
         photo_url = p_photo_url,
         actual_quantity = p_actual_quantity,
         updated_at = NOW()
-    WHERE id = p_drug_id
+    WHERE drug_items.id = p_drug_id
     RETURNING 
         drug_items.id, 
         drug_items.barcode, 

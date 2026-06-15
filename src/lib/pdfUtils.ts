@@ -1,18 +1,23 @@
-import * as pdfjs from 'pdfjs-dist';
+import type * as PDFJS from 'pdfjs-dist';
 
 // Configure worker for browser environment
-if (typeof window !== 'undefined' && !pdfjs.GlobalWorkerOptions.workerSrc) {
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.min.mjs',
-    import.meta.url,
-  ).toString();
-}
+// Removed top-level configuration to avoid SSR issues
+
 
 /**
  * 將 PDF 的每一頁轉換為 Base64 編碼的 JPEG 圖片字串。
  * 適用於瀏覽器環境。
  */
 export async function convertPdfToImages(data: Uint8Array): Promise<string[]> {
+  const pdfjs = await import('pdfjs-dist');
+
+  if (typeof window !== 'undefined' && !pdfjs.GlobalWorkerOptions.workerSrc) {
+    pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+      'pdfjs-dist/build/pdf.worker.min.mjs',
+      import.meta.url,
+    ).toString();
+  }
+
   const loadingTask = pdfjs.getDocument({ data });
   const pdf = await loadingTask.promise;
   const images: string[] = [];

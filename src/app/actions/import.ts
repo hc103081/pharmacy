@@ -2,6 +2,7 @@
 
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { ParsedItem } from '@/lib/pdfParser';
 
 export interface ImportDrugItem {
   barcode: string;
@@ -290,5 +291,68 @@ export async function importDrugs(
       success: false,
       error: error.message || '發生未知錯誤',
     };
+  }
+}
+
+/**
+ * 使用 Gemini Vision 進行現有數據的自動修正
+ * 當使用者發現解析出的條碼、品名或數量有誤時，利用 AI 重新比對圖片進行校正
+ */
+export async function fixParsedDataWithGemini(
+  currentItems: ParsedItem[],
+  base64Images: string[]
+): Promise<{ success: boolean; changedItems?: Partial<ParsedItem>[]; error?: string }> {
+  try {
+    const apiKey = process.env.GOOGLE_API_KEY;
+    if (!apiKey) {
+      return { success: false, error: '伺服器未配置 GOOGLE_API_KEY' };
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+    const imageParts = base64Images.map((base64) => ({
+      inlineData: {
+        data: base64.split(',')[1] || base64,
+        mimeType: 'image/jpeg',
+      },
+    }));
+
+    const prompt = `
+      你是一個精準的醫藥清單校對專家。
+      
+      任務：
+      我現在有一份從出貨單解析出來的藥品清單數據，但其中可能包含錯誤。
+      請你對照提供的圖片（出貨單截圖），僅找出並修正有錯誤的項目。
+      
+      輸入數據 (JSON 陣列)：
+      ${JSON.stringify(currentItems)}
+      
+      校對要求：
+      1. 僅輸出【有變動】的項目。如果項目完全正確，請不要包含在輸出中。
+      2. 每個修正項目必須包含：
+         - line_number: 原始序號 (必須精確，用於定位)
+         - 以及需要修正的欄位 (barcode, drug_name, quantity, 或 bonus_quantity)
+      3. 輸出格式必須是嚴格的 JSON 陣列，例如:
+         [
+           { "line_number": 5, "barcode": "12345678", "quantity": 12 },
+           { "line_number": 12, "drug_name": "修正後的品名" }
+         ]
+      4. 不要輸出任何 Markdown 標記 (如 \`\`\`json) 或解釋文字。
+      
+      請開始校對並僅輸出有變動的 JSON 陣列。
+    `;
+
+    const result = await model.generateContent([prompt, ...imageParts]);
+    const response = await result.response;
+    const text = response.text();
+    
+    const cleanedText = text.replace(/```json|```/g, '').trim();
+    const changedItems: Partial<ParsedItem>[] = JSON.parse(cleanedText);
+
+    return { success: true, changedItems };
+  } catch (error: any) {
+    console.error('Gemini Fix Error:', error);
+    return { success: false, error: error.message || 'AI 自動修正失敗' };
   }
 }

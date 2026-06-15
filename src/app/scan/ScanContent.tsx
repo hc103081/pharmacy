@@ -652,7 +652,7 @@ export default function ScanContent() {
             <button
               onClick={() => navigateToPage(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages}
-              className="flex items-center justify-center gap-1 px-4 py-2.5 bg-slate-700 rounded-xl border border-slate.600 text-slate-200 disabled:opacity-30 transition-all active:scale-95 hover:bg-slate.700"
+              className="flex items-center justify-center gap-1 px-4 py-2.5 bg-slate-700 rounded-lg border border-slate-600 text-slate-200 disabled:opacity-30 transition-all active:scale-95 hover:bg-slate-700"
             >
               <span className="text-xs font-bold">下一頁</span>
               <ChevronRight className="w-5 h-5" />
@@ -756,11 +756,11 @@ export default function ScanContent() {
               <button
                 onClick={() => navigateToPage(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}
-                className="p-2 bg-slate-700 rounded-lg border border-slate.600 text-slate-200 disabled:opacity-30 transition-all active:scale-95 hover:bg-slate.700"
+                className="p-2 bg-slate-700 rounded-lg border border-slate-600 text-slate-200 disabled:opacity-30 transition-all active:scale-95 hover:bg-slate-700"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
-              <div className="flex items-center gap-2 bg-slate.950/50 rounded-lg border border-slate.800 px-3 py-2">
+              <div className="flex items-center gap-2 bg-slate-950/50 rounded-lg border border-slate-800 px-3 py-2">
                 <input
                   type="text"
                   inputMode="numeric"
@@ -779,12 +779,12 @@ export default function ScanContent() {
                   className="w-10 bg-transparent text-center text-base font-bold text-[#00f2fe] outline-none box-border"
                   title="直接輸入頁碼"
                 />
-                <span className="text-sm font-bold text-slate.500">/ {totalPages}</span>
+                <span className="text-sm font-bold text-slate-500">/ {totalPages}</span>
               </div>
               <button
                 onClick={() => navigateToPage(Math.min(totalPages, currentPage + 1))}
                 disabled={currentPage === totalPages}
-                className="p-2 bg-slate.700 rounded-lg border border-slate.600 text-slate-200 disabled:opacity-30 transition-all active:scale-95 hover:bg-slate.700"
+                className="p-2 bg-slate-700 rounded-lg border border-slate-600 text-slate-200 disabled:opacity-30 transition-all active:scale-95 hover:bg-slate-700"
               >
                 <ChevronRight className="w-5 h-5" />
               </button>

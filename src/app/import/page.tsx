@@ -24,6 +24,7 @@ export default function ImportPage() {
   // PDF specific states
   const [parsedData, setParsedData] = useState<ParsedPdf | null>(null);
   const [isParsingPdf, setIsParsingPdf] = useState(false);
+  const [pdfImages, setPdfImages] = useState<string[]>([]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -46,13 +47,18 @@ export default function ImportPage() {
     }
 
     setIsParsingPdf(true);
+    setPdfImages([]);
     setStatus('loading');
     setMessage('正在解析 PDF...');
 
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
-      const data = await parsePdf(uint8Array, (page, total) => {
+      
+      // 預先轉換圖片，以便後續使用 Gemini 進行修正
+      const base64Images = await convertPdfToImages(new Uint8Array(arrayBuffer.slice(0)));
+      setPdfImages(base64Images);
+
+      const data = await parsePdf(new Uint8Array(arrayBuffer.slice(0)), (page, total) => {
         setMessage(`正在解析 PDF 第 ${page}/${total} 頁...`);
       });
 
@@ -60,8 +66,6 @@ export default function ImportPage() {
       if (!data.order_metadata.order_number) {
         setMessage('偵測到非標準格式，正在啟動 AI 自動辨識 (Gemini)...');
         
-        // 將 PDF 頁面轉換為圖片以進行 Gemini OCR
-        const base64Images = await convertPdfToImages(uint8Array);
         const fallbackResult = await processPDFPagesWithGemini(base64Images);
 
         if (fallbackResult.success && fallbackResult.order_metadata && fallbackResult.drugs) {
@@ -108,13 +112,34 @@ export default function ImportPage() {
   };
 
   const handleGeminiFix = async () => {
-    if (!parsedData) return;
+    if (!parsedData || pdfImages.length === 0) {
+      alert('缺少數據或圖片，無法進行 AI 修正。');
+      return;
+    }
     
-    // In a real implementation, we'd need to send the images to the server.
-    // For now, we'll just simulate it or notify the user.
-    // Since I don't have the images easily accessible from the PDF object without re-reading,
-    // I'll leave this as a placeholder for now.
-    alert('Gemini 自動修正功能正在開發中，目前僅支援規則解析。');
+    try {
+      setStatus('loading');
+      setMessage('正在啟動 Gemini 自動校對...');
+      
+      const { fixParsedDataWithGemini } = await import('@/app/actions/import');
+      const result = await fixParsedDataWithGemini(parsedData.items, pdfImages);
+      
+      if (result.success && result.correctedItems) {
+        setParsedData({
+          ...parsedData,
+          items: result.correctedItems
+        });
+        setStatus('idle');
+        setMessage('AI 自動修正完成！');
+        setTimeout(() => setMessage(''), 3000);
+      } else {
+        throw new Error(result.error || 'AI 修正失敗');
+      }
+    } catch (error: any) {
+      console.error('Gemini Fix Error:', error);
+      setStatus('error');
+      setMessage(`Gemini 修正失敗: ${error.message}`);
+    }
   };
 
   const removeImage = (index: number) => {
@@ -243,15 +268,16 @@ export default function ImportPage() {
       setSelectedImages([]);
       setUploadedUrls([]);
       setParsedData(null);
+      setPdfImages([]);
       setStatus('idle');
       setMessage('');
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-[#07142b] text-slate-200 p-4 lg:p-6 overflow-y-auto">
-      <div className="max-w-3xl mx-auto space-y-5 lg:space-y-6">
-        <div className="flex items-center gap-3">
+    <div className={`fixed inset-0 bg-[#07142b] text-slate-200 p-4 lg:p-6 ${parsedData ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+      <div className={`max-w-3xl mx-auto ${parsedData ? 'flex flex-col h-full' : 'space-y-5 lg:space-y-6'}`}>
+        <div className="flex-shrink-0 flex items-center gap-3">
           <Link href="/" className="p-2 hover:bg-slate-800 rounded-full transition-colors">
             <ArrowLeft className="w-5 h-5 lg:w-6 lg:h-6 text-slate-400" />
           </Link>
@@ -259,14 +285,16 @@ export default function ImportPage() {
         </div>
 
         {parsedData ? (
-          <PreviewPanel 
-            data={parsedData}
-            validation={validateParsedPdf(parsedData)}
-            onConfirm={handleImport}
-            onRetry={handlePdfRetry}
-            onGeminiFix={handleGeminiFix}
-            isLoading={isParsingPdf}
-          />
+          <div className="flex-1 min-h-0">
+            <PreviewPanel 
+              data={parsedData}
+              validation={validateParsedPdf(parsedData)}
+              onConfirm={handleImport}
+              onRetry={handlePdfRetry}
+              onGeminiFix={handleGeminiFix}
+              isLoading={isParsingPdf}
+            />
+          </div>
         ) : (
           <div className="space-y-5 lg:space-y-6">
             <div className="tech-card p-4 lg:p-6 space-y-5 lg:space-y-6">
@@ -325,7 +353,7 @@ export default function ImportPage() {
                     />
                     <UploadCloud className="w-10 h-10 text-slate-500 mx-auto mb-3 group-hover:text-cyan-400 transition-colors" />
                     <p className="text-slate-300 font-medium text-sm">上傳截圖</p>
-                    <p className="text-[11px] text-slate.500 mt-1">支援 JPG, PNG</p>
+                    <p className="text-[11px] text-slate-500 mt-1">支援 JPG, PNG</p>
                   </div>
                 </div>
               </div>
@@ -333,7 +361,7 @@ export default function ImportPage() {
               {/* Preview uploaded images */}
               {(selectedImages.length > 0 || uploadedUrls.length > 0) && (
                 <div className="space-y-3 pt-2">
-                  <p className="text-xs text-slate.500">已選取圖片：</p>
+                  <p className="text-xs text-slate-500">已選取圖片：</p>
                   <div className="grid grid-cols-3 lg:grid-cols-4 gap-3 lg:gap-4">
                     {selectedImages.map((file, i) => (
                       <div key={`sel-${i}`} className="relative aspect-square rounded-lg overflow-hidden border border-slate-700 group">
