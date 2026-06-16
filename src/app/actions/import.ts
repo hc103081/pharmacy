@@ -406,10 +406,14 @@ export async function importDrugs(
     };
 
   } catch (error: unknown) {
-    console.error('Import Error:', error);
-    return {
-      success: false,
-      error: error.message || '發生未知錯誤',
-    };
-  }
+      console.error('Import Error:', error);
+      let errorMessage = '發生未知錯誤';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
 }

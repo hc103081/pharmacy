@@ -68,11 +68,15 @@ export default function ImportPage() {
       setMessage('');
       setPdfProgress(null);
     } catch (error: unknown) {
-      console.error('PDF Upload/Parse Error:', error);
-      setStatus('error');
-      setMessage(`PDF 處理失敗: ${error.message}`);
-      setPdfProgress(null);
-    } finally {
+    console.error('PDF Upload/Parse Error:', error);
+    setStatus('error');
+    let errorMessage = 'PDF 處理失敗';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    setMessage(`PDF 處理失敗: ${errorMessage}`);
+    setPdfProgress(null);
+  } finally {
       setIsParsingPdf(false);
     }
   };

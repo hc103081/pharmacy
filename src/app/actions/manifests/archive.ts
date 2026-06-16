@@ -22,9 +22,13 @@ export async function archiveManifest(manifestId: string): Promise<ArchiveRespon
     return { success: true };
   } catch (error: unknown) {
     console.error('Archive Manifest Error:', error);
+    let errorMessage = '封存清單失敗';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
     return { 
       success: false, 
-      error: error.message || '封存清單失敗' 
+      error: errorMessage 
     };
   }
 }
@@ -76,9 +80,13 @@ export async function deleteManifest(manifestId: string): Promise<ArchiveRespons
     return { success: true };
   } catch (error: unknown) {
     console.error('Delete Manifest Error:', error);
+    let errorMessage = '刪除清單失敗';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
     return { 
       success: false, 
-      error: error.message || '刪除清單失敗' 
+      error: errorMessage 
     };
   }
 }

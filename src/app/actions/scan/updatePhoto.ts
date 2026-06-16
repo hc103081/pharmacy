@@ -37,9 +37,13 @@ export async function updateDrugStatus(
     return { success: true };
   } catch (error: unknown) {
     console.error('Update Status Error:', error);
+    let errorMessage = '更新狀態失敗';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
     return { 
       success: false, 
-      error: error.message || '更新狀態失敗' 
+      error: errorMessage 
     };
   }
 }

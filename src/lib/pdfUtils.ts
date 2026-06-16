@@ -45,11 +45,12 @@ export function applySharpen(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasEl
  * 適用於瀏覽器環境。
  */
 export async function convertPdfToImages(data: Uint8Array): Promise<string[]> {
-  const pdfjs = await import('pdfjs-dist');
+  // @ts-ignore // Import legacy PDF.js without type declarations
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf');
 
   if (typeof window !== 'undefined' && !pdfjs.GlobalWorkerOptions.workerSrc) {
     pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-      'pdfjs-dist/build/pdf.worker.min.mjs',
+      'pdfjs-dist/legacy/build/pdf.worker.min.mjs',
       import.meta.url,
     ).toString();
   }
