@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import { PackageSearch, FileUp, ClipboardCheck } from 'lucide-react';
+import { UserMenu } from '@/components/UserMenu';
 
 export default function HomePage() {
   return (
     <main className="fixed inset-0 flex flex-col items-center justify-center p-4 lg:p-6 bg-[#07142b] text-slate-200 overflow-y-auto">
+      <UserMenu />
       <div className="max-w-2xl w-full text-center space-y-8 lg:space-y-12">
         <div className="space-y-3 lg:space-y-4">
           <div className="flex items-center justify-center gap-3 mb-3 lg:mb-4">

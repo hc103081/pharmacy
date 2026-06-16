@@ -199,7 +199,7 @@ export default function ImportPage() {
   };
 
   return (
-    <div className="pt-12">
+    <div>
       <div className={`max-w-3xl mx-auto ${parsedData ? 'flex flex-col h-full' : 'space-y-5 lg:space-y-6'}`}>
         <div className="flex-shrink-0 flex items-center gap-3">
           <Link href="/" className="p-2 hover:bg-slate-800 rounded-full transition-colors">
