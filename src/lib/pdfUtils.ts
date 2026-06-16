@@ -40,6 +40,7 @@ export async function convertPdfToImages(data: Uint8Array): Promise<string[]> {
     await page.render({
       canvasContext: context,
       viewport: viewport,
+      canvas: canvas,
     }).promise;
 
     // 轉換為 Base64 JPEG 格式

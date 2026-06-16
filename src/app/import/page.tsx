@@ -1,14 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { importDrugs, uploadImportImages, processImagesWithGemini, processPDFPagesWithGemini, ImportDrugItem, deleteImportImages } from '@/app/actions/import';
+import { importDrugs, uploadImportImages, processImagesWithGemini, ImportDrugItem, deleteImportImages } from '@/app/actions/import';
 import { FileUp, Loader2, CheckCircle2, AlertCircle, ArrowLeft, Image as ImageIcon, X, UploadCloud, FileType, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { parsePdf, ParsedPdf, ParsedItem } from '@/lib/pdfParser';
 import { validateParsedPdf } from '@/lib/pdfValidator';
-import { convertPdfToImages } from '@/lib/pdfUtils';
 import PreviewPanel from './components/PreviewPanel';
 
 export default function ImportPage() {
@@ -24,7 +23,6 @@ export default function ImportPage() {
   // PDF specific states
   const [parsedData, setParsedData] = useState<ParsedPdf | null>(null);
   const [isParsingPdf, setIsParsingPdf] = useState(false);
-  const [pdfImages, setPdfImages] = useState<string[]>([]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -47,55 +45,20 @@ export default function ImportPage() {
     }
 
     setIsParsingPdf(true);
-    setPdfImages([]);
     setStatus('loading');
-    setMessage('正在解析 PDF...');
+    setMessage('正在解析 PDF (Gemini OCR)...');
 
     try {
       const arrayBuffer = await file.arrayBuffer();
-      
-      // 預先轉換圖片，以便後續使用 Gemini 進行修正
-      const base64Images = await convertPdfToImages(new Uint8Array(arrayBuffer.slice(0)));
-      setPdfImages(base64Images);
-
       const data = await parsePdf(new Uint8Array(arrayBuffer.slice(0)), (page, total) => {
-        setMessage(`正在解析 PDF 第 ${page}/${total} 頁...`);
+        setMessage(`正在解析 PDF (Gemini OCR) 第 ${page}/${total} 頁...`);
       });
 
-      // 檢查是否為標準出貨單格式 (透過出貨單號判斷)
-      if (!data.order_metadata.order_number) {
-        setMessage('偵測到非標準格式，正在啟動 AI 自動辨識 (Gemini)...');
-        
-        const fallbackResult = await processPDFPagesWithGemini(base64Images);
-
-        if (fallbackResult.success && fallbackResult.order_metadata && fallbackResult.drugs) {
-          setParsedData({
-            order_metadata: {
-              ...fallbackResult.order_metadata,
-              total_items: fallbackResult.drugs.length,
-            },
-            items: fallbackResult.drugs.map((d: ImportDrugItem, idx: number) => ({
-              line_number: idx + 1,
-              barcode: d.barcode,
-              drug_name: d.name,
-              quantity: d.expected_quantity - (d.bonus_quantity || 0),
-              bonus_quantity: d.bonus_quantity || 0,
-            }))
-          });
-          setManifestName(fallbackResult.order_metadata.order_number || '');
-          setStatus('idle');
-          setMessage('');
-        } else {
-          throw new Error(fallbackResult.error || 'AI 辨識失敗');
-        }
-      } else {
-        // 標準解析流程
-        validateParsedPdf(data);
-        setParsedData(data);
-        setManifestName(data.order_metadata.order_number || '');
-        setStatus('idle');
-        setMessage('');
-      }
+      validateParsedPdf(data);
+      setParsedData(data);
+      setManifestName(data.order_metadata.order_number || '');
+      setStatus('idle');
+      setMessage('');
     } catch (error: any) {
       console.error('PDF Upload/Parse Error:', error);
       setStatus('error');
@@ -109,37 +72,6 @@ export default function ImportPage() {
     setParsedData(null);
     setManifestName('');
     setStatus('idle');
-  };
-
-  const handleGeminiFix = async () => {
-    if (!parsedData || pdfImages.length === 0) {
-      alert('缺少數據或圖片，無法進行 AI 修正。');
-      return;
-    }
-    
-    try {
-      setStatus('loading');
-      setMessage('正在啟動 Gemini 自動校對...');
-      
-      const { fixParsedDataWithGemini } = await import('@/app/actions/import');
-      const result = await fixParsedDataWithGemini(parsedData.items, pdfImages);
-      
-      if (result.success && result.correctedItems) {
-        setParsedData({
-          ...parsedData,
-          items: result.correctedItems
-        });
-        setStatus('idle');
-        setMessage('AI 自動修正完成！');
-        setTimeout(() => setMessage(''), 3000);
-      } else {
-        throw new Error(result.error || 'AI 修正失敗');
-      }
-    } catch (error: any) {
-      console.error('Gemini Fix Error:', error);
-      setStatus('error');
-      setMessage(`Gemini 修正失敗: ${error.message}`);
-    }
   };
 
   const removeImage = (index: number) => {
@@ -212,7 +144,7 @@ export default function ImportPage() {
         return;
       } else if (uploadedUrls.length > 0) {
         setMessage('正在執行 AI OCR 辨識中...');
-        const ocrResult = await processImagesWithGemini(uploadedUrls);
+        const ocrResult = await processImagesWithGemini({ urls: uploadedUrls });
         if (!ocrResult.success) {
           setStatus('error');
           setMessage(`OCR 辨識失敗: ${ocrResult.error}`);
@@ -268,7 +200,6 @@ export default function ImportPage() {
       setSelectedImages([]);
       setUploadedUrls([]);
       setParsedData(null);
-      setPdfImages([]);
       setStatus('idle');
       setMessage('');
     }
@@ -291,7 +222,6 @@ export default function ImportPage() {
               validation={validateParsedPdf(parsedData)}
               onConfirm={handleImport}
               onRetry={handlePdfRetry}
-              onGeminiFix={handleGeminiFix}
               isLoading={isParsingPdf}
             />
           </div>

@@ -75,10 +75,11 @@ export default function DrugCard({
                 {drug.barcode} | 預期: {drug.expected_quantity}
               </span>
               {drug.bonus_quantity > 0 && (
-                <Info 
-                  className="w-3 h-3 shrink-0 cursor-help" 
-                  title={`原數量: ${drug.expected_quantity - drug.bonus_quantity} + 贈量: ${drug.bonus_quantity}`} 
-                />
+                <span title={`原數量: ${drug.expected_quantity - drug.bonus_quantity} + 贈量: ${drug.bonus_quantity}`}>
+                  <Info 
+                    className="w-3 h-3 shrink-0 cursor-help" 
+                  />
+                </span>
               )}
               {onFilterByBarcode && (
                 <button

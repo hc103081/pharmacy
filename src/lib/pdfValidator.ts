@@ -35,17 +35,21 @@ export function validateParsedPdf(data: ParsedPdf): PdfValidationResult {
     if (!item.barcode || item.barcode.trim() === '') {
       status = 'error';
       messages.push('條碼缺失');
-    } else if (item.barcode.length < 5 || item.barcode.length > 20) {
-      status = status === 'error' ? 'error' : 'warn';
+    } 
+    
+    if (item.barcode && (item.barcode.length < 5 || item.barcode.length > 20)) {
+      if (status !== 'error') status = 'warn';
       messages.push('條碼長度異常');
     }
 
     // 2. 品名亂碼偵測
     if (!item.drug_name || item.drug_name.trim() === '') {
-      status = status === 'error' ? 'error' : 'warn';
+      if (status !== 'error') status = 'warn';
       messages.push('品名缺失');
-    } else if (/[\\?]|[\u0000-\u001F\u007F-\u009F]/.test(item.drug_name)) {
-      status = status === 'error' ? 'error' : 'warn';
+    } 
+    
+    if (item.drug_name && /[\\?]|[\u0000-\u001F\u007F-\u009F]/.test(item.drug_name)) {
+      if (status !== 'error') status = 'warn';
       messages.push('品名可能含亂碼');
     }
 
@@ -57,7 +61,7 @@ export function validateParsedPdf(data: ParsedPdf): PdfValidationResult {
 
     // 4. 重複條碼偵測
     if (item.barcode && barcodes.has(item.barcode)) {
-      status = status === 'error' ? 'error' : 'warn';
+      if (status !== 'error') status = 'warn';
       messages.push('重複條碼');
     }
     if (item.barcode) barcodes.add(item.barcode);

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, AlertCircle, XCircle, RefreshCcw, Sparkles, Check } from 'lucide-react';
+import { CheckCircle2, AlertCircle, XCircle, RefreshCcw, Check } from 'lucide-react';
 import { ParsedPdf, ParsedItem } from '@/lib/pdfParser';
 import { PdfValidationResult } from '@/lib/pdfValidator';
 
@@ -10,7 +10,6 @@ interface PreviewPanelProps {
   validation: PdfValidationResult;
   onConfirm: (items: ParsedItem[]) => void;
   onRetry: () => void;
-  onGeminiFix: () => void;
   isLoading: boolean;
 }
 
@@ -19,7 +18,6 @@ export default function PreviewPanel({
   validation,
   onConfirm,
   onRetry,
-  onGeminiFix,
   isLoading,
 }: PreviewPanelProps) {
   const [editedItems, setEditedItems] = useState<ParsedItem[]>(data.items);
@@ -33,9 +31,9 @@ export default function PreviewPanel({
     const item = { ...newItems[index] };
     
     if (field === 'quantity' || field === 'bonus_quantity') {
-      item[field] = Number(value) || 0;
+      (item as any)[field] = Number(value) || 0;
     } else {
-      item[field] = value as string;
+      (item as any)[field] = value as string;
     }
     
     newItems[index] = item;
@@ -170,13 +168,6 @@ export default function PreviewPanel({
           >
             <RefreshCcw className="w-4 h-4" />
             退回重試
-          </button>
-          <button 
-            onClick={onGeminiFix}
-            className="flex-1 py-3 px-4 rounded-xl border border-[#00f2fe]/30 text-[#00f2fe] hover:bg-[#00f2fe]/10 active:scale-95 transition-all flex items-center justify-center gap-2 text-sm font-bold"
-          >
-            <Sparkles className="w-4 h-4" />
-            Gemini 修正
           </button>
           <button 
             onClick={() => onConfirm(editedItems)}

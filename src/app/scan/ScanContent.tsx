@@ -121,7 +121,7 @@ export default function ScanContent() {
           .eq('counted_status', 'completed'),
         supabase
           .from('drug_items')
-          .select('id, manifest_id, page_number, name, barcode, actual_quantity, expected_quantity, counted_status, item_order, photo_url')
+          .select('id, manifest_id, page_number, name, barcode, actual_quantity, expected_quantity, bonus_quantity, counted_status, item_order, photo_url')
           .eq('manifest_id', manifestId)
           .eq('page_number', currentPage)
           .order('item_order', { ascending: true }),

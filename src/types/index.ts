@@ -17,6 +17,7 @@ export interface SummaryDrugItem {
   barcode: string;
   name: string;
   expected_quantity: number;
+  bonus_quantity: number;
   actual_quantity: number;
   counted_status: 'pending' | 'completed' | 'error';
 }
