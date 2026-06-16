@@ -67,7 +67,7 @@ export default function ImportPage() {
       setStatus('idle');
       setMessage('');
       setPdfProgress(null);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('PDF Upload/Parse Error:', error);
       setStatus('error');
       setMessage(`PDF 處理失敗: ${error.message}`);
@@ -318,7 +318,7 @@ export default function ImportPage() {
                   <div className="flex items-center gap-0 relative z-10">
                     {(['converting', 'merging', 'uploading', 'header', 'batch'] as const).map((s, i, arr) => {
                       const stepOrder = ['converting', 'merging', 'uploading', 'header', 'batch', 'done'] as const;
-                      const currentIdx = stepOrder.indexOf(pdfProgress.step as any);
+                      const currentIdx = stepOrder.indexOf(pdfProgress.step);
                       const thisIdx = stepOrder.indexOf(s);
                       const isCompleted = thisIdx < currentIdx || (pdfProgress.step === 'done');
                       const isCurrent = pdfProgress.step === s;
@@ -359,6 +359,17 @@ export default function ImportPage() {
                       )
                     })}
                   </div>
+                </div>
+              )}
+              {status === 'error' && (
+                <div className="mt-3 p-2 bg-red-600 rounded text-center">
+                  {message}
+                  <button
+                    className="ml-2 px-3 py-1 bg-[#00f2fe] rounded-full active:scale-95"
+                    onClick={handlePdfRetry}
+                  >
+                    重新上傳 PDF
+                  </button>
                 </div>
               )}
               {/* Preview uploaded images */}

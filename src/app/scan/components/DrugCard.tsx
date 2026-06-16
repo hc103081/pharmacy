@@ -48,7 +48,7 @@ export default function DrugCard({
     >
       {/* 頂部：序號 + 藥品資訊 + 照片縮圖 */}
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 flex-1 min-w-0">
+        <div className="flex items-center gap-4 flex-1 min-w-0">
           <div
             className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${
               isCompleted

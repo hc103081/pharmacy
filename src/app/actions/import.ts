@@ -78,6 +78,7 @@ interface PageItem {
 /**
  * 使用 Gemini OCR 提取一批合併圖片中的藥品項目 (CSV 格式)
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function parseBatchWithGemini(url: string, batchIndex: number): Promise<PageItem[]> {
   const apiKey = process.env.GOOGLE_API_KEY;
   if (!apiKey) throw new Error('伺服器未配置 GOOGLE_API_KEY');
@@ -257,9 +258,12 @@ export async function processImagesWithGemini({ urls }: { urls: string[] }): Pro
     const drugs: ImportDrugItem[] = JSON.parse(cleanedText);
 
     return { success: true, drugs };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Gemini OCR Error:', error);
-    return { success: false, error: error.message || 'OCR 辨識失敗' };
+    if (error instanceof Error) {
+    return { success: false, error: error.message };
+  }
+  return { success: false, error: 'OCR 辨識失敗' };
   }
 }
 
@@ -303,9 +307,12 @@ export async function uploadImportImages(formData: FormData): Promise<{ success:
     }
 
     return { success: true, urls: uploadedUrls };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Upload Error:', error);
-    return { success: false, error: error.message || '圖片上傳失敗' };
+    if (error instanceof Error) {
+    return { success: false, error: error.message };
+  }
+  return { success: false, error: '圖片上傳失敗' };
   }
 }
 
@@ -321,9 +328,12 @@ export async function deleteImportImages(urls: string[]): Promise<{ success: boo
     if (error) throw error;
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Delete Images Error:', error);
-    return { success: false, error: error.message || '刪除圖片失敗' };
+    if (error instanceof Error) {
+    return { success: false, error: error.message };
+  }
+  return { success: false, error: '刪除圖片失敗' };
   }
 }
 
@@ -395,7 +405,7 @@ export async function importDrugs(
       totalItems: drugs.length,
     };
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Import Error:', error);
     return {
       success: false,

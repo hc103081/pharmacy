@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { CheckCircle2, AlertCircle, XCircle, RefreshCcw, Check, Eye, Filter } from 'lucide-react';
 import { ParsedPdf, ParsedItem } from '@/lib/pdfParser';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { PdfValidationResult } from '@/lib/pdfValidator';
 
 interface PreviewPanelProps {
@@ -26,7 +27,7 @@ export default function PreviewPanel({
   const [filter, setFilter] = useState<FilterMode>('all');
 
   useEffect(() => {
-    setEditedItems(data.items);
+    setTimeout(() => setEditedItems(data.items), 0);
   }, [data]);
 
   const handleInputChange = (index: number, field: keyof ParsedItem, value: string | number) => {
@@ -152,8 +153,8 @@ export default function PreviewPanel({
           <table className="w-full text-left text-sm">
             <thead className="sticky top-0 z-10 bg-[#162a56]">
               <tr className="text-slate-500 border-b border-slate-800">
-                <th className="py-3 px-2 font-medium">序號</th>
-                <th className="py-3 px-2 font-medium">條碼</th>
+                <th className="py-3 px-4 font-medium min-w-[60px]">序號</th>
+                <th className="py-3 px-4 font-medium min-w-[80px]">條碼</th>
                 <th className="py-3 px-2 font-medium">品名</th>
                 <th className="py-3 px-2 font-medium text-right">數量</th>
                 <th className="py-3 px-2 font-medium text-right">贈量</th>

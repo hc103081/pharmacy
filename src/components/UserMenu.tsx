@@ -13,7 +13,7 @@ export function UserMenu() {
 
   // Debug: log menu open state changes
   useEffect(() => {
-    console.log('UserMenu isMenuOpen =', isMenuOpen);
+    // console.log removed
   }, [isMenuOpen]);
 
   // Close menu when clicking outside the whole component
@@ -76,7 +76,7 @@ export function UserMenu() {
                   setIsConfirmOpen(true);
                   setIsMenuOpen(false);
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all group"
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#ff7a8a] bg-[#b33c49]/10 hover:text-white hover:bg-[#b33c49]/20 rounded-lg transition-all group"
               >
                 <LogOut className="w-4 h-4 group-hover:scale-110 transition-transform" />
                 登出系統

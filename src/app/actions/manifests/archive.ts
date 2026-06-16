@@ -20,7 +20,7 @@ export async function archiveManifest(manifestId: string): Promise<ArchiveRespon
     if (error) throw error;
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Archive Manifest Error:', error);
     return { 
       success: false, 
@@ -74,7 +74,7 @@ export async function deleteManifest(manifestId: string): Promise<ArchiveRespons
     if (deleteError) throw deleteError;
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Delete Manifest Error:', error);
     return { 
       success: false, 

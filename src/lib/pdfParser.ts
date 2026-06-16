@@ -84,7 +84,7 @@ export async function parsePdf(
   // ── Step 5: 逐批 AI 辨識藥品項目 ──
   // 計算進度分配：Step 5 佔 35%~95%（60%的進度空間）
   const BATCH_CONCURRENCY = 3;
-  const allBatchResults: { batchIndex: number; items: any[] }[] = [];
+  const allBatchResults: { batchIndex: number; items: ParsedItem[] }[] = [];
   let completedBatches = 0;
 
   for (let i = 0; i < urls.length; i += BATCH_CONCURRENCY) {

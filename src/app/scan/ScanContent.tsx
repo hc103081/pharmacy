@@ -585,7 +585,7 @@ export default function ScanContent() {
                   return (
                     <div
                       key={drug.id}
-                      className={`transition-all duration-300 ${
+                      className={`transition-all duration-300 mb-4 ${
                         barcodeInput && !isMatched ? 'opacity-25 grayscale scale-[0.98]' : ''
                       }`}
                     >

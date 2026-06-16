@@ -35,7 +35,7 @@ export async function updateDrugStatus(
     if (rpcError) throw rpcError;
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Update Status Error:', error);
     return { 
       success: false, 
