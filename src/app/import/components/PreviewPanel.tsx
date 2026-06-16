@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { CheckCircle2, AlertCircle, XCircle, RefreshCcw, Check } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { CheckCircle2, AlertCircle, XCircle, RefreshCcw, Check, Eye, Filter } from 'lucide-react';
 import { ParsedPdf, ParsedItem } from '@/lib/pdfParser';
 import { PdfValidationResult } from '@/lib/pdfValidator';
 
@@ -13,6 +13,8 @@ interface PreviewPanelProps {
   isLoading: boolean;
 }
 
+type FilterMode = 'all' | 'needs_review' | 'errors_only';
+
 export default function PreviewPanel({
   data,
   validation,
@@ -21,6 +23,7 @@ export default function PreviewPanel({
   isLoading,
 }: PreviewPanelProps) {
   const [editedItems, setEditedItems] = useState<ParsedItem[]>(data.items);
+  const [filter, setFilter] = useState<FilterMode>('all');
 
   useEffect(() => {
     setEditedItems(data.items);
@@ -48,6 +51,37 @@ export default function PreviewPanel({
       default: return null;
     }
   };
+
+  // 判斷品名是否可能有 OCR 風險
+  const hasDrugNameRisk = (item: ParsedItem): boolean => {
+    const val = validation.itemValidations.find(v => v.line_number === item.line_number);
+    // 如果 validator 標記了品名相關的 warn，則認為有風險
+    return val?.status === 'warn' && val.messages.some(m => 
+      ['含亂碼或問號', '品名全為數字', '品名過短', '品名異常過長', '非中文佔比過高'].includes(m)
+    );
+  };
+
+  // 篩選邏輯
+  const filteredItems = useMemo(() => {
+    return editedItems.filter(item => {
+      const val = validation.itemValidations.find(v => v.line_number === item.line_number);
+      const status = val?.status || 'pass';
+      const drugRisk = hasDrugNameRisk(item);
+
+      if (filter === 'errors_only') return status === 'error';
+      if (filter === 'needs_review') return status === 'warn' || status === 'error' || drugRisk;
+      return true;
+    });
+  }, [editedItems, filter, validation]);
+
+  // 統計：需要人工確認的項目數
+  const needsReviewCount = useMemo(() => {
+    return editedItems.filter(item => {
+      const val = validation.itemValidations.find(v => v.line_number === item.line_number);
+      const status = val?.status || 'pass';
+      return status === 'warn' || status === 'error' || hasDrugNameRisk(item);
+    }).length;
+  }, [editedItems, validation]);
 
   return (
     <div className="flex flex-col h-full">
@@ -83,6 +117,33 @@ export default function PreviewPanel({
             {validation.overallStatus === 'pass' ? '檢查通過' : validation.overallStatus === 'warn' ? '有潛在問題' : '發現錯誤'}
           </div>
         </div>
+
+        {/* 篩選工具列 */}
+        {needsReviewCount > 0 && (
+          <div className="flex items-center gap-2 pt-2">
+            <Eye className="w-4 h-4 text-slate-500" />
+            <span className="text-xs text-slate-500">快速篩選：</span>
+            <div className="flex gap-1.5">
+              {([
+                { key: 'all' as FilterMode, label: '全部', count: editedItems.length },
+                { key: 'needs_review' as FilterMode, label: '需確認', count: needsReviewCount },
+                { key: 'errors_only' as FilterMode, label: '僅錯誤', count: validation.summary.errorCount },
+              ]).map(opt => (
+                <button
+                  key={opt.key}
+                  onClick={() => setFilter(opt.key)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all active:scale-95 ${
+                    filter === opt.key
+                      ? 'bg-[#00f2fe]/20 border border-[#00f2fe]/50 text-[#00f2fe]'
+                      : 'bg-slate-800/50 border border-slate-700 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {opt.label} ({opt.count})
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 項目列表 - 中間可滾動區域 */}
@@ -101,12 +162,14 @@ export default function PreviewPanel({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/50">
-              {editedItems.map((item, idx) => {
+              {filteredItems.map((item) => {
+                const idx = editedItems.findIndex(e => e.line_number === item.line_number);
                 const val = validation.itemValidations.find(v => v.line_number === item.line_number);
                 const status = val?.status || 'pass';
+                const drugRisk = hasDrugNameRisk(item);
                 
                 return (
-                  <tr key={idx} className={`group transition-colors ${status === 'error' ? 'bg-red-500/5' : status === 'warn' ? 'bg-yellow-500/5' : ''}`}>
+                  <tr key={item.line_number} className={`group transition-colors ${status === 'error' ? 'bg-red-500/5' : drugRisk ? 'bg-orange-500/5' : status === 'warn' ? 'bg-yellow-500/5' : ''}`}>
                     <td className="py-3 px-2 text-slate-400 font-mono">{item.line_number}</td>
                     <td className="py-3 px-2">
                       <input 
@@ -116,11 +179,22 @@ export default function PreviewPanel({
                       />
                     </td>
                     <td className="py-3 px-2">
-                      <input 
-                        value={item.drug_name} 
-                        onChange={(e) => handleInputChange(idx, 'drug_name', e.target.value)}
-                        className="bg-transparent text-slate-200 border border-transparent hover:border-slate-700 focus:border-[#00f2fe] focus:bg-slate-950 outline-none px-1 rounded transition-all w-full"
-                      />
+                      <div className="relative">
+                        <input 
+                          value={item.drug_name} 
+                          onChange={(e) => handleInputChange(idx, 'drug_name', e.target.value)}
+                          className={`bg-transparent text-slate-200 border outline-none px-1 rounded transition-all w-full ${
+                            drugRisk 
+                              ? 'border-orange-500/50 bg-orange-500/10 focus:border-[#00f2fe] focus:bg-slate-950' 
+                              : 'border-transparent hover:border-slate-700 focus:border-[#00f2fe] focus:bg-slate-950'
+                          }`}
+                        />
+                        {drugRisk && (
+                          <span className="absolute -top-1.5 -right-1 px-1 py-0.5 text-[8px] font-bold bg-orange-500/80 text-white rounded leading-none ring-1 ring-orange-400/50">
+                            OCR
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-2 text-right">
                       <input 
@@ -142,11 +216,16 @@ export default function PreviewPanel({
                       {item.quantity + item.bonus_quantity}
                     </td>
                     <td className="py-3 px-2 text-center">
-                      <div className="flex items-center justify-center gap-1">
+                      <div className="flex items-center justify-center gap-1 relative">
                         {getStatusIcon(status)}
                         {val?.messages.length ? (
-                          <div className="group-hover:block hidden absolute z-10 bg-slate-900 border border-slate-700 p-2 rounded shadow-xl text-[10px] w-48 left-1/2 -translate-x-1/2 mt-1">
-                            {val.messages.map((m, i) => <div key={i}>{m}</div>)}
+                          <div className="group-hover:block hidden absolute z-10 bg-slate-900 border border-slate-700 p-2 rounded shadow-xl text-[10px] w-48 left-1/2 -translate-x-1/2 mt-1 top-full">
+                            {val.messages.map((m, i) => (
+                              <div key={i} className="flex items-start gap-1">
+                                <span className="text-orange-400 mt-0.5">·</span>
+                                <span>{m}</span>
+                              </div>
+                            ))}
                           </div>
                         ) : null}
                       </div>
@@ -157,10 +236,23 @@ export default function PreviewPanel({
             </tbody>
           </table>
         </div>
+        
+        {filteredItems.length === 0 && (
+          <div className="text-center py-10 text-slate-500">
+            <Filter className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p className="text-sm">目前篩選條件下沒有項目</p>
+          </div>
+        )}
       </div>
 
       {/* 底部操作 - 固定在底部 */}
       <div className="flex-shrink-0 tech-card p-4 lg:p-6 rounded-t-none border-t border-slate-800">
+        {needsReviewCount > 0 && (
+          <p className="text-[11px] text-orange-400 mb-3 flex items-center gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5" />
+            有 {needsReviewCount} 項品名經 AI 辨識可能不精準（橘色標記），建議人工確認後再匯入
+          </p>
+        )}
         <div className="flex flex-col sm:flex-row gap-3">
           <button 
             onClick={onRetry}

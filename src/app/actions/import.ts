@@ -23,16 +23,30 @@ export interface ImportResponse {
 // ---------------------------------------------------------------------------
 
 /**
+ * 輔助函數：從 URL 獲取圖片並轉換為 Base64
+ */
+async function fetchImageAsBase64(url: string): Promise<string> {
+  const response = await fetch(url);
+  const arrayBuffer = await response.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+/**
  * 從出貨單第一頁提取表頭資訊（出貨單號、交貨日期）
  */
-async function parseHeaderWithGemini(firstPageBase64: string): Promise<{ order_number: string; delivery_date: string }> {
+export async function parseHeaderWithGemini(url: string): Promise<{ order_number: string; delivery_date: string }> {
   const apiKey = process.env.GOOGLE_API_KEY;
   if (!apiKey) throw new Error('伺服器未配置 GOOGLE_API_KEY');
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite' });
 
-  const base64Data = firstPageBase64.replace(/^data:image\/\w+;base64,/, '');
+  const base64Data = await fetchImageAsBase64(url);
 
   const prompt = `這是安得福藥局出貨單的第一頁。請找出以下資訊：
 1. 出貨單號 (order_number)
@@ -62,38 +76,64 @@ interface PageItem {
 }
 
 /**
- * 使用 Gemini OCR 提取單頁藥品項目
+ * 使用 Gemini OCR 提取一批合併圖片中的藥品項目 (CSV 格式)
  */
-async function parsePageWithGemini(pageBase64: string, pageIndex: number): Promise<PageItem[]> {
+export async function parseBatchWithGemini(url: string, batchIndex: number): Promise<PageItem[]> {
   const apiKey = process.env.GOOGLE_API_KEY;
   if (!apiKey) throw new Error('伺服器未配置 GOOGLE_API_KEY');
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite' });
 
-  const base64Data = pageBase64.replace(/^data:image\/\w+;base64,/, '');
+  const base64Data = await fetchImageAsBase64(url);
 
-  const prompt = `這是安得福藥局出貨單的第 ${pageIndex + 1} 頁。
-每行格式為：序號 商品代號(條碼) 品名 數量 贈量 單位 單價 折數 小計 備註
+  const prompt = `這是一組合併後的藥局出貨單圖片（包含多頁）。
+請提取所有藥品項目，並嚴格以 CSV 格式輸出。
+
+CSV 欄位定義：
+line_number,barcode,drug_name,quantity,bonus_quantity
 
 提取規則：
-1. 只提取以下欄位：line_number(序號)、barcode(商品代號)、drug_name(品名)、quantity(數量)、bonus_quantity(贈量)
-2. 不要提取表頭行（「序 商品代號 品 名...」那一行）
-3. 不要提取頁尾行（「頁計」、「已收」、「折扣」、「稅額」、「應收」、「總計」等）
-4. 不要提取「以下空白」之後的內容
-5. 品名可能含數字（如「輕酵素-2s/包(3包100元)」），這些是品名的一部分，不要誤判為數量
-6. quantity 和 bonus_quantity 必須是數字型態
-7. 輸出嚴格 JSON 陣列，不要 markdown 標記：
-[
-  { "line_number": 1, "barcode": "12345678", "drug_name": "品名", "quantity": 10, "bonus_quantity": 0 }
-]`;
+1. 這是一份專業的藥局出貨單，請特別注意中文字形辨識，避免將藥品名稱誤判為無意義的文字。
+2. 不要輸出標題行（Header）。
+3. 不要使用 markdown 標記（不要 \`\`\`csv）。
+4. 每行代表一個項目，欄位間以逗號分隔。
+5. quantity 和 bonus_quantity 必須是數字。
+6. 忽略表頭、頁尾及「以下空白」內容。
+7. 保持項目在圖片中出現的物理順序。
+
+輸出範例：
+1,12345678,品名A,10,0
+2,87654321,品名B,5,1`;
 
   const result = await model.generateContent([
     prompt,
     { inlineData: { data: base64Data, mimeType: 'image/jpeg' } },
   ]);
-  const text = result.response.text().replace(/```json|```/g, '').trim();
-  const items: PageItem[] = JSON.parse(text);
+  
+  const text = result.response.text().trim();
+  
+  // 解析 CSV — 品名可能含逗號，使用「從右側拆最後 3 個數字欄位」策略
+  const lines = text.split('\n').filter(line => line.trim() && !line.startsWith('#') && !line.startsWith('line_number'));
+  const items: PageItem[] = lines.map((line, idx) => {
+    const trimmed = line.trim();
+    // 從右側拆分：bonus_quantity, quantity 一定是數字，取最後 2 個逗號分隔
+    const lastComma2 = trimmed.lastIndexOf(',');
+    const lastComma1 = trimmed.lastIndexOf(',', lastComma2 - 1);
+    const lastComma0 = trimmed.lastIndexOf(',', lastComma1 - 1);
+
+    const bonus_quantity = parseInt(trimmed.slice(lastComma2 + 1).trim()) || 0;
+    const quantity = parseInt(trimmed.slice(lastComma1 + 1, lastComma2).trim()) || 0;
+    const drug_name = trimmed.slice(lastComma0 + 1, lastComma1).trim();
+    const beforeDrugName = trimmed.slice(0, lastComma0).trim();
+    // beforeDrugName = "line_number,barcode" 或 "line_number,barcode"
+    const firstComma = beforeDrugName.indexOf(',');
+    const line_number = parseInt(beforeDrugName.slice(0, firstComma).trim()) || idx + 1;
+    const barcode = beforeDrugName.slice(firstComma + 1).trim();
+
+    return { line_number, barcode, drug_name, quantity, bonus_quantity };
+  });
+
   return items;
 }
 
@@ -101,39 +141,38 @@ async function parsePageWithGemini(pageBase64: string, pageIndex: number): Promi
  * 主入口 Server Action：使用 Gemini OCR 解析整份 PDF
  * 供 pdfParser.ts 呼叫
  */
-export async function parsePdfWithGemini({ images: base64Images }: { images: string[] }): Promise<ParsedPdf> {
-  // 1. 第一頁提取表頭（只送第一頁）
-  const header = await parseHeaderWithGemini(base64Images[0]);
+export async function parsePdfWithGemini({ urls }: { urls: string[] }): Promise<ParsedPdf> {
+  // 1. 第一張合併圖提取表頭（通常第一頁在第一張圖頂部）
+  const header = await parseHeaderWithGemini(urls[0]);
+  
+  // 2. 並行提取每批合併圖 (CSV 模式)
+  const BATCH_SIZE = 3; // 這裡的 urls 已經是合併後的結果
+  const allBatchResults: { batchIndex: number; items: PageItem[] }[] = [];
 
-  // 2. 分批並行提取每頁藥品（每批 3 頁）
-  const BATCH_SIZE = 3;
-  const allPageResults: { pageIndex: number; items: PageItem[] }[] = [];
-
-  for (let i = 0; i < base64Images.length; i += BATCH_SIZE) {
-    const batch = base64Images.slice(i, i + BATCH_SIZE);
+  // 由於客戶端已經合併，這裡的 urls.length = ceil(總頁數 / 3)
+  for (let i = 0; i < urls.length; i += BATCH_SIZE) {
+    const batch = urls.slice(i, i + BATCH_SIZE);
     const batchResults = await Promise.all(
-      batch.map(async (img, batchIdx) => {
-        const pageIndex = i + batchIdx;
-        // 單頁失敗自動重試 1 次
+      batch.map(async (url, batchIdx) => {
+        const globalBatchIdx = i + batchIdx;
         try {
-          const items = await parsePageWithGemini(img, pageIndex);
-          return { pageIndex, items };
+          const items = await parseBatchWithGemini(url, globalBatchIdx);
+          return { batchIndex: globalBatchIdx, items };
         } catch {
-          // 等 1 秒後重試
           await new Promise(resolve => setTimeout(resolve, 1000));
-          const items = await parsePageWithGemini(img, pageIndex);
-          return { pageIndex, items };
+          const items = await parseBatchWithGemini(url, globalBatchIdx);
+          return { batchIndex: globalBatchIdx, items };
         }
       })
     );
-    allPageResults.push(...batchResults);
+    allBatchResults.push(...batchResults);
   }
 
-  // 3. 合併所有頁的 items，按照 pageIndex 排序
-  allPageResults.sort((a, b) => a.pageIndex - b.pageIndex);
-  const mergedItems: PageItem[] = allPageResults.flatMap(r => r.items);
+  // 3. 合併所有 items
+  allBatchResults.sort((a, b) => a.batchIndex - b.batchIndex);
+  const mergedItems: PageItem[] = allBatchResults.flatMap(r => r.items);
 
-  // 4. line_number 重新從 1 開始連續編號
+  // 4. 重新編號
   const finalItems: ParsedItem[] = mergedItems.map((item, idx) => ({
     line_number: idx + 1,
     barcode: item.barcode,

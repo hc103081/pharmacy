@@ -1,0 +1,11 @@
+# PDF Processing Fix: Transition to URL-based flow
+Goal: Resolve "Maximum array nesting exceeded" error by avoiding passing large base64 arrays in Server Actions.
+
+Tasks:
+1. Update `src/app/actions/import.ts`:
+   - Change `parsePdfWithGemini` signature to accept `{ urls: string[] }`.
+   - Implement server-side fetching of images from URLs.
+2. Update `src/lib/pdfParser.ts`:
+   - Modify `parsePdf` to upload converted images to Supabase Storage first.
+   - Call `parsePdfWithGemini` with the resulting URLs.
+3. Verify the fix with a multi-page PDF.

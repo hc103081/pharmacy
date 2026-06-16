@@ -42,15 +42,49 @@ export function validateParsedPdf(data: ParsedPdf): PdfValidationResult {
       messages.push('條碼長度異常');
     }
 
-    // 2. 品名亂碼偵測
+    // 2. 品名亂碼偵測 + 風險評級
+    let drugNameRisk = false;
+    const riskReasons: string[] = [];
+    
     if (!item.drug_name || item.drug_name.trim() === '') {
       if (status !== 'error') status = 'warn';
       messages.push('品名缺失');
     } 
     
-    if (item.drug_name && /[\\?]|[\u0000-\u001F\u007F-\u009F]/.test(item.drug_name)) {
-      if (status !== 'error') status = 'warn';
-      messages.push('品名可能含亂碼');
+    if (item.drug_name) {
+      // 亂碼偵測（控制字符、問號等）
+      if (/[\\?]|[\u0000-\u001F\u007F-\u009F]/.test(item.drug_name)) {
+        drugNameRisk = true;
+        riskReasons.push('含亂碼或問號');
+      }
+      
+      // 純數字品名（極可能辨識失敗）
+      if (/^\d+$/.test(item.drug_name.trim())) {
+        drugNameRisk = true;
+        riskReasons.push('品名全為數字');
+      }
+      
+      // 品名長度異常：過短（< 2 字）或過長（> 50 字）
+      const nameLen = item.drug_name.trim().length;
+      if (nameLen < 2) {
+        drugNameRisk = true;
+        riskReasons.push('品名過短');
+      } else if (nameLen > 50) {
+        drugNameRisk = true;
+        riskReasons.push('品名異常過長');
+      }
+      
+      // 含罕用或非中文字符（英文/數字佔比過高的混合品名需人工確認）
+      const nonChineseRatio = (item.drug_name.match(/[^\u4e00-\u9fff\s()（）、／\.\-\+]/g) || []).length / nameLen;
+      if (nonChineseRatio > 0.7 && nameLen > 3) {
+        drugNameRisk = true;
+        riskReasons.push('非中文佔比過高');
+      }
+      
+      if (drugNameRisk) {
+        if (status !== 'error') status = 'warn';
+        messages.push(...riskReasons);
+      }
     }
 
     // 3. 數量合理性

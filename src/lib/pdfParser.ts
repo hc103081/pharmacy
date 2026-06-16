@@ -15,27 +15,126 @@ export interface ParsedPdf {
   items: ParsedItem[];
 }
 
+/** 進度回報的詳細步驟資訊 */
+export interface PdfProgressStep {
+  /** 步驟識別碼 */
+  step: 'converting' | 'merging' | 'uploading' | 'header' | 'batch' | 'done';
+  /** 人類可讀的步驟描述 */
+  label: string;
+  /** 整體進度 0~100 */
+  percent: number;
+}
+
+/** 每幾頁合併為一張圖片 */
+const MERGE_PAGE_COUNT = 2;
+
 /**
- * 輕量 client-side wrapper：
- * 1. 呼叫 convertPdfToImages() 將 PDF 轉為圖片
- * 2. 呼叫 Server Action parsePdfWithGemini() 執行 Gemini OCR
- * 3. 回傳 ParsedPdf 結果
+ * 逐步解析 PDF，每個階段都透過 onProgress 回報進度。
+ * 拆分 Server Action 呼叫，讓客戶端能在每步之間更新 UI。
  */
 export async function parsePdf(
   data: Uint8Array,
-  onProgress?: (page: number, total: number) => void
+  onProgress?: (progress: PdfProgressStep) => void
 ): Promise<ParsedPdf> {
-  const { convertPdfToImages } = await import('@/lib/pdfUtils');
-  const { parsePdfWithGemini } = await import('@/app/actions/import');
+  const { convertPdfToImages, mergeImagesVertically } = await import('@/lib/pdfUtils');
+  const { uploadImportImages, parseHeaderWithGemini, parseBatchWithGemini } = await import('@/app/actions/import');
 
-  // Step 1: 將 PDF 每頁轉為 Base64 JPEG 圖片
-  if (onProgress) onProgress(0, 1);
+  // ── Step 1: 將 PDF 每頁轉為 Base64 JPEG 圖片 ──
+  onProgress?.({ step: 'converting', label: '正在將 PDF 轉換為圖片...', percent: 5 });
   const base64Images = await convertPdfToImages(data);
-  if (onProgress) onProgress(1, 1);
+  const totalPages = base64Images.length;
 
-  // Step 2: 呼叫 Server Action 進行 Gemini OCR
-  const result = await parsePdfWithGemini({ images: base64Images });
+  // ── Step 2: 每 MERGE_PAGE_COUNT 頁合併為一張圖片 ──
+  onProgress?.({ step: 'merging', label: `正在合併 ${totalPages} 頁為批次圖片...`, percent: 15 });
+  const mergedImages: string[] = [];
+  for (let i = 0; i < totalPages; i += MERGE_PAGE_COUNT) {
+    const batch = base64Images.slice(i, i + MERGE_PAGE_COUNT);
+    const merged = await mergeImagesVertically(batch);
+    mergedImages.push(merged);
+  }
+  const totalBatches = mergedImages.length;
 
-  // Step 3: 回傳結果
-  return result;
+  // ── Step 3: 上傳合併後圖片至 Storage ──
+  onProgress?.({ step: 'uploading', label: `正在上傳 ${totalBatches} 張批次圖片...`, percent: 25 });
+  const formData = new FormData();
+  for (let i = 0; i < mergedImages.length; i++) {
+    const base64 = mergedImages[i];
+    const parts = base64.split(',');
+    const contentType = parts[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+    const byteString = atob(parts[1]);
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let j = 0; j < byteString.length; j++) {
+      ia[j] = byteString.charCodeAt(j);
+    }
+    const blob = new Blob([ab], { type: contentType });
+    formData.append('files', new File([blob], `merged_batch_${i + 1}.jpg`, { type: contentType }));
+  }
+
+  const uploadResult = await uploadImportImages(formData);
+  if (!uploadResult.success || !uploadResult.urls) {
+    throw new Error(`圖片上傳失敗: ${uploadResult.error || '未知錯誤'}`);
+  }
+  const urls = uploadResult.urls;
+
+  // ── Step 4: 解析表頭（單獨呼叫） ──
+  onProgress?.({ step: 'header', label: '正在 AI 辨識出貨單表頭...', percent: 35 });
+  const header = await parseHeaderWithGemini(urls[0]);
+
+  // ── Step 5: 逐批 AI 辨識藥品項目 ──
+  // 計算進度分配：Step 5 佔 35%~95%（60%的進度空間）
+  const BATCH_CONCURRENCY = 3;
+  const allBatchResults: { batchIndex: number; items: any[] }[] = [];
+  let completedBatches = 0;
+
+  for (let i = 0; i < urls.length; i += BATCH_CONCURRENCY) {
+    const batchSlice = urls.slice(i, i + BATCH_CONCURRENCY);
+
+    onProgress?.({
+      step: 'batch',
+      label: `AI 辨識藥品項目中... (${completedBatches + 1}-${Math.min(completedBatches + batchSlice.length, totalBatches)} / ${totalBatches} 批次)`,
+      percent: 35 + Math.round((completedBatches / totalBatches) * 60),
+    });
+
+    const batchResults = await Promise.all(
+      batchSlice.map(async (url, batchIdx) => {
+        const globalBatchIdx = i + batchIdx;
+        try {
+          const items = await parseBatchWithGemini(url, globalBatchIdx);
+          return { batchIndex: globalBatchIdx, items };
+        } catch {
+          // 重試一次
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          const items = await parseBatchWithGemini(url, globalBatchIdx);
+          return { batchIndex: globalBatchIdx, items };
+        }
+      })
+    );
+    allBatchResults.push(...batchResults);
+    completedBatches += batchSlice.length;
+  }
+
+  // ── Step 6: 合併所有 items 並重新編號 ──
+  onProgress?.({ step: 'done', label: '解析完成，正在整理結果...', percent: 98 });
+  allBatchResults.sort((a, b) => a.batchIndex - b.batchIndex);
+  const mergedItems = allBatchResults.flatMap(r => r.items);
+
+  const finalItems: ParsedItem[] = mergedItems.map((item, idx) => ({
+    line_number: idx + 1,
+    barcode: item.barcode,
+    drug_name: item.drug_name,
+    quantity: item.quantity,
+    bonus_quantity: item.bonus_quantity,
+  }));
+
+  onProgress?.({ step: 'done', label: '解析完成！', percent: 100 });
+
+  return {
+    order_metadata: {
+      order_number: header.order_number,
+      delivery_date: header.delivery_date,
+      total_items: finalItems.length,
+    },
+    items: finalItems,
+  };
 }
