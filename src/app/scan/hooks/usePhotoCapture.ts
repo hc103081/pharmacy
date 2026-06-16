@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { updateDrugStatus } from '@/app/actions/scan/updatePhoto';
+import { compressImage } from '@/lib/imageCompression';
 import type { DrugItem } from '@/types';
 
 interface UsePhotoCaptureOptions {
@@ -52,11 +53,16 @@ export function usePhotoCapture({
       onResetInput();
 
       try {
-        const filePath = `manifests/${manifestId}/${matchingItem.page_number}/${matchingItem.barcode}_${Date.now()}.jpg`;
-
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const filePath = `photos/${year}/${month}/${day}/${manifestId}/${matchingItem.page_number}/${matchingItem.barcode}_${Date.now()}.jpg`;
+        // 壓縮圖片確保不超過 300KB
+        const compressedFile = await compressImage(file);
         const { error: uploadError } = await supabase.storage
           .from('drug-photos')
-          .upload(filePath, file);
+          .upload(filePath, compressedFile);
 
         if (uploadError) throw uploadError;
 
