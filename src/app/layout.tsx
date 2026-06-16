@@ -21,9 +21,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html
       lang="en"
@@ -32,7 +30,10 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <AuthProvider>
           <UserMenu />
-          {children}
+          {/* Add top padding to avoid content being hidden under the fixed header */}
+          <div className="pt-12 flex-1">
+            {children}
+          </div>
         </AuthProvider>
       </body>
     </html>

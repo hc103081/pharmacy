@@ -7,7 +7,7 @@ import type * as PDFJS from 'pdfjs-dist';
  * 對 Canvas 內容進行輕度銳化（USM - Unsharp Masking）。
  * 強化文字邊緣對比，有助於 OCR 辨識。
  */
-function applySharpen(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement): string {
+export function applySharpen(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement): string {
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
   const w = canvas.width;

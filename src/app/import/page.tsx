@@ -12,12 +12,12 @@ import PreviewPanel from './components/PreviewPanel';
 
 /** 步驟對應的 icon */
 const STEP_ICONS: Record<PdfProgressStep['step'], React.ReactNode> = {
-  converting: <FileType className="w-5 h-5 text-cyan-400" />,
-  merging: <ScanLine className="w-5 h-5 text-cyan-400" />,
-  uploading: <Upload className="w-5 h-5 text-cyan-400" />,
-  header: <Cpu className="w-5 h-5 text-cyan-400" />,
-  batch: <Cpu className="w-5 h-5 text-[#00f2fe] animate-pulse" />,
-  done: <CheckCircle2 className="w-5 h-5 text-green-400" />,
+  converting: <FileType className="w-5 h-5 text-cyan-400" />, 
+  merging: <ScanLine className="w-5 h-5 text-cyan-400" />, 
+  uploading: <Upload className="w-5 h-5 text-cyan-400" />, 
+  header: <Cpu className="w-5 h-5 text-cyan-400" />, 
+  batch: <Cpu className="w-5 h-5 text-[#00f2fe] animate-pulse" />, 
+  done: <CheckCircle2 className="w-5 h-5 text-green-400" />, 
 };
 
 export default function ImportPage() {
@@ -29,7 +29,7 @@ export default function ImportPage() {
   const [uploadedUrls, setUploadedUrls] = useState<string[]>([]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
-  
+
   // PDF specific states
   const [parsedData, setParsedData] = useState<ParsedPdf | null>(null);
   const [isParsingPdf, setIsParsingPdf] = useState(false);
@@ -48,23 +48,19 @@ export default function ImportPage() {
       alert('請選擇 PDF 檔案');
       return;
     }
-
     if (file.size > 10 * 1024 * 1024) {
       setStatus('error');
       setMessage('PDF 檔案太大 (超過 10MB)');
       return;
     }
-
     setIsParsingPdf(true);
     setStatus('loading');
     setPdfProgress(null);
-
     try {
       const arrayBuffer = await file.arrayBuffer();
       const data = await parsePdf(new Uint8Array(arrayBuffer.slice(0)), (progress) => {
         setPdfProgress(progress);
       });
-
       validateParsedPdf(data);
       setParsedData(data);
       setManifestName(data.order_metadata.order_number || '');
@@ -94,13 +90,10 @@ export default function ImportPage() {
 
   const handleUploadImages = async () => {
     if (selectedImages.length === 0) return;
-    
     setStatus('loading');
     setMessage('正在上傳圖片至伺服器...');
-    
     const formData = new FormData();
     selectedImages.forEach(file => formData.append('files', file));
-
     try {
       const result = await uploadImportImages(formData);
       if (result.success && result.urls) {
@@ -124,33 +117,26 @@ export default function ImportPage() {
       alert('請輸入清單名稱');
       return;
     }
-
     try {
       setStatus('loading');
       let drugs: ImportDrugItem[] = [];
-
       if (parsedData) {
-        // PDF path
         const sourceItems = items || parsedData.items;
         drugs = sourceItems.map(item => ({
           barcode: item.barcode,
           name: item.drug_name,
           expected_quantity: item.quantity + item.bonus_quantity,
-          bonus_quantity: item.bonus_quantity,
+          bonus_quantity: item.bonus_quantity
         }));
-        
         const result = await importDrugs(manifestName, drugs, user!.id, {
           order_number: parsedData.order_metadata.order_number,
           delivery_date: parsedData.order_metadata.delivery_date,
-          source_file: '', 
+          source_file: ''
         });
-        
         if (result.success) {
           setStatus('success');
           setMessage(`匯入成功！共匯入 ${result.totalItems} 項藥品。正在跳轉至清點面板...`);
-          setTimeout(() => {
-            router.push(`/scan?manifestId=${result.manifestId}`);
-          }, 2000);
+          setTimeout(() => router.push(`/scan?manifestId=${result.manifestId}`), 2000);
         } else {
           setStatus('error');
           setMessage(`匯入失敗: ${result.error}`);
@@ -169,24 +155,17 @@ export default function ImportPage() {
         setMessage('正在從 JSON 匯入數據...');
         drugs = JSON.parse(jsonData);
       }
-
       if (drugs.length === 0) {
         setStatus('error');
         setMessage('沒有可匯入的藥品數據');
         return;
       }
-
       setMessage('正在匯入並進行分頁處理...');
-      const result = await importDrugs(manifestName, drugs, user!.id, {
-        source_images: uploadedUrls,
-      });
-
+      const result = await importDrugs(manifestName, drugs, user!.id, { source_images: uploadedUrls });
       if (result.success) {
         setStatus('success');
         setMessage(`匯入成功！共匯入 ${result.totalItems} 項藥品。正在跳轉至清點面板...`);
-        setTimeout(() => {
-          router.push(`/scan?manifestId=${result.manifestId}`);
-        }, 2000);
+        setTimeout(() => router.push(`/scan?manifestId=${result.manifestId}`), 2000);
       } else {
         setStatus('error');
         setMessage(`匯入失敗: ${result.error}`);
@@ -208,7 +187,6 @@ export default function ImportPage() {
           console.error('Cleanup error:', e);
         }
       }
-
       setManifestName('');
       setJsonData('');
       setSelectedImages([]);
@@ -221,7 +199,7 @@ export default function ImportPage() {
   };
 
   return (
-    <div className={`fixed inset-0 bg-[#07142b] text-slate-200 p-4 lg:p-6 ${parsedData ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+    <div className="pt-12">
       <div className={`max-w-3xl mx-auto ${parsedData ? 'flex flex-col h-full' : 'space-y-5 lg:space-y-6'}`}>
         <div className="flex-shrink-0 flex items-center gap-3">
           <Link href="/" className="p-2 hover:bg-slate-800 rounded-full transition-colors">
@@ -229,6 +207,7 @@ export default function ImportPage() {
           </Link>
           <h1 className="text-xl lg:text-2xl font-bold text-white">匯入藥品清單</h1>
         </div>
+
 
         {parsedData ? (
           <div className="flex-1 min-h-0">
@@ -240,7 +219,7 @@ export default function ImportPage() {
               isLoading={isParsingPdf}
             />
           </div>
-        ) : (
+) : (
           <div className="space-y-5 lg:space-y-6">
             <div className="tech-card p-4 lg:p-6 space-y-5 lg:space-y-6">
               <div className="space-y-2">
@@ -253,15 +232,14 @@ export default function ImportPage() {
                   className="tech-input w-full text-sm lg:text-base"
                 />
               </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* PDF Upload Section */}
                 <div className="space-y-3">
                   <label className="block text-xs lg:text-sm font-medium text-slate-400">方式 1: PDF 出貨單 (自動解析)</label>
                   <div className="relative group">
-                    <input 
-                      type="file" 
-                      accept=".pdf" 
+                    <input
+                      type="file"
+                      accept=".pdf"
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                       onChange={handlePdfUpload}
                       disabled={isParsingPdf}
@@ -273,7 +251,6 @@ export default function ImportPage() {
                     </div>
                   </div>
                 </div>
-
                 {/* Screenshot Upload Section */}
                 <div className="space-y-3">
                   <label className="block text-xs lg:text-sm font-medium text-slate-400">方式 2: 截圖 (AI OCR)</label>
@@ -302,17 +279,12 @@ export default function ImportPage() {
                   </div>
                 </div>
               </div>
-
               {/* PDF 解析進度面板 */}
               {isParsingPdf && pdfProgress && (
                 <div className="tech-card p-4 lg:p-5 space-y-4 border-cyan-500/30 animate-in fade-in slide-in-from-bottom-2 relative overflow-hidden animate-scanline">
-                  {/* 頂部 glow 裝飾線 */}
                   <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[#00f2fe]/60 to-transparent" />
-
                   <div className="flex items-center gap-3 relative z-10">
-                    <div className={`relative ${pdfProgress.step === 'batch' ? 'animate-pulse-glow' : ''} rounded-lg p-1.5`}>
-                      {STEP_ICONS[pdfProgress.step]}
-                    </div>
+                    <div className={`relative ${pdfProgress.step === 'batch' ? 'animate-pulse-glow' : ''} rounded-lg p-1.5`}>{STEP_ICONS[pdfProgress.step]}</div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-white truncate">{pdfProgress.label}</p>
                       <p className="text-[11px] text-slate-500 mt-0.5">
@@ -326,29 +298,23 @@ export default function ImportPage() {
                     </div>
                     <span className="text-[#00f2fe] font-mono text-lg font-bold tabular-nums">{pdfProgress.percent}%</span>
                   </div>
-                  
-                  {/* 進度條 */}
                   <div className="relative h-2.5 bg-slate-800/80 rounded-full overflow-hidden">
                     <div 
                       className="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-500 to-[#00f2fe] rounded-full transition-all duration-500 ease-out"
                       style={{ width: `${pdfProgress.percent}%` }}
                     />
-                    {/* 進度前沿光暈 */}
                     <div 
                       className="absolute top-1/2 -translate-y-1/2 w-6 h-4 bg-white/30 blur-sm rounded-full transition-all duration-500 ease-out"
                       style={{ left: `calc(${pdfProgress.percent}% - 12px)` }}
                     />
-                    {/* 流光粒子動畫 */}
                     <div className="absolute inset-0 overflow-hidden">
-                      <div className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent animate-particle-flow rounded-full" />
+                      <div className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent animate-particle-flow" />
                     </div>
-                    {/* batch 階段額外 shimmer */}
                     {pdfProgress.step === 'batch' && (
                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
                     )}
+          
                   </div>
-
-                  {/* 步驟指示器 */}
                   <div className="flex items-center gap-0 relative z-10">
                     {(['converting', 'merging', 'uploading', 'header', 'batch'] as const).map((s, i, arr) => {
                       const stepOrder = ['converting', 'merging', 'uploading', 'header', 'batch', 'done'] as const;
@@ -356,7 +322,6 @@ export default function ImportPage() {
                       const thisIdx = stepOrder.indexOf(s);
                       const isCompleted = thisIdx < currentIdx || (pdfProgress.step === 'done');
                       const isCurrent = pdfProgress.step === s;
-
                       return (
                         <React.Fragment key={s}>
                           <div className="flex flex-col items-center gap-1.5 flex-1">
@@ -375,9 +340,13 @@ export default function ImportPage() {
                               isCompleted ? 'text-[#00f2fe]' :
                               isCurrent ? 'text-slate-300' :
                               'text-slate-600'
-                            }`}>
-                              {s === 'converting' ? '轉圖' : s === 'merging' ? '合併' : s === 'uploading' ? '上傳' : s === 'header' ? '表頭' : '辨識'}
-                            </span>
+                            }`}>{{
+                              converting: '轉圖',
+                              merging: '合併',
+                              uploading: '上傳',
+                              header: '表頭',
+                              batch: '辨識'
+                            }[s]}</span>
                           </div>
                           {i < arr.length - 1 && (
                             <div className={`h-px flex-1 -mt-4 transition-colors duration-300 ${
@@ -387,12 +356,11 @@ export default function ImportPage() {
                             }`} />
                           )}
                         </React.Fragment>
-                      );
+                      )
                     })}
                   </div>
                 </div>
               )}
-
               {/* Preview uploaded images */}
               {(selectedImages.length > 0 || uploadedUrls.length > 0) && (
                 <div className="space-y-3 pt-2">
@@ -430,12 +398,10 @@ export default function ImportPage() {
                   </button>
                 </div>
               )}
-
               <div className="relative py-3">
                 <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-slate-800"></span></div>
                 <div className="relative flex justify-center text-[11px] uppercase"><span className="bg-[#07142b] px-2 text-slate-500">或者使用 JSON 快速匯入</span></div>
               </div>
-
               <div className="space-y-2">
                 <label className="block text-xs lg:text-sm font-medium text-slate-400">藥品數據 (JSON 格式)</label>
                 <textarea
@@ -446,14 +412,11 @@ export default function ImportPage() {
                   className="tech-input w-full font-mono text-xs lg:text-sm bg-slate-950/50"
                 />
               </div>
-
               <div className="flex flex-col gap-3">
                 <button
                   onClick={() => handleImport()}
                   disabled={status === 'loading'}
-                  className={`tech-button w-full py-3 ${
-                    status === 'loading' ? 'bg-slate-700 text-slate-400' : 'tech-button-primary'
-                  }`}
+                  className={`tech-button w-full py-3 ${status === 'loading' ? 'bg-slate-700 text-slate-400' : 'tech-button-primary'}`}
                 >
                   {status === 'loading' ? (
                     <>
@@ -467,7 +430,6 @@ export default function ImportPage() {
                     </>
                   )}
                 </button>
-                
                 <button
                   onClick={handleReset}
                   disabled={status === 'loading'}
@@ -478,15 +440,6 @@ export default function ImportPage() {
                 </button>
               </div>
             </div>
-          </div>
-        )}
-
-        {status !== 'idle' && !isParsingPdf && (
-          <div className={`p-3 lg:p-4 rounded-xl border flex items-start gap-3 animate-in fade-in slide-in-from-bottom-2 ${
-            status === 'success' ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'
-          }`}>
-            {status === 'success' ? <CheckCircle2 className="w-4 h-4 lg:w-5 lg:h-5 mt-0.5 shrink-0" /> : <AlertCircle className="w-4 h-4 lg:w-5 lg:h-5 mt-0.5 shrink-0" />}
-            <p className="text-xs lg:text-sm font-medium">{message}</p>
           </div>
         )}
       </div>

@@ -91,7 +91,8 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="fixed inset-0 bg-[#07142b] text-slate-200 flex items-center justify-center p-4 lg:p-6 overflow-y-auto">
+    // 把固定定位的 top 設為 header 高度 (3rem) 讓內容不被遮住
+    <div className="fixed top-12 left-0 right-0 bottom-0 bg-[#07142b] text-slate-200 flex items-center justify-center p-4 lg:p-6 overflow-y-auto">
       <Suspense fallback={
         <div className="tech-card p-8 max-w-md w-full text-center">
           <Loader2 className="w-8 h-8 text-[#00f2fe] animate-spin mx-auto" />
