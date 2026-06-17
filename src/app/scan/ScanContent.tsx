@@ -57,7 +57,7 @@ export default function ScanContent() {
   // 取得清單名稱
   useEffect(() => {
     if (!manifestId) {
-      setManifestName('');
+      Promise.resolve().then(() => setManifestName(''));
       return;
     }
 

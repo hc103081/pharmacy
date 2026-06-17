@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState } from 'react';
+import { getTeachingTotalSteps } from './teaching-content-loader';
 
 export type TeachingModuleType = 
   | 'system-overview'
@@ -62,20 +63,6 @@ export const TeachingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const setTeachingModule = (module: TeachingModuleType) => {
     const totalSteps = getTeachingTotalSteps(module);
     setState({ ...state, currentStep: 0, totalSteps, teachingModule: module });
-  };
-
-  // 模擬從JSON載入教學內容的函數
-  const getTeachingTotalSteps = (module: TeachingModuleType): number => {
-    // 實際實作中會從對應的JSON文件載入
-    const stepCounts: Record<TeachingModuleType, number> = {
-      'system-overview': 3,
-      'barcode-scan': 5,
-      'import-function': 4,
-      'photo-capture': 3,
-      'anomaly-handling': 4,
-      'report-export': 3,
-    };
-    return stepCounts[module] || 0;
   };
 
   return (

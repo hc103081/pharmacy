@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { importDrugs, uploadImportImages, processImagesWithGemini, ImportDrugItem, deleteImportImages } from '@/app/actions/import';
-import { FileUp, Loader2, CheckCircle2, AlertCircle, ArrowLeft, Image as ImageIcon, X, UploadCloud, FileType, RotateCcw, Cpu, Upload, ScanLine } from 'lucide-react';
+import { FileUp, Loader2, CheckCircle2, ArrowLeft, Image as ImageIcon, X, UploadCloud, FileType, RotateCcw, Cpu, Upload, ScanLine } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
@@ -11,7 +11,7 @@ import { validateParsedPdf } from '@/lib/pdfValidator';
 import PreviewPanel from './components/PreviewPanel';
 import { TeachingButton } from '@/components/teaching';
 
-/** 步驟對應的 icon */
+/* 步驟對應的 icon */
 const STEP_ICONS = {
   converting: <FileType className="w-5 h-5 text-cyan-400" />, 
   merging: <ScanLine className="w-5 h-5 text-cyan-400" />, 
@@ -111,7 +111,7 @@ export default function ImportPage() {
         setStatus('error');
         setMessage(`上傳失敗: ${result.error}`);
       }
-    } catch (e) {
+    } catch {
       setStatus('error');
       setMessage('圖片上傳過程中發生錯誤');
     }
@@ -175,7 +175,7 @@ export default function ImportPage() {
         setStatus('error');
         setMessage(`匯入失敗: ${result.error}`);
       }
-    } catch (e) {
+    } catch {
       setStatus('error');
       setMessage('匯入過程中發生錯誤，請檢查數據格式');
     }
@@ -362,11 +362,13 @@ export default function ImportPage() {
                               'bg-slate-800'
                             }`}>
                             </div>
-                          )
-                    </React.Fragment>
-                )
-                  }
-                </div>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                  </div>
+                )}
                 {status === 'error' && (
                   <div className="mt-3 p-2 bg-red-600 rounded text-center">
                     {message}
@@ -385,6 +387,7 @@ export default function ImportPage() {
                     <div className="grid grid-cols-3 lg:grid-cols-4 gap-3 lg:gap-4">
                       {selectedImages.map((file, i) => (
                         <div key={`sel-${i}`} className="relative aspect-square rounded-lg overflow-hidden border border-slate-700 group">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img 
                             src={URL.createObjectURL(file)} 
                             alt="preview" 
@@ -400,6 +403,7 @@ export default function ImportPage() {
                       ))}
                       {uploadedUrls.map((url, i) => (
                         <div key={`up-${i}`} className="relative aspect-square rounded-lg overflow-hidden border border-cyan-500/50">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={url} alt="uploaded" className="w-full h-full object-cover" />
                           <div className="absolute bottom-0 left-0 right-0 p-1 bg-cyan-500/80 text-[10px] text-white text-center">已上傳</div>
                         </div>

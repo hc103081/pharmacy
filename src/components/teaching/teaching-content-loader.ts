@@ -5,11 +5,17 @@ import photoCapture from './photo-capture.json';
 import anomalyHandling from './anomaly-handling.json';
 import reportExport from './report-export.json';
 
+interface TeachingStep {
+  title: string;
+  description: string;
+  example?: string;
+}
+
 // Note: Since we had issues with the teaching-content directory,
 // we're importing the JSON files directly from the teaching folder
 // and using a mapping to determine which content to load
 
-const teachingContentMap: Record<string, any[]> = {
+const teachingContentMap: Record<string, TeachingStep[]> = {
   'system-overview': systemOverview,
   'barcode-scan': barcodeScan,
   'import-function': importFunction,
@@ -20,11 +26,12 @@ const teachingContentMap: Record<string, any[]> = {
 
 export const getTeachingContent = (module: string, step: number) => {
   const contentArray = teachingContentMap[module] || [];
-  return contentArray[step] || {
+  const content = contentArray[step] || {
     title: `步驟 ${step + 1}`,
     description: `此教學內容尚未準備完成。`,
     example: ''
   };
+  return content;
 };
 
 export const getTeachingTotalSteps = (module: string) => {
@@ -41,5 +48,6 @@ export const getTeachingTitle = (module: string) => {
     'anomaly-handling': '異常處理',
     'report-export': '報告匯出',
   };
-  return titles[module] || '';
+  const title = titles[module] || '';
+  return title;
 };

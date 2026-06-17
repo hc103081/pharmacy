@@ -270,6 +270,7 @@ export default function SummaryPage() {
                   </div>
                 )
               }
+              </div>
             </div>
 
             {/* 固定區：操作按鈕 */}
@@ -296,8 +297,8 @@ export default function SummaryPage() {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
+          </>
+        )}
       </div>
       {/* 教學按鈕 - 放在右下角 */}
       <TeachingButton module="report-export" className="mb-4" />

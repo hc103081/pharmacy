@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { estimatePdfProcessingTime } from '@/lib/pdfEstimator';
+import { ParsedPdf } from '@/lib/pdfParser';
 
 type Stage = 'upload' | 'parse' | 'infer' | 'done';
 
@@ -11,7 +12,7 @@ interface Props {
   /**
    * 處理完成後的回呼
    */
-  onComplete: (result: any) => void;
+  onComplete: (result: ParsedPdf) => void;
 }
 
 /**
@@ -26,23 +27,20 @@ interface Props {
  * - 深藍背景、neon 藍呼吸燈
  * - 進度條使用 `#00f2fe`
  * - 超過 30 秒顯示錯誤提示與重新上傳按鈕
+ * 
  */
 export default function PdfUploadProgress({ file, onComplete }: Props) {
   const [stage, setStage] = useState<Stage>('upload');
   const [elapsed, setElapsed] = useState(0);
-  const [estimate, setEstimate] = useState(0);
   const [timerId, setTimerId] = useState<NodeJS.Timeout | null>(null);
 
   // ----- 估算總時間 ----------------------------------------------------
-const computeEstimate = (): number => {
-  return estimatePdfProcessingTime(file.size);
-};
+  const estimate = useMemo(() => estimatePdfProcessingTime(file.size), [file.size]);
+
   // ----- 計時器 --------------------------------------------------------
   useEffect(() => {
-    const est = computeEstimate();
-    setEstimate(est);
     const id = setInterval(() => setElapsed((s) => s + 1), 1000);
-    setTimerId(id);
+    Promise.resolve().then(() => setTimerId(id));
     return () => clearInterval(id);
   }, []);
 
@@ -73,7 +71,22 @@ const computeEstimate = (): number => {
     if (stage === 'done' && timerId) {
       clearInterval(timerId);
       // 此處可呼叫后端 API，暫以模擬結果回傳
-      onComplete({ success: true, fileName: file.name });
+      onComplete({
+        order_metadata: {
+          order_number: 'MOCK-' + file.name,
+          delivery_date: new Date().toISOString().split('T')[0],
+          total_items: 1
+        },
+        items: [
+          {
+            line_number: 1,
+            barcode: '123456789012',
+            drug_name: 'Mock Drug',
+            quantity: 1,
+            bonus_quantity: 0
+          }
+        ]
+      });
     }
   }, [stage]);
 

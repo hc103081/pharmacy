@@ -19,6 +19,8 @@ export const metadata: Metadata = {
   description: "數位化藥品清點與管理系統，支援條碼掃描、拍照留存與分頁對應",
 };
 
+import { TeachingModal } from '@/components/teaching/TeachingModal';
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -31,6 +33,7 @@ export default function RootLayout({
         <AuthProvider>
           <TeachingProvider>
             {children}
+            <TeachingModal />
           </TeachingProvider>
         </AuthProvider>
       </body>

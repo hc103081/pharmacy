@@ -1,3 +1,4 @@
-export { TeachingButton } from './TeachingButton.tsx';
-export { TeachingModal } from './TeachingModal.tsx';
-export { TeachingProvider, useTeaching, TeachingModuleType } from './TeachingContext.tsx';
+export { TeachingButton } from './TeachingButton';
+export { TeachingModal } from './TeachingModal';
+export { TeachingProvider, useTeaching } from './TeachingContext';
+export type { TeachingModuleType } from './TeachingContext';

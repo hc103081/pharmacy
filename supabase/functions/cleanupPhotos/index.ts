@@ -1,12 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
-// @ts-ignore // Deno std module not typed
+// @ts-expect-error: Deno std module not typed
 import { serve } from 'std/server';
 
-// @ts-ignore // Suppress implicit any for request
+// @ts-expect-error: Suppress implicit any for request
 serve(async (_req) => {
-  // @ts-ignore // Deno global not typed
+  // @ts-expect-error: Deno global not typed
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-  // @ts-ignore // Deno global not typed
+  // @ts-expect-error: Deno global not typed
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
