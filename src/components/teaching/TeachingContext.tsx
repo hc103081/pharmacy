@@ -10,6 +10,8 @@ export type TeachingModuleType =
   | 'photo-capture'
   | 'anomaly-handling'
   | 'report-export'
+  | 'manifest-management'
+  | 'pdf-preview'
   | null;
 
 interface TeachingState {
@@ -40,6 +42,7 @@ export const TeachingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const openTeaching = (module: TeachingModuleType) => {
     // 載入對應教學內容以獲取總步驟數
+    if (!module) return;
     const totalSteps = getTeachingTotalSteps(module);
     setState({ ...state, isOpen: true, currentStep: 0, totalSteps, teachingModule: module });
   };
@@ -61,6 +64,7 @@ export const TeachingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const setTeachingModule = (module: TeachingModuleType) => {
+    if (!module) return;
     const totalSteps = getTeachingTotalSteps(module);
     setState({ ...state, currentStep: 0, totalSteps, teachingModule: module });
   };

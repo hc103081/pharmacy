@@ -4,6 +4,8 @@ import importFunction from './import-function.json';
 import photoCapture from './photo-capture.json';
 import anomalyHandling from './anomaly-handling.json';
 import reportExport from './report-export.json';
+import manifestManagement from './manifest-management.json';
+import pdfPreview from './pdf-preview.json';
 
 interface TeachingStep {
   title: string;
@@ -22,6 +24,8 @@ const teachingContentMap: Record<string, TeachingStep[]> = {
   'photo-capture': photoCapture,
   'anomaly-handling': anomalyHandling,
   'report-export': reportExport,
+  'manifest-management': manifestManagement,
+  'pdf-preview': pdfPreview,
 };
 
 export const getTeachingContent = (module: string, step: number) => {
@@ -47,6 +51,8 @@ export const getTeachingTitle = (module: string) => {
     'photo-capture': '拍照留存功能',
     'anomaly-handling': '異常處理',
     'report-export': '報告匯出',
+    'manifest-management': '清單管理',
+    'pdf-preview': 'PDF 預覽校驗',
   };
   const title = titles[module] || '';
   return title;

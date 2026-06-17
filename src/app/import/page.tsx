@@ -18,7 +18,7 @@ const STEP_ICONS = {
   uploading: <Upload className="w-5 h-5 text-cyan-400" />, 
   header: <Cpu className="w-5 h-5 text-[#00f2fe]" />, 
   batch: <Cpu className="w-5 h-5 text-[#00f2fe] animate-pulse" />,
-  done: <CheckCircle2 className="w-5 h-5 text-green-400" />
+  done: <CheckCircle2 className="w-4 h-4 text-green-400" />
 };
 
 export default function ImportPage() {
@@ -212,6 +212,7 @@ export default function ImportPage() {
               <ArrowLeft className="w-5 h-5 lg:w-6 lg:h-6 text-slate-400" />
             </Link>
             <h1 className="text-xl lg:text-2xl font-bold text-white">匯入藥品清單</h1>
+            <TeachingButton module="import-function" variant="inline" className="ml-3" />
           </div>
   
   
@@ -341,32 +342,95 @@ export default function ImportPage() {
                                   </svg>
                                 )}
                               </div>
-                            <span className={`text-[9px] leading-tight text-center transition-colors duration-300 ${
-                              isCompleted ? 'text-[#00f2fe]' :
-                              isCurrent ? 'text-slate-300' :
-                              'text-slate-600'
-                            }`}>
-                              {{
-                                converting: '轉圖',
-                                merging: '合併',
-                                uploading: '上傳',
-                                header: '表頭',
-                                batch: '辨識'
-                              }[s]}
-                            </span>
-                          </div>
-                          {i < arr.length - 1 && (
-                            <div className={`h-px flex-1 -mt-4 transition-colors duration-300 ${
-                              isCompleted ? 'bg-[#00f2fe]/60 animate-line-glow' :
-                              isCurrent ? 'bg-slate-600' :
-                              'bg-slate-800'
-                            }`}>
+                              <span className={`text-[9px] leading-tight text-center transition-colors duration-300 ${
+                                isCompleted ? 'text-[#00f2fe]' :
+                                isCurrent ? 'text-slate-300' :
+                                'text-slate-600'
+                              }`}>
+                                {{
+                                  converting: '轉圖',
+                                  merging: '合併',
+                                  uploading: '上傳',
+                                  header: '表頭',
+                                  batch: '辨識'
+                                }[s]}
+                              </span>
                             </div>
-                          )}
-                        </React.Fragment>
-                      );
-                    })}
-                  </div>
+                            {i < arr.length - 1 && (
+                              <div className={`h-px flex-1 -mt-4 transition-colors duration-300 ${
+                                isCompleted ? 'bg-[#00f2fe]/60 animate-line-glow' :
+                                isCurrent ? 'bg-slate-600' :
+                                'bg-slate-800'
+                              }`}>
+                              </div>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
+                    <div className="relative h-2.5 bg-slate-800/80 rounded-full overflow-hidden">
+                      <div 
+                        className="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-500 to-[#00f2fe] rounded-full transition-all duration-500 ease-out"
+                        style={{ width: `${pdfProgress.percent}%` }}
+                      />
+                      <div 
+                        className="absolute top-1/2 -translate-y-1/2 w-6 h-4 bg-white/30 blur-sm rounded-full transition_all duration-500 ease_out"
+                        style={{ left: `calc(${pdfProgress.percent}% - 12px)` }}
+                      />
+                      <div className="absolute inset-0 overflow-hidden">
+                        <div className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent animate-particle-flow" />
+                      </div>
+                      {pdfProgress.step === 'batch' && (
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-0 relative z-10">
+                      {(['converting', 'merging', 'uploading', 'header', 'batch'] as const).map((s, i, arr) => {
+                        const stepOrder = ['converting', 'merging', 'uploading', 'header', 'batch', 'done'] as const;
+                        const currentIdx = stepOrder.indexOf(pdfProgress.step);
+                        const thisIdx = stepOrder.indexOf(s);
+                        const isCompleted = thisIdx < currentIdx || (pdfProgress.step === 'done');
+                        const isCurrent = pdfProgress.step === s;
+                        return (
+                          <React.Fragment key={s}>
+                            <div className="flex flex-col items-center gap-1.5 flex-1">
+                              <div className={`w-3 h-3 rounded-full transition_all duration-500 flex items-center justify-center ${
+                                isCompleted ? 'bg-[#00f2fe] shadow-[0_0_8px_rgba(0,242,254,0.6)]' :
+                                isCurrent ? 'bg-[#00f2fe] animate-pulse-glow' :
+                                'bg-slate-700'
+                              }`}>
+                                {isCompleted && (
+                                  <svg className="w-2 h-2 text-slate-900 animate-check-pop" viewBox="0 0 12 12" fill="none">
+                                    <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                  </svg>
+                                )}
+                              </div>
+                              <span className={`text-[9px] leading-tight text-center transition-colors duration-300 ${
+                                isCompleted ? 'text-[#00f2fe]' :
+                                isCurrent ? 'text-slate-300' :
+                                'text-slate-600'
+                              }`}>
+                                {{
+                                  converting: '轉圖',
+                                  merging: '合併',
+                                  uploading: '上傳',
+                                  header: '表頭',
+                                  batch: '辨識'
+                                }[s]}
+                              </span>
+                            </div>
+                            {i < arr.length - 1 && (
+                              <div className={`h-px flex-1 -mt-4 transition-colors duration-300 ${
+                                isCompleted ? 'bg-[#00f2fe]/60 animate-line-glow' :
+                                isCurrent ? 'bg-slate-600' :
+                                'bg-slate-800'
+                              }`}>
+                              </div>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
                 {status === 'error' && (
@@ -465,8 +529,6 @@ export default function ImportPage() {
           )}
         </div>
       </div>
-      {/* 教學按鈕 - 放在右下角 */}
-      <TeachingButton module="import-function" className="mb-4" />
     </>
   );
 }

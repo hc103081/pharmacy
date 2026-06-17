@@ -63,7 +63,7 @@ export default function HomePage() {
         </div>
       </main>
       {/* 教學按鈕 - 放在右下角 */}
-      <TeachingButton module="system-overview" className="mb-4" />
+      <TeachingButton module="system-overview" variant="fixed-bottom-right" className="mb-4" />
     </>
   );
 }

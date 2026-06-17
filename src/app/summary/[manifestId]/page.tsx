@@ -132,10 +132,10 @@ export default function SummaryPage() {
     const csvContent = [
       headers.join(','),
       ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-    ].join('\\n');
+    ].join('\n');
 
     // 建立 Blob 並下載
-    const blob = new Blob([`\\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
@@ -157,6 +157,7 @@ export default function SummaryPage() {
                 <ArrowLeft className="w-5 h-5 lg:w-6 lg:h-6 text-slate-400" />
               </Link>
               <h1 className="text-xl lg:text-2xl font-bold text-white">清點總結報告</h1>
+              <TeachingButton module="report-export" variant="inline" className="ml-3" />
             </div>
           </div>
         </div>
@@ -300,8 +301,6 @@ export default function SummaryPage() {
           </>
         )}
       </div>
-      {/* 教學按鈕 - 放在右下角 */}
-      <TeachingButton module="report-export" className="mb-4" />
     </>
   );
 }

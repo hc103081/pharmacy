@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { CheckCircle2, AlertCircle, XCircle, RefreshCcw, Check, Eye, Filter } from 'lucide-react';
 import { ParsedPdf, ParsedItem } from '@/lib/pdfParser';
+import { TeachingButton } from '@/components/teaching';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { PdfValidationResult } from '@/lib/pdfValidator';
 
@@ -129,7 +130,6 @@ export default function PreviewPanel({
           </div>
         </div>
         
-
         {/* 篩選工具列 */}
         {needsReviewCount > 0 && (
           <div className="flex items-center gap-2 pt-2">
@@ -140,20 +140,30 @@ export default function PreviewPanel({
                 { key: 'all' as FilterMode, label: '全部', count: editedItems.length },
                 { key: 'needs_review' as FilterMode, label: '需確認', count: needsReviewCount },
                 { key: 'errors_only' as FilterMode, label: '僅錯誤', count: validation.summary.errorCount },
-              ]).map(opt => (
-                <button
-                  key={opt.key}
-                  onClick={() => setFilter(opt.key)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all active:scale-95 ${
-                    filter === opt.key
-                      ? 'bg-[#00f2fe]/20 border border-[#00f2fe]/50 text-[#00f2fe]'
-                      : 'bg-slate-800/50 border border-slate-700 text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  {opt.label} ({opt.count})
-                </button>
+              ]).map((opt, index) => (
+                <>
+                  <button
+                    key={opt.key}
+                    onClick={() => setFilter(opt.key)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all active:scale-95 ${
+                      filter === opt.key
+                        ? 'bg-[#00f2fe]/20 border border-[#00f2fe]/50 text-[#00f2fe]'
+                        : 'bg-slate-800/50 border border-slate-700 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {opt.label} ({opt.count})
+                  </button>
+                  {/* 在按鈕之間添加間隔，除了最後一個按鈕 */}
+                  {index < 2 && <span className="w-0.5" />}
+                </>
               ))}
             </div>
+            {/* 添加教學按鈕 */}
+            <TeachingButton 
+              module="pdf-preview" 
+              variant="inline" 
+              className="ml-4" 
+            />
           </div>
         )}
       </div>
@@ -245,49 +255,49 @@ export default function PreviewPanel({
         {viewMode === 'card' && (
           <div className="space-y-[5px]">
             {filteredItems.map((item) => {
-  const idx = editedItems.findIndex(e => e.line_number === item.line_number);
-  const val = validation.itemValidations.find(v => v.line_number === item.line_number);
-  const status = val?.status || 'pass';
-  const drugRisk = hasDrugNameRisk(item);
-  return (
-    <div key={item.line_number} className={`flex items-start px-[10px] py-[10px] mx-[5px] bg-[#162a56] rounded-xl border-2 border-[#00f2fe] shadow-sm overflow-hidden ${status === 'error' ? 'bg-red-500/5' : drugRisk ? 'bg-orange-500/5' : status === 'warn' ? 'bg-yellow-500/5' : ''}`}>
-  <div className="flex w-full min-w-0">
-    <div className="flex flex-col w-1/3 shrink-0">
-      <div className="text-sm text-[#00f2fe] text-left">{item.line_number}</div>
-      <div className="text-xs text-slate-400 mt-1">{item.barcode}</div>
-    </div>
-    <div className="flex w-2/3 min-w-0 items-start justify-between gap-2">
-      <div className="min-w-0 flex-1 text-right ml-[5px]">
-        <input
-          value={item.drug_name}
-          onChange={(e) => handleInputChange(idx, 'drug_name', e.target.value)}
-          className={`w-full bg-transparent text-slate-200 border-none focus:outline-none focus:ring-0 appearance-none truncate ${drugRisk ? 'border-orange-500/50' : ''}`}
-        />
-        <div className="flex items-center gap-1 mt-2 flex-nowrap">
-          <span className="text-slate-400 text-xs whitespace-nowrap">數量</span>
-          <input type="number" value={item.quantity} onChange={(e) => handleInputChange(idx, 'quantity', e.target.value)} className="w-14 bg-transparent text-slate-200 border-none focus:outline-none focus:ring-0 appearance-none" />
-          <span className="text-slate-400 text-xs whitespace-nowrap">贈品</span>
-          <input type="number" value={item.bonus_quantity} onChange={(e) => handleInputChange(idx, 'bonus_quantity', e.target.value)} className="w-14 bg-transparent text-slate-200 border-none focus:outline-none focus:ring-0 appearance-none" />
-        </div>
-      </div>
-      <div className="flex items-center shrink-0 relative cursor-pointer" onClick={() => setOpenStatusLine(openStatusLine === item.line_number ? null : item.line_number)}>
-  {getStatusIcon(status)}
-  {val?.messages.length && openStatusLine === item.line_number ? (
-    <div className="absolute z-10 bg-slate-900 border border-slate-700 p-2 rounded shadow-xl text-[10px] w-48 left-1/2 -translate-x-1/2 mt-1 top-full">
-      {val.messages.map((m, i) => (
-        <div key={i} className="flex items-start gap-1">
-          <span className="text-orange-400 mt-0.5">·</span>
-          <span>{m}</span>
-        </div>
-      ))}
-    </div>
-  ) : null}
-</div>
-    </div>
-  </div>
-</div>
-  );
-})}
+              const idx = editedItems.findIndex(e => e.line_number === item.line_number);
+              const val = validation.itemValidations.find(v => v.line_number === item.line_number);
+              const status = val?.status || 'pass';
+              const drugRisk = hasDrugNameRisk(item);
+              return (
+                <div key={item.line_number} className={`flex items-start px-[10px] py-[10px] mx-[5px] bg-[#162a56] rounded-xl border-2 border-[#00f2fe] shadow-sm overflow-hidden ${status === 'error' ? 'bg-red-500/5' : drugRisk ? 'bg-orange-500/5' : status === 'warn' ? 'bg-yellow-500/5' : ''}`}>
+                  <div className="flex w-full min-w-0">
+                    <div className="flex flex-col w-1/3 shrink-0">
+                      <div className="text-sm text-[#00f2fe] text-left">{item.line_number}</div>
+                      <div className="text-xs text-slate-400 mt-1">{item.barcode}</div>
+                    </div>
+                    <div className="flex w-2/3 min-w-0 items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1 text-right ml-[5px]">
+                        <input
+                          value={item.drug_name}
+                          onChange={(e) => handleInputChange(idx, 'drug_name', e.target.value)}
+                          className={`w-full bg-transparent text-slate-200 border-none focus:outline-none focus:ring-0 appearance-none truncate ${drugRisk ? 'border-orange-500/50' : ''}`}
+                        />
+                        <div className="flex items-center gap-1 mt-2 flex-nowrap">
+                          <span className="text-slate-400 text-xs whitespace-nowrap">數量</span>
+                          <input type="number" value={item.quantity} onChange={(e) => handleInputChange(idx, 'quantity', e.target.value)} className="w-14 bg-transparent text-slate-200 border-none focus:outline-none focus:ring-0 appearance-none" />
+                          <span className="text-slate-400 text-xs whitespace-nowrap">贈品</span>
+                          <input type="number" value={item.bonus_quantity} onChange={(e) => handleInputChange(idx, 'bonus_quantity', e.target.value)} className="w-14 bg-transparent text-slate-200 border-none focus:outline-none focus:ring-0 appearance-none" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center shrink-0 relative cursor-pointer" onClick={() => setOpenStatusLine(openStatusLine === item.line_number ? null : item.line_number)}>
+                      {getStatusIcon(status)}
+                      {val?.messages.length && openStatusLine === item.line_number ? (
+                        <div className="absolute z-10 bg-slate-900 border border-slate-700 p-2 rounded shadow-xl text-[10px] w-48 left-1/2 -translate-x-1/2 mt-1 top-full">
+                          {val.messages.map((m, i) => (
+                            <div key={i} className="flex items-start gap-1">
+                              <span className="text-orange-400 mt-0.5">·</span>
+                              <span>{m}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
             {filteredItems.length === 0 && (
               <div className="text-center py-10 text-slate-500">
                 <Filter className="w-8 h-8 mx-auto mb-2 opacity-50" />

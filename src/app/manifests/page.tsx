@@ -63,6 +63,7 @@ export default function ManifestsPage() {
               <ArrowLeft className="w-5 h-5 lg:w-6 lg:h-6 text-slate-400" />
             </Link>
             <h1 className="text-xl lg:text-2xl font-bold text-white">選擇清點清單</h1>
+            <TeachingButton module="manifest-management" variant="inline" className="ml-3" />
           </div>
 
           {loading ? (
@@ -129,7 +130,7 @@ export default function ManifestsPage() {
               ))}
             </div>
           )}
-
+          
           {/* 刪除確認 Dialog */}
           {confirmDeleteId && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -167,8 +168,6 @@ export default function ManifestsPage() {
           )}
         </div>
       </div>
-      {/* 教學按鈕 - 放在右下角 */}
-      <TeachingButton module="system-overview" className="mb-4" />
     </>
   );
 }

@@ -2,7 +2,6 @@
 
 import { Suspense } from 'react';
 import ScanContent from './ScanContent';
-import { TeachingButton } from '@/components/teaching';
 
 export default function ScanPage() {
   return (
@@ -17,8 +16,6 @@ export default function ScanPage() {
       }>
         <ScanContent />
       </Suspense>
-      {/* 教學按鈕 - 放在右下角 */}
-      <TeachingButton module="barcode-scan" className="mb-4" />
     </>
   );
 }
