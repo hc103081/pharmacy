@@ -1,17 +1,24 @@
+'use client';
+
 import { Suspense } from 'react';
 import ScanContent from './ScanContent';
+import { TeachingButton } from '@/components/teaching';
 
 export default function ScanPage() {
   return (
-    <Suspense fallback={
-      <div className="fixed inset-0 flex items-center justify-center bg-[#07142b]">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-500">載入清點面板...</p>
+    <>
+      <Suspense fallback={
+        <div className="fixed inset-0 flex items-center justify-center bg-[#07142b]">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            <p className="text-gray-500">載入清點面板...</p>
+          </div>
         </div>
-      </div>
-    }>
-      <ScanContent />
-    </Suspense>
+      }>
+        <ScanContent />
+      </Suspense>
+      {/* 教學按鈕 - 放在右下角 */}
+      <TeachingButton module="barcode-scan" className="mb-4" />
+    </>
   );
 }
