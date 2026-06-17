@@ -13,6 +13,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import Link from 'next/link';
+import { TeachingButton } from '@/components/teaching';
 import { DrugCard, ErrorDrawer, JumpDialog, PhotoPreview, BarcodeSearchBar } from './components';
 import { useBarcodeMatch, usePhotoCapture, usePagePersistence } from './hooks';
 import type { DrugItem, ErrorDrugItem, JumpTarget } from '@/types';
@@ -465,6 +466,7 @@ export default function ScanContent() {
                   <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[10px] font-bold border border-blue-500/30">
                     本頁 {pageCompletedCount}/{pageTotalCount}
                   </span>
+                  <TeachingButton module="barcode-scan" variant="inline" className="ml-1" />
                   {isLocked && (
                     <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 text-[10px] font-bold border border-red-500/30">
                       唯讀
@@ -744,10 +746,11 @@ export default function ScanContent() {
               </div>
             </div>
             {/* 本頁進度 */}
-            <div className="mt-2 px-1">
+            <div className="mt-2 px-1 flex items-center gap-1">
               <span className="text-[10px] text-slate-500">
                 本頁: {pageCompletedCount}/{pageTotalCount}
               </span>
+              <TeachingButton module="barcode-scan" variant="inline" />
             </div>
           </div>
 

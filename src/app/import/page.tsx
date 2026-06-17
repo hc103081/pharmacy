@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { importDrugs, uploadImportImages, processImagesWithGemini, ImportDrugItem, deleteImportImages } from '@/app/actions/import';
-import { FileUp, Loader2, CheckCircle2, ArrowLeft, Image as ImageIcon, X, UploadCloud, FileType, RotateCcw, Cpu, Upload, ScanLine } from 'lucide-react';
+import { FileUp, Loader2, CheckCircle2, ArrowLeft, Image as ImageIcon, FileType, RotateCcw, Cpu, Upload, ScanLine } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
@@ -10,6 +10,7 @@ import { parsePdf, ParsedPdf, ParsedItem, PdfProgressStep } from '@/lib/pdfParse
 import { validateParsedPdf } from '@/lib/pdfValidator';
 import PreviewPanel from './components/PreviewPanel';
 import { TeachingButton } from '@/components/teaching';
+import DrugListUploader from './components/DrugListUploader';
 
 /* 步驟對應的 icon */
 const STEP_ICONS = {
@@ -21,34 +22,38 @@ const STEP_ICONS = {
   done: <CheckCircle2 className="w-4 h-4 text-green-400" />
 };
 
+const PDF_STEP_LABELS: Record<string, string> = {
+  converting: '轉圖',
+  merging: '合併',
+  uploading: '上傳',
+  header: '表頭',
+  batch: '辨識',
+};
+
+const PDF_STEPS = ['converting', 'merging', 'uploading', 'header', 'batch'] as const;
+
 export default function ImportPage() {
   const router = useRouter();
   const { user } = useAuth();
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, []);
+
   const [manifestName, setManifestName] = useState('');
   const [jsonData, setJsonData] = useState('');
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [uploadedUrls, setUploadedUrls] = useState<string[]>([]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
-
-  // PDF specific states
   const [parsedData, setParsedData] = useState<ParsedPdf | null>(null);
   const [isParsingPdf, setIsParsingPdf] = useState(false);
   const [pdfProgress, setPdfProgress] = useState<PdfProgressStep | null>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const files = Array.from(e.target.files);
-      setSelectedImages(prev => [...prev, ...files]);
-    }
-  };
-
-  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || file.type !== 'application/pdf') {
-      alert('請選擇 PDF 檔案');
-      return;
-    }
+  const handlePdfSelect = useCallback(async (file: File) => {
     if (file.size > 10 * 1024 * 1024) {
       setStatus('error');
       setMessage('PDF 檔案太大 (超過 10MB)');
@@ -69,18 +74,22 @@ export default function ImportPage() {
       setMessage('');
       setPdfProgress(null);
     } catch (error: unknown) {
-    console.error('PDF Upload/Parse Error:', error);
-    setStatus('error');
-    let errorMessage = 'PDF 處理失敗';
-    if (error instanceof Error) {
-      errorMessage = error.message;
-    }
-    setMessage(`PDF 處理失敗: ${errorMessage}`);
-    setPdfProgress(null);
-  } finally {
+      console.error('PDF Upload/Parse Error:', error);
+      setStatus('error');
+      let errorMessage = 'PDF 處理失敗';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      setMessage(`PDF 處理失敗: ${errorMessage}`);
+      setPdfProgress(null);
+    } finally {
       setIsParsingPdf(false);
     }
-  };
+  }, []);
+
+  const handleImagesSelect = useCallback((files: File[]) => {
+    setSelectedImages(prev => [...prev, ...files]);
+  }, []);
 
   const handlePdfRetry = () => {
     setParsedData(null);
@@ -204,9 +213,9 @@ export default function ImportPage() {
   };
 
   return (
-    <>
-      <div>
-        <div className={parsedData ? 'max-w-3xl mx-auto flex flex-col h-full' : 'max-w-3xl mx-auto space-y-5 lg:space-y-6'}>
+    <div className="h-dvh overflow-hidden flex flex-col bg-[#07142b]">
+      <div className="flex-1 overflow-y-auto">
+        <div className={parsedData ? 'max-w-3xl mx-auto flex flex-col h-full' : 'max-w-3xl mx-auto space-y-5 lg:space-y-6 p-4 lg:p-6'}>
           <div className="flex-shrink-0 flex items-center gap-3">
             <Link href="/" className="p-2 hover:bg-slate-800 rounded-full transition-colors">
               <ArrowLeft className="w-5 h-5 lg:w-6 lg:h-6 text-slate-400" />
@@ -214,8 +223,7 @@ export default function ImportPage() {
             <h1 className="text-xl lg:text-2xl font-bold text-white">匯入藥品清單</h1>
             <TeachingButton module="import-function" variant="inline" className="ml-3" />
           </div>
-  
-  
+      
           {parsedData ? (
             <div className="flex-1 min-h-0">
               <PreviewPanel 
@@ -239,59 +247,20 @@ export default function ImportPage() {
                     className="tech-input w-full text-sm lg:text-base"
                   />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* PDF Upload Section */}
-                  <div className="space-y-3">
-                    <label className="block text-xs lg:text-sm font-medium text-slate-400">方式 1: PDF 出貨單 (自動解析)</label>
-                    <div className="relative group">
-                      <input
-                        type="file"
-                        accept=".pdf"
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                        onChange={handlePdfUpload}
-                        disabled={isParsingPdf}
-                      />
-                      <div className={`border-2 border-dashed border-slate-700 rounded-xl p-6 text-center transition-colors group-hover:border-cyan-500/50 bg-slate-900/30 ${isParsingPdf ? 'opacity-50' : ''}`}>
-                        <FileType className="w-10 h-10 text-slate-500 mx-auto mb-3 group-hover:text-cyan-400 transition-colors" />
-                        <p className="text-slate-300 font-medium text-sm">上傳 PDF 檔案</p>
-                        <p className="text-[11px] text-slate-500 mt-1">自動提取條碼與數量</p>
-                      </div>
-                    </div>
-                  </div>
-                  {/* Screenshot Upload Section */}
-                  <div className="space-y-3">
-                    <label className="block text-xs lg:text-sm font-medium text-slate-400">方式 2: 截圖 (AI OCR)</label>
-                    <div 
-                      className="border-2 border-dashed border-slate-700 rounded-xl p-6 text-center hover:border-cyan-500/50 transition-colors group cursor-pointer relative bg-slate-900/30"
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        if (e.dataTransfer.files) {
-                          setSelectedImages(prev => [...prev, ...Array.from(e.dataTransfer.files)]);
-                        }
-                      }}
-                      onClick={() => document.getElementById('file-upload')?.click()}
-                    >
-                      <input 
-                        id="file-upload"
-                        type="file" 
-                        multiple 
-                        accept="image/*" 
-                        className="hidden" 
-                        onChange={handleFileChange} 
-                      />
-                      <UploadCloud className="w-10 h-10 text-slate-500 mx-auto mb-3 group-hover:text-cyan-400 transition-colors" />
-                      <p className="text-slate-300 font-medium text-sm">上傳截圖</p>
-                      <p className="text-[11px] text-slate-500 mt-1">支援 JPG, PNG</p>
-                    </div>
-                  </div>
-                </div>
-                {/* PDF 解析進度面板 */}
+                <DrugListUploader
+                  onPdfSelect={handlePdfSelect}
+                  onImagesSelect={handleImagesSelect}
+                  onImagesRemove={removeImage}
+                  selectedImages={selectedImages}
+                  isParsingPdf={isParsingPdf}
+                />
                 {isParsingPdf && pdfProgress && (
                   <div className="tech-card p-4 lg:p-5 space-y-4 border-cyan-500/30 animate-in fade-in slide-in-from-bottom-2 relative overflow-hidden animate-scanline">
                     <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[#00f2fe]/60 to-transparent" />
                     <div className="flex items-center gap-3 relative z-10">
-                      <div className={`relative ${pdfProgress.step === 'batch' ? 'animate-pulse-glow' : ''} rounded-lg p-1.5`}>{STEP_ICONS[pdfProgress.step]}</div>
+                      <div className={`relative ${pdfProgress.step === 'batch' ? 'animate-pulse-glow' : ''} rounded-lg p-1.5`}>
+                        {STEP_ICONS[pdfProgress.step]}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold text-white truncate">{pdfProgress.label}</p>
                         <p className="text-[11px] text-slate-500 mt-0.5">
@@ -322,11 +291,11 @@ export default function ImportPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-0 relative z-10">
-                      {(['converting', 'merging', 'uploading', 'header', 'batch'] as const).map((s, i, arr) => {
-                        const stepOrder = ['converting', 'merging', 'uploading', 'header', 'batch', 'done'] as const;
+                      {PDF_STEPS.map((s, i) => {
+                        const stepOrder = [...PDF_STEPS, 'done'];
                         const currentIdx = stepOrder.indexOf(pdfProgress.step);
                         const thisIdx = stepOrder.indexOf(s);
-                        const isCompleted = thisIdx < currentIdx || (pdfProgress.step === 'done');
+                        const isCompleted = thisIdx < currentIdx || pdfProgress.step === 'done';
                         const isCurrent = pdfProgress.step === s;
                         return (
                           <React.Fragment key={s}>
@@ -347,79 +316,10 @@ export default function ImportPage() {
                                 isCurrent ? 'text-slate-300' :
                                 'text-slate-600'
                               }`}>
-                                {{
-                                  converting: '轉圖',
-                                  merging: '合併',
-                                  uploading: '上傳',
-                                  header: '表頭',
-                                  batch: '辨識'
-                                }[s]}
+                                {PDF_STEP_LABELS[s] || s}
                               </span>
                             </div>
-                            {i < arr.length - 1 && (
-                              <div className={`h-px flex-1 -mt-4 transition-colors duration-300 ${
-                                isCompleted ? 'bg-[#00f2fe]/60 animate-line-glow' :
-                                isCurrent ? 'bg-slate-600' :
-                                'bg-slate-800'
-                              }`}>
-                              </div>
-                            )}
-                          </React.Fragment>
-                        );
-                      })}
-                    </div>
-                    <div className="relative h-2.5 bg-slate-800/80 rounded-full overflow-hidden">
-                      <div 
-                        className="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-500 to-[#00f2fe] rounded-full transition-all duration-500 ease-out"
-                        style={{ width: `${pdfProgress.percent}%` }}
-                      />
-                      <div 
-                        className="absolute top-1/2 -translate-y-1/2 w-6 h-4 bg-white/30 blur-sm rounded-full transition_all duration-500 ease_out"
-                        style={{ left: `calc(${pdfProgress.percent}% - 12px)` }}
-                      />
-                      <div className="absolute inset-0 overflow-hidden">
-                        <div className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent animate-particle-flow" />
-                      </div>
-                      {pdfProgress.step === 'batch' && (
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
-                      )}
-                    </div>
-                    <div className="flex items-center gap-0 relative z-10">
-                      {(['converting', 'merging', 'uploading', 'header', 'batch'] as const).map((s, i, arr) => {
-                        const stepOrder = ['converting', 'merging', 'uploading', 'header', 'batch', 'done'] as const;
-                        const currentIdx = stepOrder.indexOf(pdfProgress.step);
-                        const thisIdx = stepOrder.indexOf(s);
-                        const isCompleted = thisIdx < currentIdx || (pdfProgress.step === 'done');
-                        const isCurrent = pdfProgress.step === s;
-                        return (
-                          <React.Fragment key={s}>
-                            <div className="flex flex-col items-center gap-1.5 flex-1">
-                              <div className={`w-3 h-3 rounded-full transition_all duration-500 flex items-center justify-center ${
-                                isCompleted ? 'bg-[#00f2fe] shadow-[0_0_8px_rgba(0,242,254,0.6)]' :
-                                isCurrent ? 'bg-[#00f2fe] animate-pulse-glow' :
-                                'bg-slate-700'
-                              }`}>
-                                {isCompleted && (
-                                  <svg className="w-2 h-2 text-slate-900 animate-check-pop" viewBox="0 0 12 12" fill="none">
-                                    <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                  </svg>
-                                )}
-                              </div>
-                              <span className={`text-[9px] leading-tight text-center transition-colors duration-300 ${
-                                isCompleted ? 'text-[#00f2fe]' :
-                                isCurrent ? 'text-slate-300' :
-                                'text-slate-600'
-                              }`}>
-                                {{
-                                  converting: '轉圖',
-                                  merging: '合併',
-                                  uploading: '上傳',
-                                  header: '表頭',
-                                  batch: '辨識'
-                                }[s]}
-                              </span>
-                            </div>
-                            {i < arr.length - 1 && (
+                            {i < PDF_STEPS.length - 1 && (
                               <div className={`h-px flex-1 -mt-4 transition-colors duration-300 ${
                                 isCompleted ? 'bg-[#00f2fe]/60 animate-line-glow' :
                                 isCurrent ? 'bg-slate-600' :
@@ -444,44 +344,39 @@ export default function ImportPage() {
                     </button>
                   </div>
                 )}
-                {/* Preview uploaded images */}
                 {(selectedImages.length > 0 || uploadedUrls.length > 0) && (
-                  <div className="space-y-3 pt-2">
-                    <p className="text-xs text-slate-500">已選取圖片：</p>
-                    <div className="grid grid-cols-3 lg:grid-cols-4 gap-3 lg:gap-4">
-                      {selectedImages.map((file, i) => (
-                        <div key={`sel-${i}`} className="relative aspect-square rounded-lg overflow-hidden border border-slate-700 group">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img 
-                            src={URL.createObjectURL(file)} 
-                            alt="preview" 
-                            className="w-full h-full object-cover" 
-                          />
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); removeImage(i); }}
-                            className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
+                  <>
+                    {selectedImages.length > 0 && (
+                      <button
+                        onClick={handleUploadImages}
+                        disabled={status === 'loading'}
+                        className="tech-button w-full py-2.5 text-sm flex items-center justify-center gap-2"
+                      >
+                        {status === 'loading' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
+                        上傳 {selectedImages.length} 張截圖至雲端
+                      </button>
+                    )}
+                    {uploadedUrls.length > 0 && (
+                      <div className="space-y-2 animate-in fade-in">
+                        <div className="flex items-center gap-2">
+                          <ImageIcon className="w-4 h-4 text-green-400" />
+                          <p className="text-xs text-slate-400">
+                            已上傳 <span className="text-green-400 font-bold">{uploadedUrls.length}</span> 張截圖
+                          </p>
                         </div>
-                      ))}
-                      {uploadedUrls.map((url, i) => (
-                        <div key={`up-${i}`} className="relative aspect-square rounded-lg overflow-hidden border border-cyan-500/50">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={url} alt="uploaded" className="w-full h-full object-cover" />
-                          <div className="absolute bottom-0 left-0 right-0 p-1 bg-cyan-500/80 text-[10px] text-white text-center">已上傳</div>
+                        <div className="grid grid-cols-4 lg:grid-cols-6 gap-2">
+                          {uploadedUrls.map((url, i) => (
+                            <div key={`up-${i}`} className="relative aspect-square rounded-lg overflow-hidden border border-green-500/30">
+                              <img src={url} alt="uploaded" className="w-full h-full object-cover" />
+                              <div className="absolute bottom-0 left-0 right-0 p-0.5 bg-green-500/80 text-[9px] text-white text-center">
+                                已上傳
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                    <button
-                      onClick={handleUploadImages}
-                      disabled={status === 'loading'}
-                      className="tech-button w-full py-2.5 text-sm flex items-center justify-center gap-2"
-                    >
-                      {status === 'loading' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
-                      上傳 {selectedImages.length} 張圖片
-                    </button>
-                  </div>
+                      </div>
+                    )}
+                  </>
                 )}
                 <div className="relative py-3">
                   <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-slate-800"></span></div>
@@ -529,6 +424,6 @@ export default function ImportPage() {
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 }

@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { CheckCircle2, AlertCircle, XCircle, RefreshCcw, Check, Eye, Filter } from 'lucide-react';
-import { ParsedPdf, ParsedItem } from '@/lib/pdfParser';
 import { TeachingButton } from '@/components/teaching';
+import { ParsedPdf, ParsedItem } from '@/lib/pdfParser';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { PdfValidationResult } from '@/lib/pdfValidator';
 
@@ -141,9 +141,8 @@ export default function PreviewPanel({
                 { key: 'needs_review' as FilterMode, label: '需確認', count: needsReviewCount },
                 { key: 'errors_only' as FilterMode, label: '僅錯誤', count: validation.summary.errorCount },
               ]).map((opt, index) => (
-                <>
+                <React.Fragment key={opt.key}>
                   <button
-                    key={opt.key}
                     onClick={() => setFilter(opt.key)}
                     className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all active:scale-95 ${
                       filter === opt.key
@@ -153,17 +152,14 @@ export default function PreviewPanel({
                   >
                     {opt.label} ({opt.count})
                   </button>
+                  {opt.key === 'errors_only' && (
+                    <TeachingButton module="pdf-preview" variant="inline" className="ml-1" />
+                  )}
                   {/* 在按鈕之間添加間隔，除了最後一個按鈕 */}
                   {index < 2 && <span className="w-0.5" />}
-                </>
+                </React.Fragment>
               ))}
             </div>
-            {/* 添加教學按鈕 */}
-            <TeachingButton 
-              module="pdf-preview" 
-              variant="inline" 
-              className="ml-4" 
-            />
           </div>
         )}
       </div>
