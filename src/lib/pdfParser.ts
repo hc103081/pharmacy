@@ -25,8 +25,8 @@ export interface PdfProgressStep {
   percent: number;
 }
 
-/** 每幾頁合併為一張圖片 */
-const MERGE_PAGE_COUNT = 2;
+/** 每幾頁合併為一張圖片（減少上傳次數與總體積） */
+const MERGE_PAGE_COUNT = 3;
 
 /**
  * 逐步解析 PDF，每個階段都透過 onProgress 回報進度。
@@ -45,7 +45,7 @@ export async function parsePdf(
   const totalPages = base64Images.length;
 
   // ── Step 2: 每 MERGE_PAGE_COUNT 頁合併為一張圖片 ──
-  onProgress?.({ step: 'merging', label: `正在合併 ${totalPages} 頁為批次圖片...`, percent: 15 });
+  onProgress?.({ step: 'merging', label: `正在每 ${MERGE_PAGE_COUNT} 頁合併為一張圖片 (共 ${totalPages} 頁)...`, percent: 15 });
   const mergedImages: string[] = [];
   for (let i = 0; i < totalPages; i += MERGE_PAGE_COUNT) {
     const batch = base64Images.slice(i, i + MERGE_PAGE_COUNT);

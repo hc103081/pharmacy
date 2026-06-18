@@ -134,9 +134,9 @@ export default function ImportPage() {
   }, []);
 
   const handlePdfSelect = useCallback(async (file: File) => {
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > 20 * 1024 * 1024) {
       setStatus('error');
-      setMessage('PDF 檔案太大 (超過 10MB)');
+      setMessage('PDF 檔案太大 (超過 20MB)');
       return;
     }
     setIsParsingPdf(true);

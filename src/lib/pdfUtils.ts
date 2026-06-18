@@ -37,7 +37,7 @@ export function applySharpen(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasEl
   }
   
   ctx.putImageData(imageData, 0, 0);
-  return canvas.toDataURL('image/jpeg', 0.92);
+  return canvas.toDataURL('image/jpeg', 0.85);
 }
 
 /**
@@ -61,7 +61,7 @@ export async function convertPdfToImages(data: Uint8Array): Promise<string[]> {
 
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale: 3.0 }); // 提升至 3.0 倍縮放以增加中文字符辨識精準度
+    const viewport = page.getViewport({ scale: 2.5 }); // 2.5x 縮放：平衡圖片體積與中文 OCR 辨識精準度
 
     // 建立一個隱藏的 canvas 來進行渲染
     const canvas = document.createElement('canvas');
