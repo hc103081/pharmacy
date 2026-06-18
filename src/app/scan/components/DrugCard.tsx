@@ -102,7 +102,25 @@ export default function DrugCard({
           </div>
         </div>
 
-        {drug.photo_url && (
+        {/* 照片縮圖 / 上傳中動畫 */}
+        {isUploading ? (
+          <div
+            className={`w-11 h-11 lg:w-12 lg:h-12 rounded-lg overflow-hidden border shrink-0 shadow-inner bg-slate-900 relative ${
+              isMatched ? 'border-[#00f2fe]' : 'border-slate-700'
+            }`}
+          >
+            {drug.photo_url && (
+              <img src={drug.photo_url} alt="Thumbnail" className="w-full h-full object-cover opacity-30" />
+            )}
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+              <div className="relative w-6 h-6">
+                <div className="absolute inset-0 rounded-full border-2 border-[#00f2fe]/30" />
+                <div className="absolute inset-0 rounded-full border-2 border-t-[#00f2fe] border-r-transparent border-b-transparent border-l-transparent animate-spin" />
+                <div className="absolute inset-1 rounded-full bg-[#00f2fe]/20 animate-ping opacity-50" />
+              </div>
+            </div>
+          </div>
+        ) : drug.photo_url ? (
           <div
             onClick={() => onPreviewPhoto(drug.photo_url!)}
             className={`w-11 h-11 lg:w-12 lg:h-12 rounded-lg overflow-hidden border cursor-pointer transition-all shrink-0 shadow-inner bg-slate-900 ${
@@ -112,7 +130,7 @@ export default function DrugCard({
           >
             <img src={drug.photo_url} alt="Thumbnail" className="w-full h-full object-cover" />
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* 底部操作區：手機端縱向堆疊、電腦端橫向排列 */}

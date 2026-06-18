@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { importDrugs, processImagesWithGemini, ImportDrugItem, deleteImportImages } from '@/app/actions/import';
 import { clientUploadImportImages } from '@/lib/clientUpload';
-import { FileUp, Loader2, CheckCircle2, ArrowLeft, Image as ImageIcon, FileType, RotateCcw, Cpu, Upload, ScanLine } from 'lucide-react';
+import { FileUp, Loader2, CheckCircle2, ArrowLeft, Image as ImageIcon, FileType, RotateCcw, Cpu, Upload, ScanLine, Database } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
@@ -92,6 +92,7 @@ export default function ImportPage() {
   const [parsedData, setParsedData] = useState<ParsedPdf | null>(initialState?.parsedData ?? null);
   const [isParsingPdf, setIsParsingPdf] = useState(false);
   const [pdfProgress, setPdfProgress] = useState<PdfProgressStep | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -214,6 +215,7 @@ export default function ImportPage() {
     }
     try {
       setStatus('loading');
+      setIsImporting(true);
       let drugs: ImportDrugItem[] = [];
       if (parsedData) {
         const sourceItems = items || parsedData.items;
@@ -229,11 +231,13 @@ export default function ImportPage() {
           source_file: ''
         });
         if (result.success) {
+          setIsImporting(false);
           setStatus('success');
           setMessage(`匯入成功！共匯入 ${result.totalItems} 項藥品。正在跳轉至清點面板...`);
           clearImportState();
           setTimeout(() => router.push(`/scan?manifestId=${result.manifestId}`), 2000);
         } else {
+          setIsImporting(false);
           setStatus('error');
           setMessage(`匯入失敗: ${result.error}`);
         }
@@ -242,6 +246,7 @@ export default function ImportPage() {
         setMessage('正在執行 AI OCR 辨識中...');
         const ocrResult = await processImagesWithGemini({ urls: uploadedUrls });
         if (!ocrResult.success) {
+          setIsImporting(false);
           setStatus('error');
           setMessage(`OCR 辨識失敗: ${ocrResult.error}`);
           return;
@@ -252,6 +257,7 @@ export default function ImportPage() {
         drugs = JSON.parse(jsonData);
       }
       if (drugs.length === 0) {
+        setIsImporting(false);
         setStatus('error');
         setMessage('沒有可匯入的藥品數據');
         return;
@@ -259,15 +265,18 @@ export default function ImportPage() {
       setMessage('正在匯入並進行分頁處理...');
       const result = await importDrugs(manifestName, drugs, user!.id, { source_images: uploadedUrls });
       if (result.success) {
+        setIsImporting(false);
         setStatus('success');
         setMessage(`匯入成功！共匯入 ${result.totalItems} 項藥品。正在跳轉至清點面板...`);
         clearImportState();
         setTimeout(() => router.push(`/scan?manifestId=${result.manifestId}`), 2000);
       } else {
+        setIsImporting(false);
         setStatus('error');
         setMessage(`匯入失敗: ${result.error}`);
       }
     } catch {
+      setIsImporting(false);
       setStatus('error');
       setMessage('匯入過程中發生錯誤，請檢查數據格式');
     }
@@ -298,6 +307,45 @@ export default function ImportPage() {
 
   return (
     <div className="h-dvh overflow-hidden flex flex-col bg-[#07142b]">
+      {/* 匯入中全畫面動畫覆蓋層 */}
+      {isImporting && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#07142b]/90 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="tech-card p-8 max-w-sm w-full space-y-6 text-center border-[#00f2fe]/40 shadow-[0_0_40px_rgba(0,242,254,0.15)]">
+            {/* 旋轉圖示 */}
+            <div className="relative mx-auto w-20 h-20">
+              <div className="absolute inset-0 rounded-full border-4 border-slate-800" />
+              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-[#00f2fe] animate-spin" />
+              <div className="absolute inset-2 rounded-full border-4 border-transparent border-b-[#00f2fe]/60 animate-spin animation-delay-300" style={{ animationDuration: '2s' }} />
+              <Database className="absolute inset-0 m-auto w-8 h-8 text-[#00f2fe]" />
+            </div>
+
+            {/* 進度文字 */}
+            <div className="space-y-2">
+              <h3 className="text-lg font-bold text-white">正在匯入藥品資料</h3>
+              <p className="text-sm text-slate-400">正在將藥品寫入資料庫並進行分頁處理...</p>
+            </div>
+
+            {/* 動畫進度條 */}
+            <div className="relative h-2 bg-slate-800/80 rounded-full overflow-hidden">
+              <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-500 to-[#00f2fe] rounded-full animate-progress-indeterminate" />
+              <div className="absolute inset-0 overflow-hidden">
+                <div className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent animate-particle-flow" />
+              </div>
+            </div>
+
+            {/* 步驟提示 */}
+            <div className="flex items-center justify-center gap-3">
+              <span className="w-2 h-2 rounded-full bg-[#00f2fe] animate-pulse" />
+              <span className="text-xs text-slate-500">寫入資料庫</span>
+              <span className="w-2 h-2 rounded-full bg-slate-700" />
+              <span className="text-xs text-slate-600">建立分頁</span>
+              <span className="w-2 h-2 rounded-full bg-slate-700" />
+              <span className="text-xs text-slate-600">完成</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto">
         <div className={parsedData ? 'max-w-3xl mx-auto flex flex-col h-full' : 'max-w-3xl mx-auto space-y-5 lg:space-y-6 p-4 lg:p-6'}>
           <div className="flex-shrink-0 flex items-center gap-3">

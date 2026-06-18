@@ -201,15 +201,18 @@ export async function parsePdfWithGemini({ urls }: { urls: string[] }): Promise<
       return { success: false, error: '未辨識到任何藥品項目，請確認 PDF 內容是否為藥局出貨單' };
     }
 
-    // 以條碼為鍵合併相同項目（quantity / bonus_quantity 分別累加）
+    // 以條碼為鍵合併相同項目（quantity / bonus_quantity 分別累加），並記錄合併次數
     const barcodeMap = new Map<string, PageItem>();
+    const mergeCountMap = new Map<string, number>(); // 記錄每個條碼出現次數
     for (const item of rawItems) {
       const key = item.barcode.trim();
       if (!key) {
         const fakeKey = `__NO_BARCODE_${barcodeMap.size}__`;
         barcodeMap.set(fakeKey, { ...item });
+        mergeCountMap.set(fakeKey, 1);
         continue;
       }
+      mergeCountMap.set(key, (mergeCountMap.get(key) || 0) + 1);
       const existing = barcodeMap.get(key);
       if (existing) {
         existing.quantity += item.quantity;
@@ -220,12 +223,13 @@ export async function parsePdfWithGemini({ urls }: { urls: string[] }): Promise<
     }
 
     // 4. 重新編號
-    const finalItems: ParsedItem[] = [...barcodeMap.values()].map((item, idx) => ({
+    const finalItems: ParsedItem[] = [...barcodeMap.entries()].map(([key, item], idx) => ({
       line_number: idx + 1,
       barcode: item.barcode,
       drug_name: item.drug_name,
       quantity: item.quantity,
       bonus_quantity: item.bonus_quantity,
+      merged_count: mergeCountMap.get(key) || 1,
     }));
 
     return {
@@ -408,6 +412,26 @@ export async function importDrugs(
       return { success: false, error: '藥品清單不能為空' };
     }
 
+    // 0. 合併相同條碼的項目（數量疊加）
+    const mergedMap = new Map<string, ImportDrugItem>();
+    for (const drug of drugs) {
+      const key = drug.barcode.trim();
+      if (!key) {
+        // 無條碼項目不合併，各自保留
+        const fakeKey = `__NO_BARCODE_${mergedMap.size}__`;
+        mergedMap.set(fakeKey, { ...drug });
+        continue;
+      }
+      const existing = mergedMap.get(key);
+      if (existing) {
+        existing.expected_quantity += drug.expected_quantity;
+        existing.bonus_quantity += drug.bonus_quantity;
+      } else {
+        mergedMap.set(key, { ...drug });
+      }
+    }
+    const mergedDrugs = [...mergedMap.values()];
+
     // 1. 建立 Manifest (清單批號)
     const { data: manifest, error: manifestError } = await supabaseAdmin
       .from('manifests')
@@ -416,7 +440,7 @@ export async function importDrugs(
         order_number: options.order_number,
         delivery_date: options.delivery_date,
         source_file: options.source_file,
-        total_items: drugs.length,
+        total_items: mergedDrugs.length,
         status: 'active',
         user_id: userId,
         source_images: options.source_images,
@@ -430,7 +454,7 @@ export async function importDrugs(
 
     // 2. 實作嚴格的分頁與排序
     const ITEMS_PER_PAGE = 44;
-    const drugItemsToInsert = drugs.map((drug, index) => {
+    const drugItemsToInsert = mergedDrugs.map((drug, index) => {
       const itemOrder = index + 1; // 原始流水號 (1, 2, 3...)
       const pageNumber = Math.ceil(itemOrder / ITEMS_PER_PAGE);
 
@@ -458,7 +482,7 @@ export async function importDrugs(
     return {
       success: true,
       manifestId: manifest.id,
-      totalItems: drugs.length,
+      totalItems: mergedDrugs.length,
     };
 
   } catch (error: unknown) {

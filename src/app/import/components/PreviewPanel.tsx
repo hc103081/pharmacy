@@ -176,7 +176,8 @@ export default function PreviewPanel({
                   <th className="py-3 px-2 font-medium">品名</th>
                   <th className="py-3 px-2 font-medium text-right">數量</th>
                   <th className="py-3 px-2 font-medium text-right">贈量</th>
-                  <th className="py-3 px-2 font-medium text-right">合併</th>
+                  <th className="py-3 px-2 font-medium text-right">合計</th>
+                  <th className="py-3 px-2 font-medium text-center">同碼合併</th>
                   <th className="py-3 px-2 font-medium text-center">狀態</th>
                 </tr>
               </thead>
@@ -226,6 +227,15 @@ export default function PreviewPanel({
                         />
                       </td>
                       <td className="py-3 px-2 text-right font-bold text-slate-300">{item.quantity + item.bonus_quantity}</td>
+                      <td className="py-3 px-2 text-right">
+                        {(item.merged_count && item.merged_count > 1) ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/10 text-[#00f2fe] border border-cyan-500/30">
+                            {item.merged_count} 合1
+                          </span>
+                        ) : (
+                          <span className="text-slate-600">-</span>
+                        )}
+                      </td>
                       <td className="py-3 px-2 text-center">
                         <div className="flex items-center justify-center gap-1 relative cursor-pointer" onClick={() => setOpenStatusLine(openStatusLine === item.line_number ? null : item.line_number)}>
                           {getStatusIcon(status)}
@@ -261,6 +271,13 @@ export default function PreviewPanel({
                     <div className="flex flex-col w-1/3 shrink-0">
                       <div className="text-sm text-[#00f2fe] text-left">{item.line_number}</div>
                       <div className="text-xs text-slate-400 mt-1">{item.barcode}</div>
+                      {(item.merged_count && item.merged_count > 1) && (
+                        <div className="mt-1">
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/10 text-[#00f2fe] border border-cyan-500/30">
+                            {item.merged_count} 合1
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <div className="flex w-2/3 min-w-0 items-start justify-between gap-2">
                       <div className="min-w-0 flex-1 text-right ml-[5px]">

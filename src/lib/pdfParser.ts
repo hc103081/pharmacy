@@ -4,6 +4,8 @@ export interface ParsedItem {
   drug_name: string;
   quantity: number;
   bonus_quantity: number;
+  /** 合併自幾個相同條碼的項目（1 表示未合併） */
+  merged_count?: number;
 }
 
 export interface ParsedPdf {
