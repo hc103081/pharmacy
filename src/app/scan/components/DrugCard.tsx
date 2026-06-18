@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Camera, CheckCircle2, AlertCircle, Loader2, Search, Info } from 'lucide-react';
+import { Camera, CheckCircle2, AlertCircle, Loader2, Search, Info, RotateCcw } from 'lucide-react';
 import type { DrugItem } from '@/types';
 
 interface DrugCardProps {
@@ -16,6 +16,7 @@ interface DrugCardProps {
   onTriggerCamera: () => void;
   onPreviewPhoto: (url: string) => void;
   onFilterByBarcode?: (barcode: string) => void;
+  onResetDrug?: (drugId: string) => void;
 }
 
 export default function DrugCard({
@@ -30,6 +31,7 @@ export default function DrugCard({
   onTriggerCamera,
   onPreviewPhoto,
   onFilterByBarcode,
+  onResetDrug,
 }: DrugCardProps) {
   const isCompleted = drug.counted_status === 'completed';
   const isError = drug.counted_status === 'error';
@@ -73,6 +75,9 @@ export default function DrugCard({
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] font-mono text-slate-500 truncate">
                 {drug.barcode} | 預期: {drug.expected_quantity}
+                {isError && drug.actual_quantity !== undefined && (
+                  <span className="text-[#ff4b5c] font-bold"> / 實際: {drug.actual_quantity}</span>
+                )}
               </span>
               {drug.bonus_quantity > 0 && (
                 <span title={`原數量: ${drug.expected_quantity - drug.bonus_quantity} + 贈量: ${drug.bonus_quantity}`}>
@@ -99,17 +104,11 @@ export default function DrugCard({
 
         {drug.photo_url && (
           <div
-            onClick={() => {
-              if (isMatched) {
-                onTriggerCamera();
-              } else {
-                onPreviewPhoto(drug.photo_url!);
-              }
-            }}
+            onClick={() => onPreviewPhoto(drug.photo_url!)}
             className={`w-11 h-11 lg:w-12 lg:h-12 rounded-lg overflow-hidden border cursor-pointer transition-all shrink-0 shadow-inner bg-slate-900 ${
               isMatched ? 'border-[#00f2fe] hover:scale-110' : 'border-slate-700 hover:border-[#00f2fe]'
             }`}
-            title={isMatched ? '點擊重新拍照' : '點擊預覽'}
+            title="點擊預覽照片"
           >
             <img src={drug.photo_url} alt="Thumbnail" className="w-full h-full object-cover" />
           </div>
@@ -121,51 +120,86 @@ export default function DrugCard({
         <div className="flex flex-col lg:flex-row gap-3">
           {/* 正確/有誤按鈕 + 數量輸入 */}
           <div className="flex flex-col gap-2 flex-1 bg-slate-950/50 p-3 rounded-xl border border-slate-700">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  onStatusSelect('correct');
-                  onActualQuantityChange(String(drug.expected_quantity));
-                  onTriggerCamera();
-                }}
-                disabled={isLocked}
-                className={`flex-1 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 ${
-                  selectedStatus === 'correct'
-                    ? 'bg-[#00f2fe] text-slate-900 shadow-[0_0_10px_rgba(0,242,254,0.4)]'
-                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                } ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                正確
-              </button>
-              <button
-                onClick={() => {
-                  onStatusSelect('incorrect');
-                  onActualQuantityChange('');
-                }}
-                disabled={isLocked}
-                className={`flex-1 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 ${
-                  selectedStatus === 'incorrect'
-                    ? 'bg-[#ff4b5c] text-white shadow-[0_0_10px_rgba(255,75,92,0.4)]'
-                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                } ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                有誤
-              </button>
-            </div>
-
-            {selectedStatus === 'incorrect' && (
-              <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                <label className="text-xs font-bold text-slate-500 shrink-0">實際數量:</label>
-                <input
-                  type="number"
-                  value={actualQuantity}
-                  onChange={(e) => onActualQuantityChange(e.target.value)}
-                  disabled={isLocked}
-                  autoFocus
-                  className={`flex-1 bg-transparent text-right font-mono text-lg text-[#00f2fe] outline-none border-b border-dashed border-slate-600 focus:border-[#00f2fe] transition-colors py-1 ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  placeholder="0"
-                />
+            {isCompleted || isError ? (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] text-slate-500 uppercase font-bold shrink-0">已確認:</span>
+                <span
+                  className={`px-2 py-0.5 rounded text-xs font-bold ${
+                    isCompleted
+                      ? 'bg-[#00f2fe]/20 text-[#00f2fe] border border-[#00f2fe]/30'
+                      : 'bg-[#ff4b5c]/20 text-[#ff4b5c] border border-[#ff4b5c]/30'
+                  }`}
+                >
+                  {isCompleted ? '正確' : '有誤'}
+                </span>
+                <span className="text-xs text-slate-400">
+                  實際: <span className={`font-mono font-bold ${isCompleted ? 'text-[#00f2fe]' : 'text-[#ff4b5c]'}`}>{drug.actual_quantity}</span>
+                </span>
+                {onResetDrug && !isLocked && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (confirm('確定要將此藥品恢復為未清點狀態嗎？照片將一併清除。')) {
+                        onResetDrug(drug.id);
+                      }
+                    }}
+                    className="ml-auto shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-slate-400 bg-slate-800 border border-slate-700 hover:text-[#00f2fe] hover:border-[#00f2fe]/40 hover:bg-slate-700 transition-all active:scale-95"
+                    title="重新填寫此藥品"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    重新填寫
+                  </button>
+                )}
               </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      onStatusSelect('correct');
+                      onActualQuantityChange(String(drug.expected_quantity));
+                      onTriggerCamera();
+                    }}
+                    disabled={isLocked}
+                    className={`flex-1 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 ${
+                      selectedStatus === 'correct'
+                        ? 'bg-[#00f2fe] text-slate-900 shadow-[0_0_10px_rgba(0,242,254,0.4)]'
+                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                    } ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    正確
+                  </button>
+                  <button
+                    onClick={() => {
+                      onStatusSelect('incorrect');
+                      onActualQuantityChange('');
+                    }}
+                    disabled={isLocked}
+                    className={`flex-1 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 ${
+                      selectedStatus === 'incorrect'
+                        ? 'bg-[#ff4b5c] text-white shadow-[0_0_10px_rgba(255,75,92,0.4)]'
+                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                    } ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    有誤
+                  </button>
+                </div>
+
+                {selectedStatus === 'incorrect' && (
+                  <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <label className="text-xs font-bold text-slate-500 shrink-0">實際數量:</label>
+                    <input
+                      type="number"
+                      value={actualQuantity}
+                      onChange={(e) => onActualQuantityChange(e.target.value)}
+                      disabled={isLocked}
+                      autoFocus
+                      className={`flex-1 bg-transparent text-right font-mono text-lg text-[#00f2fe] outline-none border-b border-dashed border-slate-600 focus:border-[#00f2fe] transition-colors py-1 ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      placeholder="0"
+                    />
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -175,7 +209,7 @@ export default function DrugCard({
             disabled={
               isUploading ||
               isLocked ||
-              (selectedStatus === 'incorrect' && !actualQuantity)
+              (!isCompleted && !isError && selectedStatus === 'incorrect' && !actualQuantity)
             }
             className={`tech-button px-5 py-3 lg:py-2 lg:shrink-0 ${
               !isLocked
@@ -188,7 +222,9 @@ export default function DrugCard({
             ) : (
               <Camera className="w-5 h-5" />
             )}
-            <span className="text-sm font-bold">{isUploading ? '上傳中...' : '拍照確認'}</span>
+            <span className="text-sm font-bold">
+              {isUploading ? '上傳中...' : isCompleted || isError ? '重新拍照' : '拍照確認'}
+            </span>
           </button>
         </div>
       ) : (

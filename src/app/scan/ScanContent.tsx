@@ -17,6 +17,7 @@ import { TeachingButton } from '@/components/teaching';
 import { DrugCard, ErrorDrawer, JumpDialog, PhotoPreview, BarcodeSearchBar } from './components';
 import { useBarcodeMatch, usePhotoCapture, usePagePersistence } from './hooks';
 import type { DrugItem, ErrorDrugItem, JumpTarget } from '@/types';
+import { resetDrugStatus } from '@/app/actions/scan/resetDrug';
 
 export default function ScanContent() {
   const searchParams = useSearchParams();
@@ -47,6 +48,7 @@ export default function ScanContent() {
   const [isStatsExpanded, setIsStatsExpanded] = useState(false);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const shouldJumpToNextRef = useRef(false);
+  const pendingBarcodeRef = useRef<string | null>(null);
   const requestRef = useRef<{ manifestId: string | null; currentPage: number } | null>(null);
   const prevManifestIdRef = useRef<string | null>(null);
 
@@ -54,40 +56,6 @@ export default function ScanContent() {
     setToast(message);
     setTimeout(() => setToast(null), 2000);
   }, []);
-
-  // 取得清單名稱
-  useEffect(() => {
-    if (!manifestId) {
-      Promise.resolve().then(() => setManifestName(''));
-      return;
-    }
-
-    const fetchManifestName = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('manifests')
-          .select('name')
-          .eq('id', manifestId)
-          .single();
-
-        if (error) throw error;
-        if (data) setManifestName(data.name);
-      } catch (err) {
-        console.error('Error fetching manifest name:', err);
-        setManifestName('未知清單');
-      }
-    };
-
-    fetchManifestName();
-  }, [manifestId, supabase]);
-
-  const { initializedRef, lastVisitedPage, setLastVisitedPage, lastVisitedPageRef, lastScrollY, setLastScrollY, lastScrollYRef, saveState, restorePage } = usePagePersistence(manifestId);
-  const { matchingItem, getMatchScore } = useBarcodeMatch(drugs, barcodeInput);
-
-  const navigateToPage = (page: number) => {
-    shouldJumpToNextRef.current = true;
-    setCurrentPage(page);
-  };
 
   const fetchPageData = useCallback(async () => {
     if (!manifestId) return;
@@ -155,13 +123,27 @@ export default function ScanContent() {
       // 拍照上傳完成後：清除搜尋並滾動到第一個未清點項
       if (shouldJumpToNextRef.current) {
         shouldJumpToNextRef.current = false;
-        setBarcodeInput('');
-        const nextPending = fetchedDrugs.find((d) => d.counted_status === 'pending');
-        if (nextPending) {
-          setTimeout(() => {
-            const element = document.querySelector(`[data-drug-id="${nextPending.id}"]`);
-            element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }, 80);
+        // 如果有跳轉暫存的 barcode，填入而非清除
+        if (pendingBarcodeRef.current) {
+          const barcode = pendingBarcodeRef.current;
+          pendingBarcodeRef.current = null;
+          setBarcodeInput(barcode);
+          const targetDrug = fetchedDrugs.find((d) => d.barcode === barcode);
+          if (targetDrug) {
+            setTimeout(() => {
+              const element = document.querySelector(`[data-drug-id="${targetDrug.id}"]`);
+              element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 80);
+          }
+        } else {
+          setBarcodeInput('');
+          const nextPending = fetchedDrugs.find((d) => d.counted_status === 'pending');
+          if (nextPending) {
+            setTimeout(() => {
+              const element = document.querySelector(`[data-drug-id="${nextPending.id}"]`);
+              element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 80);
+          }
         }
       }
     } catch (error) {
@@ -185,6 +167,78 @@ export default function ScanContent() {
     }
   }, [manifestId, currentPage]);
 
+  const handleResetDrug = useCallback(async (drugId: string) => {
+    setLoading(true);
+    try {
+      const result = await resetDrugStatus(drugId);
+      if (result.success) {
+        // 清除選取狀態和數量，但保留篩選輸入
+        setSelectedStatus(null);
+        setActualQuantity('');
+        await fetchPageData();
+        showToast('已恢復為未清點狀態');
+      } else {
+        alert(result.error || '重置失敗');
+      }
+    } catch (err) {
+      console.error('Reset drug error:', err);
+      alert('重置失敗，請稍後再試');
+    } finally {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchPageData, showToast]);
+
+  // 取得清單名稱
+  useEffect(() => {
+    if (!manifestId) {
+      Promise.resolve().then(() => setManifestName(''));
+      return;
+    }
+
+    const fetchManifestName = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('manifests')
+          .select('name')
+          .eq('id', manifestId)
+          .single();
+
+        if (error) throw error;
+        if (data) setManifestName(data.name);
+      } catch (err) {
+        console.error('Error fetching manifest name:', err);
+        setManifestName('未知清單');
+      }
+    };
+
+    fetchManifestName();
+  }, [manifestId, supabase]);
+
+  const { initializedRef, lastVisitedPage, setLastVisitedPage, lastVisitedPageRef, lastScrollY, setLastScrollY, lastScrollYRef, saveState, restorePage } = usePagePersistence(manifestId);
+  const { matchingItem, getMatchScore } = useBarcodeMatch(drugs, barcodeInput);
+
+  // 當匹配到已確認的藥品時，自動恢復上次選擇的狀態和實際數量
+  useEffect(() => {
+    if (matchingItem && matchingItem.counted_status !== 'pending') {
+      if (matchingItem.counted_status === 'completed') {
+        setSelectedStatus('correct');
+        setActualQuantity(String(matchingItem.expected_quantity));
+      } else if (matchingItem.counted_status === 'error') {
+        setSelectedStatus('incorrect');
+        setActualQuantity(String(matchingItem.actual_quantity));
+      }
+    } else if (!matchingItem) {
+      setSelectedStatus(null);
+      setActualQuantity('');
+    }
+  }, [matchingItem?.id]);
+
+  const navigateToPage = (page: number) => {
+    shouldJumpToNextRef.current = true;
+    setCurrentPage(page);
+  };
+
   // 清除搜尋並平滑滾動到第一個未清點項
   const clearBarcodeAndJumpToPending = useCallback(() => {
     setBarcodeInput('');
@@ -197,8 +251,8 @@ export default function ScanContent() {
     }
   }, [drugs]);
 
-  
-  
+
+
   const { fileInputRef, uploadingQueue, triggerCamera, handleFileUpload } = usePhotoCapture({
     manifestId,
     matchingItem,
@@ -324,12 +378,9 @@ export default function ScanContent() {
       lastVisitedPageRef.current = currentPage;
       setLastScrollY(window.scrollY);
       lastScrollYRef.current = window.scrollY;
+      // 暫存 barcode 給 fetchPageData 完成後填入
+      pendingBarcodeRef.current = target.barcode;
       navigateToPage(target.page);
-      setBarcodeInput(target.barcode);
-      setTimeout(() => {
-        const element = document.querySelector(`[data-drug-id="${target.id}"]`);
-        element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 150);
     }
   };
 
@@ -380,7 +431,7 @@ export default function ScanContent() {
           })
         }
       />
-
+  
       {/* 全域進度條 */}
       <div className="fixed top-0 left-0 w-full h-1 z-[100] bg-slate-800">
         <div
@@ -388,7 +439,7 @@ export default function ScanContent() {
           style={{ width: totalItems > 0 ? `${(completedTotal / totalItems) * 100}%` : '0%' }}
         />
       </div>
-
+  
       {/* Toast 通知 */}
       {toast && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[110] animate-in fade-in slide-in-from-top-2 duration-300">
@@ -397,7 +448,7 @@ export default function ScanContent() {
           </div>
         </div>
       )}
-
+  
       {/* 跳轉回溯標籤 */}
       {lastVisitedPage && lastVisitedPage !== currentPage && (
         <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
@@ -406,7 +457,7 @@ export default function ScanContent() {
               clearBarcodeAndJumpToPending();
               setCurrentPage(lastVisitedPage!);
               setLastVisitedPage(null);
-
+  
               if (lastScrollY !== null) {
                 setTimeout(() => {
                   window.scrollTo({ top: lastScrollY, behavior: 'smooth' });
@@ -420,7 +471,7 @@ export default function ScanContent() {
           </button>
         </div>
       )}
-
+  
       {/* 跨頁跳轉 Dialog */}
       {jumpTarget && (
         <JumpDialog
@@ -433,12 +484,12 @@ export default function ScanContent() {
           }}
         />
       )}
-
+  
       {/* 照片預覽 Modal */}
       {previewImage && (
         <PhotoPreview imageUrl={previewImage} onClose={() => setPreviewImage(null)} />
       )}
-
+  
       {/* ========== 手機端佈局 (< lg) ========== */}
       <div className="flex flex-col min-h-0 h-full lg:hidden">
         {/* 精簡 Header */}
@@ -475,7 +526,7 @@ export default function ScanContent() {
                 </div>
               </div>
             </div>
-
+  
             <div className="flex items-center gap-2 shrink-0">
               <Link
                 href={`/summary/${manifestId}`}
@@ -499,7 +550,7 @@ export default function ScanContent() {
           </div>
         
         </header>
-
+  
         {/* 搜尋欄 (始終可見) */}
         <div className="shrink-0 px-4 py-2 bg-[#07142b]">
           <BarcodeSearchBar
@@ -510,7 +561,7 @@ export default function ScanContent() {
             isLocked={isLocked}
           />
         </div>
-
+  
         {/* 可折疊統計面板 */}
         <div className="shrink-0 px-4 pb-2 bg-[#07142b]">
           {/* 統計摘要列 (點擊展開/收合) */}
@@ -529,7 +580,7 @@ export default function ScanContent() {
               }`}
             />
           </button>
-
+  
           {/* 展開的 4 欄統計 */}
           {isStatsExpanded && (
             <div className="grid grid-cols-4 gap-2 p-3 mt-2 bg-slate-950/50 rounded-xl border border-slate-800 text-center animate-in fade-in slide-in-from-top-1 duration-200">
@@ -565,7 +616,7 @@ export default function ScanContent() {
             capture="environment"
             className="hidden"
           />
-
+  
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 space-y-4">
               <div className="w-10 h-10 border-4 border-[#00f2fe] border-t-transparent rounded-full animate-spin" />
@@ -583,7 +634,7 @@ export default function ScanContent() {
                 .map((drug) => {
                   const isMatched = getMatchScore(drug, barcodeInput) > 0;
                   const isUploading = uploadingQueue.has(drug.id);
-
+  
                   return (
                     <div
                       key={drug.id}
@@ -603,6 +654,7 @@ export default function ScanContent() {
                         onTriggerCamera={triggerCamera}
                         onPreviewPhoto={setPreviewImage}
                         onFilterByBarcode={setBarcodeInput}
+                        onResetDrug={handleResetDrug}
                       />
                     </div>
                   );
@@ -610,7 +662,7 @@ export default function ScanContent() {
             </div>
           )}
         </main>
-
+  
         {/* 底部浮動導覽列 (鍵盤彈出時隱藏) */}
         <div
           className={`shrink-0 px-4 py-2 bg-[#162a56]/90 backdrop-blur-sm border-t border-blue-500/20 transition-all duration-300 ${
@@ -627,7 +679,7 @@ export default function ScanContent() {
               <ChevronLeft className="w-5 h-5" />
               <span className="text-xs font-bold">上一頁</span>
             </button>
-
+  
             {/* 頁碼顯示 */}
             <div className="flex items-center gap-1.5 bg-slate-950/50 rounded-xl border border-slate-800 px-3 py-2.5">
               <input
@@ -650,7 +702,7 @@ export default function ScanContent() {
               />
               <span className="text-sm font-bold text-slate-500">/ {totalPages}</span>
             </div>
-
+  
             {/* 下一頁 */}
             <button
               onClick={() => navigateToPage(Math.min(totalPages, currentPage + 1))}
@@ -663,7 +715,7 @@ export default function ScanContent() {
           </div>
         </div>
       </div>
-
+  
       {/* ========== 電腦端佈局 (>= lg) ========== */}
       <div className="hidden lg:flex h-full">
         {/* 左側固定側欄 */}
@@ -689,7 +741,7 @@ export default function ScanContent() {
                 )}
               </div>
             </div>
-
+  
             <div className="flex items-center gap-2">
               <Link
                 href={`/summary/${manifestId}`}
@@ -711,7 +763,7 @@ export default function ScanContent() {
               </button>
             </div>
           </div>
-
+  
           {/* 側欄搜尋 */}
           <div className="px-4 py-3">
             <BarcodeSearchBar
@@ -722,7 +774,7 @@ export default function ScanContent() {
               isLocked={isLocked}
             />
           </div>
-
+  
           {/* 側欄統計 (始終展開) */}
           <div className="px-4 py-3">
             <div className="grid grid-cols-2 gap-2 p-3 bg-slate-950/50 rounded-xl border border-slate-800 text-center">
@@ -753,7 +805,7 @@ export default function ScanContent() {
               <TeachingButton module="barcode-scan" variant="inline" />
             </div>
           </div>
-
+  
           {/* 側欄頁碼導覽 */}
           <div className="px-4 py-3 border-t border-blue-500/20 mt-auto">
             <div className="flex items-center justify-between gap-2">
@@ -783,7 +835,8 @@ export default function ScanContent() {
                   className="w-10 bg-transparent text-center text-base font-bold text-[#00f2fe] outline-none box-border"
                   title="直接輸入頁碼"
                 />
-                <span className="text-sm font-bold text-slate-500">/ {totalPages}</span>
+                <span className="text-sm font-bold text-slate-500">/
+                  {totalPages}</span>
               </div>
               <button
                 onClick={() => navigateToPage(Math.min(totalPages, currentPage + 1))}
@@ -795,7 +848,7 @@ export default function ScanContent() {
             </div>
           </div>
         </aside>
-
+  
         {/* 右側主區域: 藥品列表 */}
         <main className="flex-1 overflow-y-auto p-6">
           <input
@@ -806,7 +859,7 @@ export default function ScanContent() {
             capture="environment"
             className="hidden"
           />
-
+  
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 space-y-4">
               <div className="w-10 h-10 border-4 border-[#00f2fe] border-t-transparent rounded-full animate-spin" />
@@ -824,7 +877,7 @@ export default function ScanContent() {
                 .map((drug) => {
                   const isMatched = getMatchScore(drug, barcodeInput) > 0;
                   const isUploading = uploadingQueue.has(drug.id);
-
+  
                   return (
                     <div
                       key={drug.id}
@@ -844,6 +897,7 @@ export default function ScanContent() {
                         onTriggerCamera={triggerCamera}
                         onPreviewPhoto={setPreviewImage}
                         onFilterByBarcode={setBarcodeInput}
+                        onResetDrug={handleResetDrug}
                       />
                     </div>
                   );
