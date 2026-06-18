@@ -37,7 +37,8 @@ export async function parsePdf(
   onProgress?: (progress: PdfProgressStep) => void
 ): Promise<ParsedPdf> {
   const { convertPdfToImages, mergeImagesVertically } = await import('@/lib/pdfUtils');
-  const { uploadImportImages, parseHeaderWithGemini, parseBatchWithGemini } = await import('@/app/actions/import');
+  const { parseHeaderWithGemini, parseBatchWithGemini } = await import('@/app/actions/import');
+  const { clientUploadImportImages } = await import('@/lib/clientUpload');
 
   // ── Step 1: 將 PDF 每頁轉為 Base64 JPEG 圖片 ──
   onProgress?.({ step: 'converting', label: '正在將 PDF 轉換為圖片...', percent: 5 });
@@ -54,9 +55,9 @@ export async function parsePdf(
   }
   const totalBatches = mergedImages.length;
 
-  // ── Step 3: 上傳合併後圖片至 Storage ──
+  // ── Step 3: 從客戶端直接上傳圖片至 Supabase Storage（繞過 Vercel 4.5MB 限制）──
   onProgress?.({ step: 'uploading', label: `正在上傳 ${totalBatches} 張批次圖片...`, percent: 25 });
-  const formData = new FormData();
+  const blobs: Blob[] = [];
   for (let i = 0; i < mergedImages.length; i++) {
     const base64 = mergedImages[i];
     const parts = base64.split(',');
@@ -67,14 +68,10 @@ export async function parsePdf(
     for (let j = 0; j < byteString.length; j++) {
       ia[j] = byteString.charCodeAt(j);
     }
-    const blob = new Blob([ab], { type: contentType });
-    formData.append('files', new File([blob], `merged_batch_${i + 1}.jpg`, { type: contentType }));
+    blobs.push(new Blob([ab], { type: contentType }));
   }
 
-  const uploadResult = await uploadImportImages(formData);
-  if (!uploadResult.success || !uploadResult.urls) {
-    throw new Error(`圖片上傳失敗: ${uploadResult.error || '未知錯誤'}`);
-  }
+  const uploadResult = await clientUploadImportImages(blobs);
   const urls = uploadResult.urls;
 
   // ── Step 4: 解析表頭（單獨呼叫） ──

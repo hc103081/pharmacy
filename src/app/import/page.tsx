@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { importDrugs, uploadImportImages, processImagesWithGemini, ImportDrugItem, deleteImportImages } from '@/app/actions/import';
+import { importDrugs, processImagesWithGemini, ImportDrugItem, deleteImportImages } from '@/app/actions/import';
+import { clientUploadImportImages } from '@/lib/clientUpload';
 import { FileUp, Loader2, CheckCircle2, ArrowLeft, Image as ImageIcon, FileType, RotateCcw, Cpu, Upload, ScanLine } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -193,20 +194,13 @@ export default function ImportPage() {
     if (selectedImages.length === 0) return;
     setStatus('loading');
     setMessage('正在上傳圖片至伺服器...');
-    const formData = new FormData();
-    selectedImages.forEach(file => formData.append('files', file));
     try {
-      const result = await uploadImportImages(formData);
-      if (result.success && result.urls) {
-        setUploadedUrls(result.urls);
-        setSelectedImages([]);
-        setStatus('idle');
-        setMessage('圖片上傳成功！');
-        setTimeout(() => setMessage(''), 3000);
-      } else {
-        setStatus('error');
-        setMessage(`上傳失敗: ${result.error}`);
-      }
+      const result = await clientUploadImportImages(selectedImages);
+      setUploadedUrls(result.urls);
+      setSelectedImages([]);
+      setStatus('idle');
+      setMessage('圖片上傳成功！');
+      setTimeout(() => setMessage(''), 3000);
     } catch {
       setStatus('error');
       setMessage('圖片上傳過程中發生錯誤');
