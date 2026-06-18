@@ -39,32 +39,43 @@ async function fetchImageAsBase64(url: string): Promise<string> {
 /**
  * 從出貨單第一頁提取表頭資訊（出貨單號、交貨日期）
  */
-export async function parseHeaderWithGemini(url: string): Promise<{ order_number: string; delivery_date: string }> {
-  const apiKey = process.env.GOOGLE_API_KEY;
-  if (!apiKey) throw new Error('伺服器未配置 GOOGLE_API_KEY');
+export async function parseHeaderWithGemini(url: string): Promise<{ success: boolean; order_number?: string; delivery_date?: string; error?: string }> {
+  try {
+    const apiKey = process.env.GOOGLE_API_KEY;
+    if (!apiKey) {
+      return { success: false, error: '伺服器未配置 GOOGLE_API_KEY，請在 Vercel 環境變數中設定' };
+    }
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite' });
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite' });
 
-  const base64Data = await fetchImageAsBase64(url);
+    const base64Data = await fetchImageAsBase64(url);
 
-  const prompt = `這是安得福藥局出貨單的第一頁。請找出以下資訊：
+    const prompt = `這是安得福藥局出貨單的第一頁。請找出以下資訊：
 1. 出貨單號 (order_number)
 2. 出貨日期 (delivery_date)，請將日期格式化為 YYYY-MM-DD
 
 輸出嚴格 JSON 格式，不要 markdown 標記：
 { "order_number": "單號", "delivery_date": "YYYY-MM-DD" }`;
 
-  const result = await model.generateContent([
-    prompt,
-    { inlineData: { data: base64Data, mimeType: 'image/jpeg' } },
-  ]);
-  const text = result.response.text().replace(/```json|```/g, '').trim();
-  const parsed = JSON.parse(text);
-  return {
-    order_number: parsed.order_number || '未知單號',
-    delivery_date: parsed.delivery_date || '',
-  };
+    const result = await model.generateContent([
+      prompt,
+      { inlineData: { data: base64Data, mimeType: 'image/jpeg' } },
+    ]);
+    const text = result.response.text().replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(text);
+    return {
+      success: true,
+      order_number: parsed.order_number || '未知單號',
+      delivery_date: parsed.delivery_date || '',
+    };
+  } catch (error: unknown) {
+    console.error('parseHeaderWithGemini Error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : '表頭解析失敗',
+    };
+  }
 }
 
 interface PageItem {
@@ -78,17 +89,19 @@ interface PageItem {
 /**
  * 使用 Gemini OCR 提取一批合併圖片中的藥品項目 (CSV 格式)
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function parseBatchWithGemini(url: string, batchIndex: number): Promise<PageItem[]> {
-  const apiKey = process.env.GOOGLE_API_KEY;
-  if (!apiKey) throw new Error('伺服器未配置 GOOGLE_API_KEY');
+export async function parseBatchWithGemini(url: string, _batchIndex: number): Promise<{ success: boolean; items?: PageItem[]; error?: string }> {
+  try {
+    const apiKey = process.env.GOOGLE_API_KEY;
+    if (!apiKey) {
+      return { success: false, error: '伺服器未配置 GOOGLE_API_KEY，請在 Vercel 環境變數中設定' };
+    }
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite' });
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite' });
 
-  const base64Data = await fetchImageAsBase64(url);
+    const base64Data = await fetchImageAsBase64(url);
 
-  const prompt = `這是一組合併後的藥局出貨單圖片（包含多頁）。
+    const prompt = `這是一組合併後的藥局出貨單圖片（包含多頁）。
 請提取所有藥品項目，並嚴格以 CSV 格式輸出。
 
 CSV 欄位定義：
@@ -107,89 +120,132 @@ line_number,barcode,drug_name,quantity,bonus_quantity
 1,12345678,品名A,10,0
 2,87654321,品名B,5,1`;
 
-  const result = await model.generateContent([
-    prompt,
-    { inlineData: { data: base64Data, mimeType: 'image/jpeg' } },
-  ]);
-  
-  const text = result.response.text().trim();
-  
-  // 解析 CSV — 品名可能含逗號，使用「從右側拆最後 3 個數字欄位」策略
-  const lines = text.split('\n').filter(line => line.trim() && !line.startsWith('#') && !line.startsWith('line_number'));
-  const items: PageItem[] = lines.map((line, idx) => {
-    const trimmed = line.trim();
-    // 從右側拆分：bonus_quantity, quantity 一定是數字，取最後 2 個逗號分隔
-    const lastComma2 = trimmed.lastIndexOf(',');
-    const lastComma1 = trimmed.lastIndexOf(',', lastComma2 - 1);
-    const lastComma0 = trimmed.lastIndexOf(',', lastComma1 - 1);
+    const result = await model.generateContent([
+      prompt,
+      { inlineData: { data: base64Data, mimeType: 'image/jpeg' } },
+    ]);
+    
+    const text = result.response.text().trim();
+    
+    // 解析 CSV — 品名可能含逗號，使用「從右側拆最後 3 個數字欄位」策略
+    const lines = text.split('\n').filter(line => line.trim() && !line.startsWith('#') && !line.startsWith('line_number'));
+    const items: PageItem[] = lines.map((line, idx) => {
+      const trimmed = line.trim();
+      // 從右側拆分：bonus_quantity, quantity 一定是數字，取最後 2 個逗號分隔
+      const lastComma2 = trimmed.lastIndexOf(',');
+      const lastComma1 = trimmed.lastIndexOf(',', lastComma2 - 1);
+      const lastComma0 = trimmed.lastIndexOf(',', lastComma1 - 1);
 
-    const bonus_quantity = parseInt(trimmed.slice(lastComma2 + 1).trim()) || 0;
-    const quantity = parseInt(trimmed.slice(lastComma1 + 1, lastComma2).trim()) || 0;
-    const drug_name = trimmed.slice(lastComma0 + 1, lastComma1).trim();
-    const beforeDrugName = trimmed.slice(0, lastComma0).trim();
-    // beforeDrugName = "line_number,barcode" 或 "line_number,barcode"
-    const firstComma = beforeDrugName.indexOf(',');
-    const line_number = parseInt(beforeDrugName.slice(0, firstComma).trim()) || idx + 1;
-    const barcode = beforeDrugName.slice(firstComma + 1).trim();
+      const bonus_quantity = parseInt(trimmed.slice(lastComma2 + 1).trim()) || 0;
+      const quantity = parseInt(trimmed.slice(lastComma1 + 1, lastComma2).trim()) || 0;
+      const drug_name = trimmed.slice(lastComma0 + 1, lastComma1).trim();
+      const beforeDrugName = trimmed.slice(0, lastComma0).trim();
+      // beforeDrugName = "line_number,barcode" 或 "line_number,barcode"
+      const firstComma = beforeDrugName.indexOf(',');
+      const line_number = parseInt(beforeDrugName.slice(0, firstComma).trim()) || idx + 1;
+      const barcode = beforeDrugName.slice(firstComma + 1).trim();
 
-    return { line_number, barcode, drug_name, quantity, bonus_quantity };
-  });
+      return { line_number, barcode, drug_name, quantity, bonus_quantity };
+    });
 
-  return items;
+    return { success: true, items };
+  } catch (error: unknown) {
+    console.error('parseBatchWithGemini Error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : '批次 OCR 辨識失敗',
+    };
+  }
 }
 
 /**
  * 主入口 Server Action：使用 Gemini OCR 解析整份 PDF
  * 供 pdfParser.ts 呼叫
  */
-export async function parsePdfWithGemini({ urls }: { urls: string[] }): Promise<ParsedPdf> {
-  // 1. 第一張合併圖提取表頭（通常第一頁在第一張圖頂部）
-  const header = await parseHeaderWithGemini(urls[0]);
-  
-  // 2. 並行提取每批合併圖 (CSV 模式)
-  const BATCH_SIZE = 3; // 這裡的 urls 已經是合併後的結果
-  const allBatchResults: { batchIndex: number; items: PageItem[] }[] = [];
+export async function parsePdfWithGemini({ urls }: { urls: string[] }): Promise<{ success: boolean; data?: ParsedPdf; error?: string }> {
+  try {
+    // 1. 第一張合併圖提取表頭（通常第一頁在第一張圖頂部）
+    const headerResult = await parseHeaderWithGemini(urls[0]);
+    if (!headerResult.success || !headerResult.order_number) {
+      return { success: false, error: headerResult.error || '表頭解析失敗' };
+    }
+    
+    // 2. 並行提取每批合併圖 (CSV 模式)
+    const BATCH_SIZE = 3; // 這裡的 urls 已經是合併後的結果
+    const allBatchResults: { batchIndex: number; items: PageItem[] }[] = [];
 
-  // 由於客戶端已經合併，這裡的 urls.length = ceil(總頁數 / 3)
-  for (let i = 0; i < urls.length; i += BATCH_SIZE) {
-    const batch = urls.slice(i, i + BATCH_SIZE);
-    const batchResults = await Promise.all(
-      batch.map(async (url, batchIdx) => {
-        const globalBatchIdx = i + batchIdx;
-        try {
-          const items = await parseBatchWithGemini(url, globalBatchIdx);
-          return { batchIndex: globalBatchIdx, items };
-        } catch {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          const items = await parseBatchWithGemini(url, globalBatchIdx);
-          return { batchIndex: globalBatchIdx, items };
-        }
-      })
-    );
-    allBatchResults.push(...batchResults);
+    // 由於客戶端已經合併，這裡的 urls.length = ceil(總頁數 / 3)
+    for (let i = 0; i < urls.length; i += BATCH_SIZE) {
+      const batch = urls.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map(async (url, batchIdx) => {
+          const globalBatchIdx = i + batchIdx;
+          // 第一次嘗試
+          let result = await parseBatchWithGemini(url, globalBatchIdx);
+          if (!result.success || !result.items) {
+            // 重試一次
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            result = await parseBatchWithGemini(url, globalBatchIdx);
+          }
+          return { batchIndex: globalBatchIdx, items: result.items || [] };
+        })
+      );
+      allBatchResults.push(...batchResults);
+    }
+
+    // 3. 合併所有 items，將相同條碼項目合併數量
+    allBatchResults.sort((a, b) => a.batchIndex - b.batchIndex);
+    const rawItems: PageItem[] = allBatchResults.flatMap(r => r.items);
+
+    if (rawItems.length === 0) {
+      return { success: false, error: '未辨識到任何藥品項目，請確認 PDF 內容是否為藥局出貨單' };
+    }
+
+    // 以條碼為鍵合併相同項目（quantity / bonus_quantity 分別累加）
+    const barcodeMap = new Map<string, PageItem>();
+    for (const item of rawItems) {
+      const key = item.barcode.trim();
+      if (!key) {
+        const fakeKey = `__NO_BARCODE_${barcodeMap.size}__`;
+        barcodeMap.set(fakeKey, { ...item });
+        continue;
+      }
+      const existing = barcodeMap.get(key);
+      if (existing) {
+        existing.quantity += item.quantity;
+        existing.bonus_quantity += item.bonus_quantity;
+      } else {
+        barcodeMap.set(key, { ...item });
+      }
+    }
+
+    // 4. 重新編號
+    const finalItems: ParsedItem[] = [...barcodeMap.values()].map((item, idx) => ({
+      line_number: idx + 1,
+      barcode: item.barcode,
+      drug_name: item.drug_name,
+      quantity: item.quantity,
+      bonus_quantity: item.bonus_quantity,
+    }));
+
+    return {
+      success: true,
+      data: {
+        order_metadata: {
+          order_number: headerResult.order_number,
+          delivery_date: headerResult.delivery_date || '',
+          total_items: finalItems.length,
+        },
+        items: finalItems,
+      },
+    };
+  } catch (error: unknown) {
+    console.error('parsePdfWithGemini Error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'PDF 解析過程中發生錯誤',
+    };
   }
-
-  // 3. 合併所有 items
-  allBatchResults.sort((a, b) => a.batchIndex - b.batchIndex);
-  const mergedItems: PageItem[] = allBatchResults.flatMap(r => r.items);
-
-  // 4. 重新編號
-  const finalItems: ParsedItem[] = mergedItems.map((item, idx) => ({
-    line_number: idx + 1,
-    barcode: item.barcode,
-    drug_name: item.drug_name,
-    quantity: item.quantity,
-    bonus_quantity: item.bonus_quantity,
-  }));
-
-  return {
-    order_metadata: {
-      order_number: header.order_number,
-      delivery_date: header.delivery_date,
-      total_items: finalItems.length,
-    },
-    items: finalItems,
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -290,7 +346,7 @@ export async function uploadImportImages(formData: FormData): Promise<{ success:
       const filePath = fileName; // 修正：路徑不應包含儲存桶名稱
 
 
-      const { data, error } = await supabaseAdmin.storage
+      const { error } = await supabaseAdmin.storage
         .from('import_screenshots')
         .upload(filePath, file, {
           contentType: file.type,

@@ -79,7 +79,10 @@ export async function parsePdf(
 
   // ── Step 4: 解析表頭（單獨呼叫） ──
   onProgress?.({ step: 'header', label: '正在 AI 辨識出貨單表頭...', percent: 35 });
-  const header = await parseHeaderWithGemini(urls[0]);
+  const headerResult = await parseHeaderWithGemini(urls[0]);
+  if (!headerResult.success) {
+    throw new Error(`表頭辨識失敗: ${headerResult.error || '未知錯誤'}`);
+  }
 
   // ── Step 5: 逐批 AI 辨識藥品項目 ──
   // 計算進度分配：Step 5 佔 35%~95%（60%的進度空間）
@@ -99,15 +102,16 @@ export async function parsePdf(
     const batchResults = await Promise.all(
       batchSlice.map(async (url, batchIdx) => {
         const globalBatchIdx = i + batchIdx;
-        try {
-          const items = await parseBatchWithGemini(url, globalBatchIdx);
-          return { batchIndex: globalBatchIdx, items };
-        } catch {
+        let result = await parseBatchWithGemini(url, globalBatchIdx);
+        if (!result.success || !result.items) {
           // 重試一次
           await new Promise(resolve => setTimeout(resolve, 1000));
-          const items = await parseBatchWithGemini(url, globalBatchIdx);
-          return { batchIndex: globalBatchIdx, items };
+          result = await parseBatchWithGemini(url, globalBatchIdx);
         }
+        if (!result.success || !result.items) {
+          throw new Error(`批次 ${globalBatchIdx + 1} OCR 辨識失敗: ${result.error || '未知錯誤'}`);
+        }
+        return { batchIndex: globalBatchIdx, items: result.items };
       })
     );
     allBatchResults.push(...batchResults);
@@ -131,8 +135,8 @@ export async function parsePdf(
 
   return {
     order_metadata: {
-      order_number: header.order_number,
-      delivery_date: header.delivery_date,
+      order_number: headerResult.order_number || '未知單號',
+      delivery_date: headerResult.delivery_date || '',
       total_items: finalItems.length,
     },
     items: finalItems,

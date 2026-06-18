@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { importDrugs, uploadImportImages, processImagesWithGemini, ImportDrugItem, deleteImportImages } from '@/app/actions/import';
 import { FileUp, Loader2, CheckCircle2, ArrowLeft, Image as ImageIcon, FileType, RotateCcw, Cpu, Upload, ScanLine } from 'lucide-react';
 import Link from 'next/link';
@@ -11,6 +11,49 @@ import { validateParsedPdf } from '@/lib/pdfValidator';
 import PreviewPanel from './components/PreviewPanel';
 import { TeachingButton } from '@/components/teaching';
 import DrugListUploader from './components/DrugListUploader';
+
+/* sessionStorage 鍵名 */
+const IMPORT_STATE_KEY = 'pharmacy_import_state';
+
+interface ImportState {
+  parsedData: ParsedPdf | null;
+  manifestName: string;
+  uploadedUrls: string[];
+  jsonData: string;
+}
+
+/** 從 sessionStorage 讀取暫存的匯入狀態 */
+function loadImportState(): ImportState | null {
+  try {
+    const raw = sessionStorage.getItem(IMPORT_STATE_KEY);
+    if (!raw) return null;
+    const state = JSON.parse(raw) as ImportState;
+    if (!state.parsedData && !state.manifestName && state.uploadedUrls.length === 0 && !state.jsonData) {
+      return null;
+    }
+    return state;
+  } catch {
+    return null;
+  }
+}
+
+/** 將匯入狀態寫入 sessionStorage */
+function saveImportState(state: ImportState) {
+  try {
+    sessionStorage.setItem(IMPORT_STATE_KEY, JSON.stringify(state));
+  } catch {
+    // sessionStorage 寫入失敗（容量滿等）時忽略
+  }
+}
+
+/** 清除 sessionStorage 中的匯入狀態 */
+function clearImportState() {
+  try {
+    sessionStorage.removeItem(IMPORT_STATE_KEY);
+  } catch {
+    // 忽略
+  }
+}
 
 /* 步驟對應的 icon */
 const STEP_ICONS = {
@@ -36,6 +79,19 @@ export default function ImportPage() {
   const router = useRouter();
   const { user } = useAuth();
 
+  /* 初始化：優先從 sessionStorage 恢復上次的匯入狀態 */
+  const [initialState] = useState<ImportState | null>(() => loadImportState());
+
+  const [manifestName, setManifestName] = useState(initialState?.manifestName ?? '');
+  const [jsonData, setJsonData] = useState(initialState?.jsonData ?? '');
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [uploadedUrls, setUploadedUrls] = useState<string[]>(initialState?.uploadedUrls ?? []);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [message, setMessage] = useState('');
+  const [parsedData, setParsedData] = useState<ParsedPdf | null>(initialState?.parsedData ?? null);
+  const [isParsingPdf, setIsParsingPdf] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState<PdfProgressStep | null>(null);
+
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     return () => {
@@ -43,15 +99,39 @@ export default function ImportPage() {
     };
   }, []);
 
-  const [manifestName, setManifestName] = useState('');
-  const [jsonData, setJsonData] = useState('');
-  const [selectedImages, setSelectedImages] = useState<File[]>([]);
-  const [uploadedUrls, setUploadedUrls] = useState<string[]>([]);
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [message, setMessage] = useState('');
-  const [parsedData, setParsedData] = useState<ParsedPdf | null>(null);
-  const [isParsingPdf, setIsParsingPdf] = useState(false);
-  const [pdfProgress, setPdfProgress] = useState<PdfProgressStep | null>(null);
+  /* 每當關鍵狀態變更時，同步寫入 sessionStorage */
+  useEffect(() => {
+    saveImportState({ parsedData, manifestName, uploadedUrls, jsonData });
+  }, [parsedData, manifestName, uploadedUrls, jsonData]);
+
+  /* 頁面可見性恢復：當使用者從其他分頁切回來時，若狀態丟失則從 sessionStorage 恢復 */
+  const stateRef = useRef({ parsedData, manifestName, uploadedUrls, jsonData });
+  stateRef.current = { parsedData, manifestName, uploadedUrls, jsonData };
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const saved = loadImportState();
+        if (saved) {
+          // 只恢復那些當前為空的狀態，避免覆蓋使用者操作
+          if (!stateRef.current.parsedData && saved.parsedData) {
+            setParsedData(saved.parsedData);
+          }
+          if (!stateRef.current.manifestName && saved.manifestName) {
+            setManifestName(saved.manifestName);
+          }
+          if (stateRef.current.uploadedUrls.length === 0 && saved.uploadedUrls.length > 0) {
+            setUploadedUrls(saved.uploadedUrls);
+          }
+          if (!stateRef.current.jsonData && saved.jsonData) {
+            setJsonData(saved.jsonData);
+          }
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
   const handlePdfSelect = useCallback(async (file: File) => {
     if (file.size > 10 * 1024 * 1024) {
@@ -79,6 +159,12 @@ export default function ImportPage() {
       let errorMessage = 'PDF 處理失敗';
       if (error instanceof Error) {
         errorMessage = error.message;
+        // 提供更明確的建議
+        if (errorMessage.includes('GOOGLE_API_KEY') || errorMessage.includes('未配置')) {
+          errorMessage = '伺服器未設定 AI API 金鑰 (GOOGLE_API_KEY)，請在 Vercel 專案設定中新增此環境變數';
+        } else if (errorMessage.includes('上傳失敗') || errorMessage.includes('upload')) {
+          errorMessage = `圖片上傳失敗: ${errorMessage}。請確認 Supabase Storage 的 import_screenshots bucket 已建立且服務正常運作`;
+        }
       }
       setMessage(`PDF 處理失敗: ${errorMessage}`);
       setPdfProgress(null);
@@ -96,6 +182,7 @@ export default function ImportPage() {
     setManifestName('');
     setPdfProgress(null);
     setStatus('idle');
+    clearImportState();
   };
 
   const removeImage = (index: number) => {
@@ -150,6 +237,7 @@ export default function ImportPage() {
         if (result.success) {
           setStatus('success');
           setMessage(`匯入成功！共匯入 ${result.totalItems} 項藥品。正在跳轉至清點面板...`);
+          clearImportState();
           setTimeout(() => router.push(`/scan?manifestId=${result.manifestId}`), 2000);
         } else {
           setStatus('error');
@@ -179,6 +267,7 @@ export default function ImportPage() {
       if (result.success) {
         setStatus('success');
         setMessage(`匯入成功！共匯入 ${result.totalItems} 項藥品。正在跳轉至清點面板...`);
+        clearImportState();
         setTimeout(() => router.push(`/scan?manifestId=${result.manifestId}`), 2000);
       } else {
         setStatus('error');
@@ -201,6 +290,7 @@ export default function ImportPage() {
           console.error('Cleanup error:', e);
         }
       }
+      clearImportState();
       setManifestName('');
       setJsonData('');
       setSelectedImages([]);

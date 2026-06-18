@@ -23,7 +23,6 @@ export interface PdfValidationResult {
  */
 export function validateParsedPdf(data: ParsedPdf): PdfValidationResult {
   const itemValidations: ItemValidation[] = [];
-  const barcodes = new Set<string>();
   let errorCount = 0;
   let warnCount = 0;
 
@@ -93,12 +92,11 @@ export function validateParsedPdf(data: ParsedPdf): PdfValidationResult {
       messages.push('總數量必須大於 0');
     }
 
-    // 4. 重複條碼偵測
-    if (item.barcode && barcodes.has(item.barcode)) {
+    // 4. 合併後數量合理性（合併後數量過大可能需人工確認）
+    if (item.quantity + item.bonus_quantity > 999) {
       if (status !== 'error') status = 'warn';
-      messages.push('重複條碼');
+      messages.push('合併後總數量異常偏大');
     }
-    if (item.barcode) barcodes.add(item.barcode);
 
     if (status === 'error') errorCount++;
     else if (status === 'warn') warnCount++;
