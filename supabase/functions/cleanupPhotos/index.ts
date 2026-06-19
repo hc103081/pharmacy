@@ -1,6 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 // @ts-expect-error: Deno std module not typed
-import { serve } from 'std/server';
+import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 
 // @ts-expect-error: Suppress implicit any for request
 serve(async (_req) => {

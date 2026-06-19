@@ -1,0 +1,2 @@
+schedule: "0 3 * * *"
+# Every day at 03:00 UTC, dispatch archive jobs for manifests older than 30 days
