@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { 
@@ -31,7 +31,6 @@ export default function SummaryPage() {
     message: string;
     progress?: number;
   } | null>(null);
-  const operationEventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -78,12 +77,6 @@ export default function SummaryPage() {
   const progress = manifest ? Math.round((completedCount / manifest.total_items) * 100) : 0;
 
   const startZIPArchive = async () => {
-    // Close any existing event source
-    if (operationEventSourceRef.current) {
-      operationEventSourceRef.current.close();
-    }
-
-    // Set initial progress
     setOperationProgress({
       manifestId,
       status: 'archiving',
@@ -91,70 +84,45 @@ export default function SummaryPage() {
     });
 
     try {
-      const eventSource = new EventSource(
-        `${window.location.origin}/api/manifest-operation?operation=archive&manifestId=${manifestId}`,
-        { withCredentials: true }
-      );
-      operationEventSourceRef.current = eventSource;
-
-      eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          setOperationProgress(prev => {
-            if (!prev || prev.manifestId !== manifestId) return prev;
-            return {
-              ...prev,
-              status: data.status as any,
-              message: data.message,
-              progress: data.progress,
-            };
-          });
-
-          if (data.status === 'completed' || data.status === 'error') {
-            // Operation finished, redirect to manifests list after a short delay
-            setTimeout(() => {
-              router.push('/manifests');
-              setOperationProgress(null);
-            }, 1500);
-            eventSource.close();
-            operationEventSourceRef.current = null;
-          }
-        } catch (e) {
-          console.error('Failed to parse SSE message:', e);
-        }
-      };
-
-      eventSource.onerror = () => {
-        console.error('EventSource error');
-        setOperationProgress(prev => {
-          if (!prev || prev.manifestId !== manifestId) return prev;
-          return {
-            ...prev,
-            status: 'error',
-            message: '連線錯誤',
-          };
-        });
-        setTimeout(() => {
-          router.push('/manifests');
-          setOperationProgress(null);
-        }, 1500);
-        eventSource.close();
-        operationEventSourceRef.current = null;
-      };
-    } catch (err) {
-      console.error('Failed to start archive operation:', err);
-      setOperationProgress(prev => {
-        if (!prev || prev.manifestId !== manifestId) return prev;
-        return {
-          ...prev,
-          status: 'error',
-          message: err instanceof Error ? err.message : '未知錯誤',
-        };
+      const res = await fetch(`/api/manifest-operation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operation: 'archive', manifestId }),
       });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(errorText || '封存請求失敗');
+      }
+
+      // Parse the JSON result from the Edge Function
+      const result = await res.json();
+      
+      if (result.status === 'error') {
+        throw new Error(result.message || '封存失敗');
+      }
+
+      setOperationProgress({
+        manifestId,
+        status: 'completed',
+        message: result.message || '封存完成',
+      });
+
       setTimeout(() => {
         router.push('/manifests');
         setOperationProgress(null);
       }, 1500);
+    } catch (err) {
+      console.error('Failed to start archive operation:', err);
+      setOperationProgress({
+        manifestId,
+        status: 'error',
+        message: err instanceof Error ? err.message : '未知錯誤',
+      });
+      setTimeout(() => {
+        router.push('/manifests');
+        setOperationProgress(null);
+      }, 3000);
     }
   };
 

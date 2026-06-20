@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import {
@@ -31,28 +31,19 @@ export default function ManifestsPage() {
     message: string;
     progress?: number;
   } | null>(null);
-  const operationEventSourceRef = useRef<EventSource | null>(null);
   const [archiveAllLoading, setArchiveAllLoading] = useState(false);
 
   useEffect(() => {
     fetchManifests();
-  }, [tab]);
+  }, []);
 
   const fetchManifests = async () => {
     setLoading(true);
     try {
-      let query = supabase
+      const { data, error } = await supabase
         .from('manifests')
         .select('*')
         .order('created_at', { ascending: false });
-
-      if (tab === 'active') {
-        query = query.eq('status', 'active');
-      } else if (tab === 'archived') {
-        query = query.eq('status', 'archived');
-      }
-
-      const { data, error } = await query;
       if (error) throw error;
       setManifests(data || []);
     } catch (error) {
@@ -80,16 +71,7 @@ export default function ManifestsPage() {
     }
   };
 
-  const startOperation = async (
-    manifestId: string,
-    operation: 'archive' | 'restore'
-  ) => {
-    // Close any existing event source
-    if (operationEventSourceRef.current) {
-      operationEventSourceRef.current.close();
-    }
-
-    // Set initial progress
+  const startOperation = async (manifestId: string, operation: 'archive' | 'restore') => {
     setOperationProgress({
       manifestId,
       status: operation === 'archive' ? 'archiving' : 'restoring',
@@ -97,70 +79,43 @@ export default function ManifestsPage() {
     });
 
     try {
-      const eventSource = new EventSource(
-        `${window.location.origin}/api/manifest-operation?operation=${operation}&manifestId=${manifestId}`,
-        { withCredentials: true }
-      );
-      operationEventSourceRef.current = eventSource;
-
-      eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          setOperationProgress(prev => {
-            if (!prev || prev.manifestId !== manifestId) return prev;
-            return {
-              ...prev,
-              status: data.status as any,
-              message: data.message,
-              progress: data.progress,
-            };
-          });
-
-          if (data.status === 'completed' || data.status === 'error') {
-            // Operation finished, refresh manifests after a short delay
-            setTimeout(() => {
-              fetchManifests();
-              setOperationProgress(null);
-            }, 1500);
-            eventSource.close();
-            operationEventSourceRef.current = null;
-          }
-        } catch (e) {
-          console.error('Failed to parse SSE message:', e);
-        }
-      };
-
-      eventSource.onerror = () => {
-        console.error('EventSource error');
-        setOperationProgress(prev => {
-          if (!prev || prev.manifestId !== manifestId) return prev;
-          return {
-            ...prev,
-            status: 'error',
-            message: '連線錯誤',
-          };
-        });
-        setTimeout(() => {
-          fetchManifests();
-          setOperationProgress(null);
-        }, 1500);
-        eventSource.close();
-        operationEventSourceRef.current = null;
-      };
-    } catch (err) {
-      console.error('Failed to start operation:', err);
-      setOperationProgress(prev => {
-        if (!prev || prev.manifestId !== manifestId) return prev;
-        return {
-          ...prev,
-          status: 'error',
-          message: err instanceof Error ? err.message : '未知錯誤',
-        };
+      const res = await fetch(`/api/manifest-operation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operation, manifestId }),
       });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(errorText || '操作請求失敗');
+      }
+
+      const result = await res.json();
+      if (result.status === 'error') {
+        throw new Error(result.message || '操作失敗');
+      }
+
+      setOperationProgress({
+        manifestId,
+        status: 'completed',
+        message: result.message || (operation === 'archive' ? '封存完成' : '還原完成'),
+      });
+
       setTimeout(() => {
         fetchManifests();
         setOperationProgress(null);
       }, 1500);
+    } catch (err) {
+      console.error('Failed to start operation:', err);
+      setOperationProgress({
+        manifestId,
+        status: 'error',
+        message: err instanceof Error ? err.message : '未知錯誤',
+      });
+      setTimeout(() => {
+        fetchManifests();
+        setOperationProgress(null);
+      }, 3000);
     }
   };
 
@@ -287,12 +242,14 @@ export default function ManifestsPage() {
               </Link>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {manifests.map((m) => {
-                const isOperationInProgress =
-                  operationProgress?.manifestId === m.id &&
-                  (operationProgress.status === 'archiving' ||
-                    operationProgress.status === 'restoring');
+                <div className="grid grid-cols-1 gap-4">
+                  {manifests
+                    .filter(m => m.status === tab)
+                    .map((m) => {
+                      const isOperationInProgress =
+                        operationProgress?.manifestId === m.id &&
+                        (operationProgress.status === 'archiving' ||
+                          operationProgress.status === 'restoring');
                 return (
                   <div
                     key={m.id}
@@ -430,14 +387,9 @@ export default function ManifestsPage() {
                 )}
                 <div className="mt-4 flex justify-end">
                   <button
-                    onClick={() => {
-                      if (operationEventSourceRef.current) {
-                        operationEventSourceRef.current.close();
-                      }
-                      setOperationProgress(null);
-                    }}
-                    className="px-4 py-2 bg-slate-800 text-slate-400 rounded-xl hover:bg-slate-700"
-                  >
+                onClick={() => setOperationProgress(null)}
+                className="px-4 py-2 bg-slate-800 text-slate-400 rounded-xl hover:bg-slate-700"
+              >
                     關閉
                   </button>
                 </div>

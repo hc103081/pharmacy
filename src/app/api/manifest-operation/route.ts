@@ -1,20 +1,18 @@
 import { NextResponse } from 'next/server';
 
-export const config = {
-  // Set to false to allow streaming responses
-  api: {
-    bodyParser: false,
-  },
-};
-
-export async function GET(request: Request) {
+export async function POST(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const operation = searchParams.get('operation') as 'archive' | 'restore';
-    const manifestId = searchParams.get('manifestId');
+    const body = await request.json();
+    const { operation, manifestId } = body as {
+      operation: 'archive' | 'restore';
+      manifestId: string;
+    };
 
     if (!operation || !manifestId) {
-      return new NextResponse('Missing operation or manifestId parameter', { status: 400 });
+      return NextResponse.json(
+        { status: 'error', message: 'Missing operation or manifestId' },
+        { status: 400 }
+      );
     }
 
     // Determine which Edge Function to call
@@ -24,7 +22,10 @@ export async function GET(request: Request) {
     } else if (operation === 'restore') {
       edgeFunctionPath = 'restore-manifest';
     } else {
-      return new NextResponse('Invalid operation', { status: 400 });
+      return NextResponse.json(
+        { status: 'error', message: 'Invalid operation' },
+        { status: 400 }
+      );
     }
 
     // Forward the request to the Edge Function
@@ -34,38 +35,56 @@ export async function GET(request: Request) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        // Forward the service role key for server-to-server communication
         'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
       },
       body: JSON.stringify({
         manifestId,
-        trigger: 'manual', // User-initiated operation
+        trigger: 'manual',
       }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      return new NextResponse(`Edge function error: ${errorText}`, { status: response.status });
+    // Read the full response body (Edge Function returns SSE stream or JSON)
+    const responseText = await response.text();
+
+    // Try to parse the SSE stream to find the final status
+    // SSE format: "data: {...}\n\n"
+    let finalStatus = 'completed';
+    let finalMessage = '封存完成';
+    let lastPayload: any = null;
+
+    const lines = responseText.split('\n');
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        try {
+          lastPayload = JSON.parse(line.slice(6));
+        } catch {
+          // skip malformed lines
+        }
+      }
     }
 
-    // Create a readable stream from the Edge Function's response and pipe it to the client
-    const readableStream = response.body;
-    if (!readableStream) {
-      return new NextResponse('No response body', { status: 502 });
+    if (lastPayload) {
+      finalStatus = lastPayload.status || 'completed';
+      finalMessage = lastPayload.message || '封存完成';
     }
 
-    // Return the streaming response with appropriate headers for SSE
-    return new NextResponse(readableStream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-      },
+    // If the Edge Function itself returned an error status
+    if (!response.ok && !lastPayload) {
+      return NextResponse.json(
+        { status: 'error', message: responseText || 'Edge function error' },
+        { status: response.status }
+      );
+    }
+
+    return NextResponse.json({
+      status: finalStatus,
+      message: finalMessage,
     });
   } catch (error: any) {
     console.error('Manifest operation API error:', error);
-    return new NextResponse(`Internal server error: ${error.message}`, { status: 500 });
+    return NextResponse.json(
+      { status: 'error', message: error.message || 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
