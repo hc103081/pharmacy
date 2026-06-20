@@ -100,11 +100,10 @@ serve(async (req: Request) => {
           archive_locked_at: new Date().toISOString(),
         })
         .eq('id', manifestId)
-        .is('archive_status', null)
         .or(
-          `archive_status.in.(archiving,restoring),archive_locked_at.lt.${new Date(
+          `archive_status.is.null,and(archive_status.in.(archiving,restoring),archive_locked_at.lt.${new Date(
             Date.now() - LOCK_TIMEOUT_HOURS * 60 * 60 * 1000,
-          ).toISOString()}`
+          ).toISOString()})`
         );
 
       if (lockError) throw lockError;

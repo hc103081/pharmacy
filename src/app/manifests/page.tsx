@@ -332,11 +332,11 @@ export default function ManifestsPage() {
                     <div className="flex items-center gap-2">
                       {m.status === 'active' && !isOperationInProgress && (
                         <button
-                          onClick={() => handleArchive(m.id)}
+                          onClick={() => setConfirmDeleteId(m.id)}
                           className="p-2 rounded-lg text-[#ff4b5c]/60 bg-[#ff4b5c]/5 border border-[#ff4b5c]/10 hover:text-[#ff4b5c] hover:bg-[#ff4b5c]/15 hover:border-[#ff4b5c]/40 hover:shadow-[0_0_8px_rgba(255,75,92,0.3)] transition-all active:scale-90"
-                          title="封存舊清單"
+                          title="永久刪除清單"
                         >
-                          <Save className="w-5 h-5" />
+                          <Trash2 className="w-5 h-5" />
                         </button>
                       )}
                       {m.status === 'archived' && !isOperationInProgress && (

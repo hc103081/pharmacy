@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { 
@@ -25,7 +25,13 @@ export default function SummaryPage() {
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [allDrugs, setAllDrugs] = useState<SummaryDrugItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [archiving, setArchiving] = useState(false);
+  const [operationProgress, setOperationProgress] = useState<{
+    manifestId: string;
+    status: 'archiving' | 'restoring' | 'completed' | 'error';
+    message: string;
+    progress?: number;
+  } | null>(null);
+  const operationEventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -71,10 +77,90 @@ export default function SummaryPage() {
   );
   const progress = manifest ? Math.round((completedCount / manifest.total_items) * 100) : 0;
 
+  const startZIPArchive = async () => {
+    // Close any existing event source
+    if (operationEventSourceRef.current) {
+      operationEventSourceRef.current.close();
+    }
+
+    // Set initial progress
+    setOperationProgress({
+      manifestId,
+      status: 'archiving',
+      message: '封存中...',
+    });
+
+    try {
+      const eventSource = new EventSource(
+        `${window.location.origin}/api/manifest-operation?operation=archive&manifestId=${manifestId}`,
+        { withCredentials: true }
+      );
+      operationEventSourceRef.current = eventSource;
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          setOperationProgress(prev => {
+            if (!prev || prev.manifestId !== manifestId) return prev;
+            return {
+              ...prev,
+              status: data.status as any,
+              message: data.message,
+              progress: data.progress,
+            };
+          });
+
+          if (data.status === 'completed' || data.status === 'error') {
+            // Operation finished, redirect to manifests list after a short delay
+            setTimeout(() => {
+              router.push('/manifests');
+              setOperationProgress(null);
+            }, 1500);
+            eventSource.close();
+            operationEventSourceRef.current = null;
+          }
+        } catch (e) {
+          console.error('Failed to parse SSE message:', e);
+        }
+      };
+
+      eventSource.onerror = () => {
+        console.error('EventSource error');
+        setOperationProgress(prev => {
+          if (!prev || prev.manifestId !== manifestId) return prev;
+          return {
+            ...prev,
+            status: 'error',
+            message: '連線錯誤',
+          };
+        });
+        setTimeout(() => {
+          router.push('/manifests');
+          setOperationProgress(null);
+        }, 1500);
+        eventSource.close();
+        operationEventSourceRef.current = null;
+      };
+    } catch (err) {
+      console.error('Failed to start archive operation:', err);
+      setOperationProgress(prev => {
+        if (!prev || prev.manifestId !== manifestId) return prev;
+        return {
+          ...prev,
+          status: 'error',
+          message: err instanceof Error ? err.message : '未知錯誤',
+        };
+      });
+      setTimeout(() => {
+        router.push('/manifests');
+        setOperationProgress(null);
+      }, 1500);
+    }
+  };
+
   const handleArchive = async () => {
     if (!confirm('確定要封存此清單並提交最終結果嗎？')) return;
     
-    setArchiving(true);
     try {
       // 1. 計算總差異 (實際總量 - 預期總量)
       const { totalExpected, totalActual } = allDrugs.reduce(
@@ -91,25 +177,22 @@ export default function SummaryPage() {
       const hasErrors = errorCount > 0;
       const conclusionType = hasErrors ? 'discrepancy' : 'normal';
 
-      // 3. 更新 Manifest 狀態、結案類型與總差異
-      const { error: archiveError } = await supabase
+      // 3. 更新 Manifest 結案類型與總差異（保留舊版差異記錄邏輯）
+      const { error: updateError } = await supabase
         .from('manifests')
         .update({ 
-          status: 'completed',
           conclusion_type: conclusionType,
           total_discrepancy: totalDiff
         })
         .eq('id', manifestId);
 
-      if (archiveError) throw archiveError;
+      if (updateError) throw updateError;
 
-      alert(`清單已封存！結案類型: ${conclusionType === 'normal' ? '正常結案' : '差異結案'}\n總差異數量: ${totalDiff}`);
-      router.push('/manifests');
+      // 4. 觸發 ZIP 封存流程
+      await startZIPArchive();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '未知錯誤';
-      alert(`封存失敗: ${message}`);
-    } finally {
-      setArchiving(false);
+      alert(`操作失敗: ${message}`);
     }
   };
 
@@ -168,7 +251,7 @@ export default function SummaryPage() {
             <p className="text-slate-500 mt-4">計算統計數據中...</p>
           </div>
         ) : (
-          <>
+          <div className="flex-1 flex flex-col min-h-0">
             {/* 固定區：概覽卡片 */}
             <div className="shrink-0 px-4 lg:px-6 pb-3">
               <div className="max-w-3xl mx-auto">
@@ -229,45 +312,42 @@ export default function SummaryPage() {
                   </div>
                 ) : (
                   <div className="grid gap-3 lg:gap-4">
-                    {exceptions.map(item => {
-                      const diff = item.actual_quantity - item.expected_quantity;
-                      return (
-                        <div 
-                          key={item.id} 
-                          className={`tech-card p-3 lg:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all ${
-                            item.counted_status === 'error' ? 'border-[#ff4b5c] bg-[#ff4b5c]/5' : 'border-slate-700'
-                          }`}
-                        >
-                          <div className="flex-1 min-w-0 space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className={`w-2 h-2 rounded-full shrink-0 ${item.counted_status === 'error' ? 'bg-[#ff4b5c]' : 'bg-slate-500'}`} />
-                              <div className="font-bold text-white truncate text-sm lg:text-base">{item.name}</div>
-                            </div>
-                            <div className="text-[11px] lg:text-xs font-mono text-slate-500 truncate">{item.barcode}</div>
+                    {exceptions.map(item => (
+                      <div 
+                        key={item.id} 
+                        className={`tech-card p-3 lg:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all ${
+                          item.counted_status === 'error' ? 'border-[#ff4b5c] bg-[#ff4b5c]/5' : 'border-slate-700'
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${item.counted_status === 'error' ? 'bg-[#ff4b5c]' : 'bg-slate-500'}`} />
+                            <div className="font-bold text-white truncate text-sm lg:text-base">{item.name}</div>
                           </div>
-
-                          <div className="flex items-center justify-between sm:justify-end gap-4 lg:gap-6">
-                            <div className="text-left sm:text-right space-y-0.5 lg:space-y-1">
-                              <div className="text-[10px] text-slate-500 uppercase font-bold">預期 / 實際</div>
-                              <div className={`font-mono text-sm ${item.counted_status === 'error' ? 'text-[#ff4b5c] font-bold' : 'text-slate-300'}`}>
-                                {item.expected_quantity} / {item.actual_quantity}
-                                {item.counted_status === 'error' && (
-                                  <span className="ml-1 text-[10px] opacity-80">({diff > 0 ? `+${diff}` : diff})</span>
-                                )}
-                              </div>
-                            </div>
-                            
-                            <Link 
-                              href={`/scan?manifestId=${manifestId}`}
-                              className="p-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg transition-colors shrink-0"
-                              title="前往清點"
-                            >
-                              <FileText className="w-4 h-4" />
-                            </Link>
-                          </div>
+                          <div className="text-[11px] lg:text-xs font-mono text-slate-500 truncate">{item.barcode}</div>
                         </div>
-                      );
-                    })}
+
+                        <div className="flex items-center justify-between sm:justify-end gap-4 lg:gap-6">
+                          <div className="text-left sm:text-right space-y-0.5 lg:space-y-1">
+                            <div className="text-[10px] text-slate-500 uppercase font-bold">預期 / 實際</div>
+                            <div className={`font-mono text-sm ${item.counted_status === 'error' ? 'text-[#ff4b5c] font-bold' : 'text-slate-300'}`}>
+                              {item.expected_quantity} / {item.actual_quantity}
+                              {item.counted_status === 'error' && (
+                                <span className="ml-1 text-[10px] opacity-80">({item.actual_quantity - item.expected_quantity > 0 ? `+${item.actual_quantity - item.expected_quantity}` : item.actual_quantity - item.expected_quantity})</span>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <Link 
+                            href={`/scan?manifestId=${manifestId}`}
+                            className="p-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg transition-colors shrink-0"
+                            title="前往清點"
+                          >
+                            <FileText className="w-4 h-4" />
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )
               }
@@ -286,19 +366,24 @@ export default function SummaryPage() {
                 </button>
                 <button 
                   onClick={handleArchive}
-                  disabled={archiving}
+                  disabled={!!operationProgress}
                   className="tech-button flex-1 sm:flex-[2] py-3 lg:py-4 tech-button-primary shadow-[0_0_20px_rgba(0,242,254,0.3)] flex items-center justify-center gap-2"
                 >
-                  {archiving ? (
-                    <Loader2 className="w-4 h-4 lg:w-5 lg:h-5 animate-spin" />
+                  {operationProgress ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 lg:w-5 lg:h-5 animate-spin" />
+                      <span className="ml-2">{operationProgress.message}</span>
+                    </div>
                   ) : (
-                    <CheckCircle2 className="w-4 h-4 lg:w-5 lg:h-5" />
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 lg:w-5 lg:h-5" />
+                      <span>{exceptions.length === 0 ? '確認封存清單' : '提交差異結案'}</span>
+                    </div>
                   )}
-                  {exceptions.length === 0 ? '確認封存清單' : '提交差異結案'}
                 </button>
               </div>
             </div>
-          </>
+          </div>
         )}
       </div>
     </>

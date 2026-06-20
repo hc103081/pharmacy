@@ -35,7 +35,7 @@ serve(async (_req: Request) => {
       .eq('status', 'active')
       .lt('updated_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()) // older than 30 days
       .or(
-        `archive_status.is.null,(archive_status.in.(archiving,restoring),archive_locked_at.lt.${new Date(
+        `archive_status.is.null,and(archive_status.in.(archiving,restoring),archive_locked_at.lt.${new Date(
           Date.now() - 1 * 60 * 60 * 1000, // 1 hour timeout
         ).toISOString()})`
       );
