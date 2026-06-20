@@ -32,6 +32,7 @@ export default function ManifestsPage() {
     progress?: number;
   } | null>(null);
   const [archiveAllLoading, setArchiveAllLoading] = useState(false);
+  const [batchActionMode, setBatchActionMode] = useState<'archive' | 'delete'>('archive');
 
   useEffect(() => {
     fetchManifests();
@@ -127,19 +128,24 @@ export default function ManifestsPage() {
     await startOperation(manifestId, 'restore');
   };
 
+  const handleBatchAction = async () => {
+    if (batchActionMode === 'archive') {
+      await handleArchiveAll();
+    } else {
+      await handleDeleteAll();
+    }
+  };
+
   const handleArchiveAll = async () => {
     setArchiveAllLoading(true);
     try {
-      // Call the archive-cron function directly
       const response = await fetch(
         `${window.location.origin}/api/archive-cron`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({}), // Empty body
-        }
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        },
       );
 
       if (!response.ok) {
@@ -148,7 +154,6 @@ export default function ManifestsPage() {
       }
 
       const result = await response.json();
-      // Optionally show a toast or notification
       console.log('Archive all result:', result);
     } catch (error) {
       console.error('Archive all error:', error);
@@ -156,8 +161,34 @@ export default function ManifestsPage() {
       alert(`封存失敗: ${message}`);
     } finally {
       setArchiveAllLoading(false);
-      // Refresh the manifests list
       await fetchManifests();
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    const activeManifests = manifests.filter(m => m.status === 'active');
+    if (activeManifests.length === 0) {
+      alert('目前沒有可刪除的 active 清單');
+      return;
+    }
+
+    const confirmed = confirm(
+      `確定要永久刪除所有 ${activeManifests.length} 個 active 清單嗎？\n此操作不可恢復！`,
+    );
+    if (!confirmed) return;
+
+    setArchiveAllLoading(true);
+    try {
+      for (const m of activeManifests) {
+        await deleteManifest(m.id);
+      }
+      await fetchManifests();
+    } catch (error) {
+      console.error('Delete all error:', error);
+      const message = error instanceof Error ? error.message : '未知錯誤';
+      alert(`刪除失敗: ${message}`);
+    } finally {
+      setArchiveAllLoading(false);
     }
   };
 
@@ -174,51 +205,86 @@ export default function ManifestsPage() {
           </div>
 
           {/* Tabs */}
-          <div className="flex bg-slate-800/50 rounded-xl p-1">
+          <div className="flex bg-slate-900/80 rounded-xl p-1">
             <button
               onClick={() => setTab('active')}
-              className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium ${
+              className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 tab === 'active'
                   ? 'bg-[#00f2fe]/20 text-[#00f2fe] hover:bg-[#00f2fe]/30'
-                  : 'text-slate-400 hover:text-slate-300'
+                  : 'bg-transparent text-slate-500 hover:text-slate-300'
               }`}
             >
               active ({manifests.filter(m => m.status === 'active').length})
             </button>
             <button
               onClick={() => setTab('archived')}
-              className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium ${
+              className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 tab === 'archived'
                   ? 'bg-[#00f2fe]/20 text-[#00f2fe] hover:bg-[#00f2fe]/30'
-                  : 'text-slate-400 hover:text-slate-300'
+                  : 'bg-transparent text-slate-500 hover:text-slate-300'
               }`}
             >
               archived ({manifests.filter(m => m.status === 'archived').length})
             </button>
           </div>
 
-          {/* Archive all button (only for active tab) */}
+          {/* Batch action toggle (active tab) */}
           {tab === 'active' && (
             <div className="flex justify-end mb-4">
-              <button
-                onClick={handleArchiveAll}
-                disabled={archiveAllLoading}
-                className={`px-4 py-2 bg-[#00f2fe]/20 text-[#00f2fe] hover:bg-[#00f2fe]/30 rounded-lg transition-colors ${
-                  archiveAllLoading ? 'opacity-50' : ''
-                }`}
-              >
-                {archiveAllLoading ? (
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4" />
-                    <span>封存中...</span>
-                  </div>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4" />
-                    <span>封存符合條件的所有清單</span>
-                  </>
-                )}
-              </button>
+              <div className="flex items-center bg-slate-900/80 rounded-xl p-1 gap-1">
+                <button
+                  onClick={() => setBatchActionMode('archive')}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    batchActionMode === 'archive'
+                      ? 'bg-[#00f2fe]/20 text-[#00f2fe] shadow-[0_0_8px_rgba(0,242,254,0.2)]'
+                      : 'bg-transparent text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  <Save className="w-4 h-4" />
+                  <span>封存</span>
+                </button>
+                <button
+                  onClick={() => setBatchActionMode('delete')}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    batchActionMode === 'delete'
+                      ? 'bg-[#ff4b5c]/20 text-[#ff4b5c] shadow-[0_0_8px_rgba(255,75,92,0.2)]'
+                      : 'bg-transparent text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>垃圾桶</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Archived tab: 切換按鈕（還原/刪除） */}
+          {tab === 'archived' && manifests.filter(m => m.status === 'archived').length > 0 && (
+            <div className="flex justify-end mb-4">
+              <div className="flex items-center bg-slate-900/80 rounded-xl p-1 gap-1">
+                <button
+                  onClick={() => setBatchActionMode('archive')}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    batchActionMode === 'archive'
+                      ? 'bg-[#00f2fe]/20 text-[#00f2fe] shadow-[0_0_8px_rgba(0,242,254,0.2)]'
+                      : 'bg-transparent text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  <span>解壓還原</span>
+                </button>
+                <button
+                  onClick={() => setBatchActionMode('delete')}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    batchActionMode === 'delete'
+                      ? 'bg-[#ff4b5c]/20 text-[#ff4b5c] shadow-[0_0_8px_rgba(255,75,92,0.2)]'
+                      : 'bg-transparent text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>垃圾桶</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -242,91 +308,115 @@ export default function ManifestsPage() {
               </Link>
             </div>
           ) : (
-                <div className="grid grid-cols-1 gap-4">
-                  {manifests
-                    .filter(m => m.status === tab)
-                    .map((m) => {
-                      const isOperationInProgress =
-                        operationProgress?.manifestId === m.id &&
-                        (operationProgress.status === 'archiving' ||
-                          operationProgress.status === 'restoring');
-                return (
-                  <div
-                    key={m.id}
-                    className="tech-card p-4 group hover:border-[#00f2fe]/50 flex items-center justify-between"
-                  >
-                    <Link
-                      href={`/scan?manifestId=${m.id}`}
-                      className={`flex items-center gap-4 flex-1 ${
-                        isOperationInProgress ? 'pointer-events-none opacity-50' : ''
-                      }`}
+            <div className="grid grid-cols-1 gap-4">
+              {manifests
+                .filter(m => m.status === tab)
+                .map((m) => {
+                  const isOperationInProgress =
+                    operationProgress?.manifestId === m.id &&
+                    (operationProgress.status === 'archiving' ||
+                      operationProgress.status === 'restoring');
+                  return (
+                    <div
+                      key={m.id}
+                      className="tech-card p-4 group hover:border-[#00f2fe]/50 flex items-center justify-between"
                     >
-                      <div className="p-3 bg-blue-500/10 rounded-lg group-hover:bg-[#00f2fe]/20 transition-all duration-300 shadow-[0_0_15px_rgba(0,242,254,0.2)]">
-                        {m.status === 'archived' ? (
-                          <Package className="w-6 h-6 text-[#ff4b5c]" />
-                        ) : (
-                          <Package className="w-6 h-6 text-[#00f2fe]" />
-                        )}
-                      </div>
-                      <div className="space-y-1">
-                        <h3 className="font-semibold text-white">{m.name}</h3>
-                        <div className="flex items-center gap-3 text-xs text-slate-400">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            {m.created_at && new Date(m.created_at).toLocaleDateString()}
-                          </span>
-                          <span>•</span>
-                          <span>共 {m.total_items} 項藥品</span>
-                          {m.status === 'archived' && (
-                            <>
-                              <span>•</span>
-                              <span className="text-[#ff4b5c]">已封存</span>
-                            </>
+                      <Link
+                        href={`/scan?manifestId=${m.id}`}
+                        className={`flex items-center gap-4 flex-1 ${
+                          isOperationInProgress ? 'pointer-events-none opacity-50' : ''
+                        }`}
+                      >
+                        <div className="p-3 bg-blue-500/10 rounded-lg group-hover:bg-[#00f2fe]/20 transition-all duration-300 shadow-[0_0_15px_rgba(0,242,254,0.2)]">
+                          {m.status === 'archived' ? (
+                            <Package className="w-6 h-6 text-[#ff4b5c]" />
+                          ) : (
+                            <Package className="w-6 h-6 text-[#00f2fe]" />
                           )}
                         </div>
-                      </div>
-                    </Link>
-                    <div className="flex items-center gap-2">
-                      {m.status === 'active' && !isOperationInProgress && (
-                        <button
-                          onClick={() => setConfirmDeleteId(m.id)}
-                          className="p-2 rounded-lg text-[#ff4b5c]/60 bg-[#ff4b5c]/5 border border-[#ff4b5c]/10 hover:text-[#ff4b5c] hover:bg-[#ff4b5c]/15 hover:border-[#ff4b5c]/40 hover:shadow-[0_0_8px_rgba(255,75,92,0.3)] transition-all active:scale-90"
-                          title="永久刪除清單"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      )}
-                      {m.status === 'archived' && !isOperationInProgress && (
-                        <button
-                          onClick={() => handleRestore(m.id)}
-                          className="p-2 rounded-lg text-[#00f2fe]/60 bg-[#00f2fe]/5 border border-[#00f2fe]/10 hover:text-[#00f2fe] hover:bg-[#00f2fe]/15 hover:border-[#ff4b5c]/40 hover:shadow-[0_0_8px_rgba(0,242,254,0.2)] transition-all active:scale-90"
-                          title="解壓還原"
-                        >
-                          <RefreshCw className="w-5 h-5" />
-                        </button>
-                      )}
-                      {!isOperationInProgress && (
-                        <Link href={`/scan?manifestId=${m.id}`} className="p-2 text-slate-500 group-hover:text-[#00f2fe] transition-colors">
-                          <ChevronRight className="w-5 h-5" />
-                        </Link>
-                      )}
-                      {isOperationInProgress && (
-                        <div className="flex items-center gap-2">
-                          <Loader2 className="w-4 h-4 text-[#00f2fe] animate-spin" />
-                          <span className="text-xs text-[#00f2fe]">
-                            {operationProgress?.message}
-                          </span>
+                        <div className="space-y-1">
+                          <h3 className="font-semibold text-white">{m.name}</h3>
+                          <div className="flex items-center gap-3 text-xs text-slate-400">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {m.created_at &&
+                                new Date(m.created_at).toLocaleDateString('zh-TW', {
+                                  timeZone: 'Asia/Taipei',
+                                })}
+                            </span>
+                            <span>•</span>
+                            <span>共 {m.total_items} 項藥品</span>
+                            {m.status === 'archived' && (
+                              <>
+                                <span>•</span>
+                                <span className="text-[#ff4b5c]">已封存</span>
+                              </>
+                            )}
+                          </div>
                         </div>
-                      )}
+                      </Link>
+                      <div className="flex items-center gap-2">
+                        {m.status === 'active' && !isOperationInProgress && batchActionMode === 'archive' && (
+                          <button
+                            onClick={() => handleArchive(m.id)}
+                            className="p-2 rounded-lg text-[#00f2fe]/60 bg-[#00f2fe]/5 border border-[#00f2fe]/10 hover:text-[#00f2fe] hover:bg-[#00f2fe]/15 hover:border-[#00f2fe]/40 hover:shadow-[0_0_8px_rgba(0,242,254,0.2)] transition-all active:scale-90"
+                            title="封存清單"
+                          >
+                            <Save className="w-5 h-5" />
+                          </button>
+                        )}
+                        {m.status === 'active' && !isOperationInProgress && batchActionMode === 'delete' && (
+                          <button
+                            onClick={() => setConfirmDeleteId(m.id)}
+                            className="p-2 rounded-lg text-[#ff4b5c]/60 bg-[#ff4b5c]/5 border border-[#ff4b5c]/10 hover:text-[#ff4b5c] hover:bg-[#ff4b5c]/15 hover:border-[#ff4b5c]/40 hover:shadow-[0_0_8px_rgba(255,75,92,0.3)] transition-all active:scale-90"
+                            title="永久刪除清單"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        )}
+                        {m.status === 'archived' && !isOperationInProgress && batchActionMode === 'archive' && (
+                          <button
+                            onClick={() => handleRestore(m.id)}
+                            className="p-2 rounded-lg text-[#00f2fe]/60 bg-[#00f2fe]/5 border border-[#00f2fe]/10 hover:text-[#00f2fe] hover:bg-[#00f2fe]/15 hover:border-[#00f2fe]/40 hover:shadow-[0_0_8px_rgba(0,242,254,0.2)] transition-all active:scale-90"
+                            title="解壓還原"
+                          >
+                            <RefreshCw className="w-5 h-5" />
+                          </button>
+                        )}
+                        {m.status === 'archived' && !isOperationInProgress && batchActionMode === 'delete' && (
+                          <button
+                            onClick={() => setConfirmDeleteId(m.id)}
+                            className="p-2 rounded-lg text-[#ff4b5c]/60 bg-[#ff4b5c]/5 border border-[#ff4b5c]/10 hover:text-[#ff4b5c] hover:bg-[#ff4b5c]/15 hover:border-[#ff4b5c]/40 hover:shadow-[0_0_8px_rgba(255,75,92,0.3)] transition-all active:scale-90"
+                            title="永久刪除清單"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        )}
+                        {!isOperationInProgress && (
+                          <Link
+                            href={`/scan?manifestId=${m.id}`}
+                            className="p-2 text-slate-500 group-hover:text-[#00f2fe] transition-colors"
+                          >
+                            <ChevronRight className="w-5 h-5" />
+                          </Link>
+                        )}
+                        {isOperationInProgress && (
+                          <div className="flex items-center gap-2">
+                            <Loader2 className="w-4 h-4 text-[#00f2fe] animate-spin" />
+                            <span className="text-xs text-[#00f2fe]">
+                              {operationProgress?.message}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
             </div>
           )}
 
-          {/* 刪除確認 Dialog (only for active manifests) */}
-          {confirmDeleteId && manifests.some(m => m.id === confirmDeleteId && m.status === 'active') && (
+          {/* 刪除確認 Dialog */}
+          {confirmDeleteId && manifests.some(m => m.id === confirmDeleteId) && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
               <div className="tech-card p-6 max-w-sm w-full space-y-4 animate-in zoom-in duration-200">
                 <div className="flex items-center gap-3 text-red-400">
@@ -361,13 +451,15 @@ export default function ManifestsPage() {
             </div>
           )}
 
-          {/* Operation Progress Modal (alternative to inline) */}
+          {/* Operation Progress Modal */}
           {operationProgress && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
               <div className="tech-card p-6 max-w-md w-full space-y-4 animate-in zoom-in duration-200">
                 <div className="flex items-center gap-3 text-[#00f2fe]">
                   <Loader2 className="w-6 h-6" />
-                  <h3 className="font-bold text-lg">{operationProgress.status === 'archiving' ? '封存中' : '還原中'}</h3>
+                  <h3 className="font-bold text-lg">
+                    {operationProgress.status === 'archiving' ? '封存中' : '還原中'}
+                  </h3>
                 </div>
                 <p className="text-slate-400 text-sm leading-relaxed">
                   {operationProgress.message}
@@ -387,9 +479,9 @@ export default function ManifestsPage() {
                 )}
                 <div className="mt-4 flex justify-end">
                   <button
-                onClick={() => setOperationProgress(null)}
-                className="px-4 py-2 bg-slate-800 text-slate-400 rounded-xl hover:bg-slate-700"
-              >
+                    onClick={() => setOperationProgress(null)}
+                    className="px-4 py-2 bg-slate-800 text-slate-400 rounded-xl hover:bg-slate-700"
+                  >
                     關閉
                   </button>
                 </div>

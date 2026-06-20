@@ -1,6 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // @ts-expect-error: Deno std module not typed
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+// For reading ZIP stream - using npm
+import { ZipReader, BlobReader, BlobWriter, TextWriter } from 'npm:@zip.js/zip.js@2.8.26';
 
 console.log('restore-manifest boot');
 
@@ -10,10 +12,29 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+const ARCHIVED_MANIFESTS_BUCKET = 'archived-manifests';
+const DRUG_PHOTOS_BUCKET = 'drug-photos';
 const LOCK_TIMEOUT_HOURS = 1;
 
+// Helper to create SSE formatted message
 function sseMessage(data: object): string {
   return `data: ${JSON.stringify(data)}\n\n`;
+}
+
+// 安全的 archive_logs 寫入：表不存在時不報錯
+async function safeLog(manifestId: string, action: string, trigger: string, status: string, message: string) {
+  try {
+    const { error } = await supabase.from('archive_logs').insert({
+      manifest_id: manifestId,
+      action,
+      trigger,
+      status,
+      message,
+    });
+    if (error) console.warn('archive_logs insert warning:', error.message);
+  } catch (logErr: any) {
+    console.warn('archive_logs insert failed (table may not exist):', logErr.message);
+  }
 }
 
 serve(async (req: Request) => {
@@ -69,7 +90,7 @@ serve(async (req: Request) => {
       // Check if we actually acquired the lock
       const { data: lockCheck, error: lockCheckError } = await supabase
         .from('manifests')
-        .select('archive_status, archive_locked_at')
+        .select('archive_status, archive_locked_at, archived_zip_path')
         .eq('id', manifestId)
         .single();
 
@@ -80,8 +101,126 @@ serve(async (req: Request) => {
         return;
       }
 
-      // Step 2: Update manifest to active and release lock (simplified restore - no ZIP processing)
-      await send({ status: 'finalizing', message: '還原清單狀態...' });
+      const zipPath = lockCheck.archived_zip_path;
+      if (!zipPath) {
+        throw new Error('archived_zip_path not found for manifest');
+      }
+
+      // Step 2: Download ZIP from archived-manifests bucket
+      await send({ status: 'downloading_zip', message: '下載封存 ZIP...' });
+      const { data: zipData, error: downloadError } = await supabase.storage
+        .from(ARCHIVED_MANIFESTS_BUCKET)
+        .download(zipPath);
+
+      if (downloadError) throw downloadError;
+      if (!zipData) {
+        throw new Error('ZIP file not found in storage');
+      }
+
+      // Step 3: Extract data.json and restore drug_items
+      await send({ status: 'restoring_items', message: '還原藥品資料...' });
+      // 直接用下載的 Blob 建立 BlobReader（supabase storage download 回傳 Blob）
+      const zipReader = new ZipReader(new BlobReader(zipData));
+      const entries = await zipReader.getEntries();
+
+      // Find data.json entry
+      const dataJsonEntry = entries.find((entry: any) => entry.filename === 'data.json');
+      if (!dataJsonEntry) {
+        throw new Error('data.json not found in archive');
+      }
+
+      const dataJsonText = await dataJsonEntry.getData(new TextWriter());
+      let dataJsonItems: any[] = [];
+      try {
+        dataJsonItems = JSON.parse(dataJsonText);
+      } catch (e) {
+        throw new Error('Failed to parse data.json');
+      }
+
+      // Restore drug_items using upsert
+      await send({ status: 'upserting_items', message: '還原藥品項目到資料庫...' });
+      for (const item of dataJsonItems) {
+        const { error: itemError } = await supabase
+          .from('drug_items')
+          .upsert({
+            id: item.id,
+            manifest_id: item.manifest_id,
+            page_number: item.page_number,
+            item_order: item.item_order,
+            barcode: item.barcode,
+            name: item.name,
+            expected_quantity: item.expected_quantity,
+            bonus_quantity: item.bonus_quantity,
+            actual_quantity: item.actual_quantity,
+            counted_status: item.counted_status,
+            photo_url: null, // Will be updated after photo restore
+            created_at: item.created_at ?? new Date().toISOString(),
+            updated_at: item.updated_at ?? new Date().toISOString(),
+          }, { onConflict: 'id' });
+        if (itemError) throw itemError;
+      }
+
+      // Step 4: Extract photos and upload to drug-photos bucket
+      await send({ status: 'uploading_photos', message: '還原照片...' });
+      const photoEntries = entries.filter((entry: any) =>
+        entry.filename.startsWith('photos/')
+      );
+
+      // Map of drug_item_id to new photo URL
+      const photoUrlUpdates: { [drugItemId: string]: string } = {};
+
+      for (const entry of photoEntries) {
+        try {
+          const filename = entry.filename;
+          const basename = filename.split('/').pop();
+          const drugItemId = basename?.split('.')[0];
+          if (!drugItemId) continue;
+
+          const photoBlob = await entry.getData(new BlobWriter());
+          const ext = filename.split('.').pop();
+          const photoFile = new File([photoBlob], basename, {
+            type: ext === 'png' ? 'image/png' : 'image/jpeg',
+          });
+
+          const photoPath = `${manifestId}/${drugItemId}.${ext}`;
+          const { error: uploadError, data: uploadData } = await supabase.storage
+            .from(DRUG_PHOTOS_BUCKET)
+            .upload(photoPath, photoFile, {
+              contentType: ext === 'png' ? 'image/png' : 'image/jpeg',
+              upsert: true,
+            });
+
+          if (uploadError) {
+            console.warn(`Failed to upload photo for drug_item ${drugItemId}:`, uploadError);
+            continue;
+          }
+
+          const { data: publicUrlData } = await supabase.storage
+            .from(DRUG_PHOTOS_BUCKET)
+            .getPublicUrl(photoPath);
+          const publicUrl = publicUrlData.publicUrl;
+          photoUrlUpdates[drugItemId] = publicUrl;
+        } catch (err) {
+          console.warn(`Failed to process photo entry ${entry.filename}:`, err);
+        }
+      }
+
+      // Batch update photo_url for all successfully uploaded photos
+      if (Object.keys(photoUrlUpdates).length > 0) {
+        await send({ status: 'updating_photo_urls', message: '更新照片 URL...' });
+        for (const [drugItemId, photoUrl] of Object.entries(photoUrlUpdates)) {
+          const { error: itemError } = await supabase
+            .from('drug_items')
+            .update({ photo_url: photoUrl })
+            .eq('id', drugItemId);
+          if (itemError) {
+            console.warn(`Failed to update photo_url for drug_item ${drugItemId}:`, itemError);
+          }
+        }
+      }
+
+      // Step 5: Update manifest to active and release lock
+      await send({ status: 'finalizing', message: '完成還原...' });
       const { error: updateError } = await supabase
         .from('manifests')
         .update({
@@ -95,18 +234,23 @@ serve(async (req: Request) => {
 
       if (updateError) throw updateError;
 
-      // Log success
-      await supabase.from('archive_logs').insert({
-        manifest_id: manifestId,
-        action: 'restore',
-        trigger: 'manual',
-        status: 'success',
-        message: `Successfully restored manifest (simplified - no ZIP processing)`,
-      });
+      // Step 6: Delete ZIP from archived-manifests bucket (non-critical)
+      await send({ status: 'cleaning_up', message: '清理封存 ZIP...' });
+      const { error: deleteZipError } = await supabase.storage
+        .from(ARCHIVED_MANIFESTS_BUCKET)
+        .remove([zipPath]);
+      if (deleteZipError) {
+        console.warn('Failed to delete archive ZIP:', deleteZipError);
+        await safeLog(manifestId!, 'restore', 'manual', 'failed', `Failed to delete archive ZIP from storage: ${deleteZipError.message}`);
+      }
+
+      // Step 7: Log success
+      await safeLog(manifestId!, 'restore', 'manual', 'success', `Successfully restored manifest with ${dataJsonItems.length} items and ${Object.keys(photoUrlUpdates).length} photos`);
 
       await send({ status: 'completed', message: '還原完成' });
     } catch (error: any) {
       console.error('Restore manifest error:', error);
+      // Release lock on error (set back to archived)
       try {
         await supabase
           .from('manifests')
@@ -115,17 +259,7 @@ serve(async (req: Request) => {
       } catch (lockErr) {
         console.error('Failed to release lock:', lockErr);
       }
-      try {
-        await supabase.from('archive_logs').insert({
-          manifest_id: manifestId,
-          action: 'restore',
-          trigger: 'manual',
-          status: 'failed',
-          message: error.message || 'Unknown error',
-        });
-      } catch (logErr) {
-        console.error('Failed to log error:', logErr);
-      }
+      await safeLog(manifestId!, 'restore', 'manual', 'failed', error.message || 'Unknown error');
       await send({ status: 'error', message: error.message || 'Internal server error' });
     } finally {
       writer.close();

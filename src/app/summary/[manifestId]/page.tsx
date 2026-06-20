@@ -9,7 +9,8 @@ import {
   ArrowLeft, 
   FileText,
   Loader2,
-  CheckCircle
+  CheckCircle,
+  XCircle
 } from 'lucide-react';
 import Link from 'next/link';
 import { Download } from 'lucide-react';
@@ -335,12 +336,28 @@ export default function SummaryPage() {
                 <button 
                   onClick={handleArchive}
                   disabled={!!operationProgress}
-                  className="tech-button flex-1 sm:flex-[2] py-3 lg:py-4 tech-button-primary shadow-[0_0_20px_rgba(0,242,254,0.3)] flex items-center justify-center gap-2"
+                  className={`tech-button flex-1 sm:flex-[2] py-3 lg:py-4 flex items-center justify-center gap-2 transition-all duration-300 ${
+                    operationProgress?.status === 'error'
+                      ? 'bg-[#ff4b5c]/20 border border-[#ff4b5c] shadow-[0_0_20px_rgba(255,75,92,0.3)]'
+                      : operationProgress?.status === 'completed'
+                      ? 'bg-green-500/20 border border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.3)]'
+                      : 'tech-button-primary shadow-[0_0_20px_rgba(0,242,254,0.3)]'
+                  }`}
                 >
                   {operationProgress ? (
                     <div className="flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 lg:w-5 lg:h-5 animate-spin" />
-                      <span className="ml-2">{operationProgress.message}</span>
+                      {operationProgress.status === 'archiving' && (
+                        <Loader2 className="w-4 h-4 lg:w-5 lg:h-5 animate-spin text-[#00f2fe]" />
+                      )}
+                      {operationProgress.status === 'completed' && (
+                        <CheckCircle2 className="w-4 h-4 lg:w-5 lg:h-5 text-green-400 animate-bounce" />
+                      )}
+                      {operationProgress.status === 'error' && (
+                        <XCircle className="w-4 h-4 lg:w-5 lg:h-5 text-[#ff4b5c] animate-pulse" />
+                      )}
+                      <span className={`ml-1 text-sm font-bold ${
+                        operationProgress.status === 'error' ? 'text-[#ff4b5c]' : ''
+                      }`}>{operationProgress.message}</span>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2">

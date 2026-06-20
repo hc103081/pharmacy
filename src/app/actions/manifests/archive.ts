@@ -38,7 +38,24 @@ export async function archiveManifest(manifestId: string): Promise<ArchiveRespon
  */
 export async function deleteManifest(manifestId: string): Promise<ArchiveResponse> {
   try {
-    // 1. 獲取所有關聯項目的照片路徑
+    // 1. 獲取 manifest 資訊（檢查是否有封存 ZIP）
+    const { data: manifest, error: manifestError } = await supabaseAdmin
+      .from('manifests')
+      .select('archived_zip_path, status')
+      .eq('id', manifestId)
+      .single();
+
+    if (manifestError && manifestError.code !== 'PGRST116') throw manifestError;
+
+    // 2. 刪除封存 ZIP（如果有的話，archived manifest）
+    if (manifest?.archived_zip_path) {
+      const { error: zipError } = await supabaseAdmin.storage
+        .from('archived-manifests')
+        .remove([manifest.archived_zip_path]);
+      if (zipError) console.error('Archive ZIP delete error:', zipError);
+    }
+
+    // 3. 獲取所有關聯項目的照片路徑（active manifest）
     const { data: items, error: itemsError } = await supabaseAdmin
       .from('drug_items')
       .select('photo_url')
@@ -46,16 +63,14 @@ export async function deleteManifest(manifestId: string): Promise<ArchiveRespons
 
     if (itemsError) throw itemsError;
 
-    // 2. 從 Storage 刪除照片
+    // 4. 從 Storage 刪除照片
     const photosToDelete = items
       .map(item => item.photo_url)
       .filter((url): url is string => !!url)
       .map(url => {
-        // 從 Public URL 提取路徑 (去掉 /storage/v1/object/public/bucket_name/)
         const urlObj = new URL(url);
         const pathWithBucket = urlObj.pathname.replace('/storage/v1/object/public/', '');
         const pathParts = pathWithBucket.split('/');
-        // 移除第一部分 (儲存桶名稱)，保留剩餘路徑
         return pathParts.length > 1 ? pathParts.slice(1).join('/') : null;
       })
       .filter((path): path is string => !!path);
@@ -66,10 +81,9 @@ export async function deleteManifest(manifestId: string): Promise<ArchiveRespons
         .remove(photosToDelete);
       
       if (storageError) console.error('Storage delete error:', storageError);
-      // 即使照片刪除失敗也繼續刪除數據記錄
     }
 
-    // 3. 刪除 Manifest (觸發 Cascade Delete 刪除 drug_items)
+    // 5. 刪除 Manifest (觸發 Cascade Delete 刪除 drug_items)
     const { error: deleteError } = await supabaseAdmin
       .from('manifests')
       .delete()
