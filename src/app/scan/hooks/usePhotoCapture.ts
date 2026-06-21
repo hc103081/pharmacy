@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { updateDrugStatus } from '@/app/actions/scan/updatePhoto';
+import { incrementStorageSize } from '@/app/actions/manifests/storage';
 import { compressImage } from '@/lib/imageCompression';
 import type { DrugItem } from '@/types';
 
@@ -72,6 +73,11 @@ export function usePhotoCapture({
 
         const result = await updateDrugStatus(drugId, publicUrl, finalQuantity);
         if (!result.success) throw new Error(result.error || '更新狀態失敗');
+
+        // 遞增清單儲存容量
+        if (manifestId) {
+          await incrementStorageSize(manifestId, compressedFile.size);
+        }
 
         await onRefresh();
       } catch (error: unknown) {

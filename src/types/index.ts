@@ -49,4 +49,5 @@ export interface Manifest {
   created_at?: string;
   total_discrepancy?: number;
   conclusion_type?: string;
+  storage_size_bytes?: number;
 }

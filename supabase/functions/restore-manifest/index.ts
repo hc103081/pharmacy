@@ -221,6 +221,13 @@ serve(async (req: Request) => {
 
       // Step 5: Update manifest to active and release lock
       await send({ status: 'finalizing', message: '完成還原...' });
+
+      // 從 data.json 計算照片總大小（O(1) 記憶體計算，無 Storage API 呼叫）
+      const totalPhotoSize = dataJsonItems.reduce(
+        (sum: number, item: any) => sum + (item.file_size_bytes ?? 0),
+        0
+      );
+
       const { error: updateError } = await supabase
         .from('manifests')
         .update({
@@ -229,6 +236,7 @@ serve(async (req: Request) => {
           archived_zip_path: null,
           archive_locked_at: null,
           updated_at: new Date().toISOString(),
+          storage_size_bytes: totalPhotoSize,
         })
         .eq('id', manifestId);
 

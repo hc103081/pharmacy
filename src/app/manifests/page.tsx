@@ -13,10 +13,20 @@ import {
   AlertTriangle,
   RefreshCw,
   Save,
+  HardDrive,
+  CheckCircle2,
 } from 'lucide-react';
 import { deleteManifest } from '@/app/actions/manifests/archive';
 import type { Manifest } from '@/types';
 import { TeachingButton } from '@/components/teaching';
+
+/** 格式化儲存容量大小 */
+function formatStorageSize(bytes: number): string {
+  if (bytes === 0) return '0 MB';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export default function ManifestsPage() {
   const supabase = createClient();
@@ -319,7 +329,9 @@ export default function ManifestsPage() {
                   return (
                     <div
                       key={m.id}
-                      className="tech-card p-4 group hover:border-[#00f2fe]/50 flex items-center justify-between"
+                      className={`tech-card p-4 group hover:border-[#00f2fe]/50 flex items-center justify-between ${
+                        isOperationInProgress ? 'animate-pulse-glow border-[#00f2fe]/60' : ''
+                      }`}
                     >
                       <Link
                         href={`/scan?manifestId=${m.id}`}
@@ -356,6 +368,14 @@ export default function ManifestsPage() {
                         </div>
                       </Link>
                       <div className="flex items-center gap-2">
+                        {m.storage_size_bytes !== undefined && (
+                          <span className={`flex items-center gap-1 text-xs ${
+                            m.status === 'active' ? 'text-[#00f2fe]' : 'text-gray-400'
+                          }`}>
+                            <HardDrive className="w-3.5 h-3.5" />
+                            {formatStorageSize(m.storage_size_bytes)}
+                          </span>
+                        )}
                         {m.status === 'active' && !isOperationInProgress && batchActionMode === 'archive' && (
                           <button
                             onClick={() => handleArchive(m.id)}
@@ -402,8 +422,8 @@ export default function ManifestsPage() {
                         )}
                         {isOperationInProgress && (
                           <div className="flex items-center gap-2">
-                            <Loader2 className="w-4 h-4 text-[#00f2fe] animate-spin" />
-                            <span className="text-xs text-[#00f2fe]">
+                            <Loader2 className="w-5 h-5 text-[#00f2fe] animate-spin" />
+                            <span className="text-xs text-[#00f2fe] animate-breathe">
                               {operationProgress?.message}
                             </span>
                           </div>
@@ -454,33 +474,42 @@ export default function ManifestsPage() {
           {/* Operation Progress Modal */}
           {operationProgress && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-              <div className="tech-card p-6 max-w-md w-full space-y-4 animate-in zoom-in duration-200">
+              <div className="tech-card p-6 max-w-md w-full space-y-4 animate-in zoom-in duration-200 border-[#00f2fe]/50">
                 <div className="flex items-center gap-3 text-[#00f2fe]">
-                  <Loader2 className="w-6 h-6" />
+                  {operationProgress.status === 'completed' ? (
+                    <CheckCircle2 className="w-6 h-6 animate-check-pop" />
+                  ) : (
+                    <Loader2 className="w-7 h-7 text-[#00f2fe] animate-spin drop-shadow-[0_0_8px_rgba(0,242,254,0.6)]" />
+                  )}
                   <h3 className="font-bold text-lg">
-                    {operationProgress.status === 'archiving' ? '封存中' : '還原中'}
+                    {operationProgress.status === 'completed' 
+                      ? '操作成功' 
+                      : (operationProgress.status === 'archiving' ? '封存中' : '還原中')}
                   </h3>
                 </div>
-                <p className="text-slate-400 text-sm leading-relaxed">
+                <p className={`text-sm leading-relaxed ${operationProgress.status === 'completed' ? 'text-white' : 'text-slate-400'}`}>
                   {operationProgress.message}
                 </p>
-                {operationProgress.progress !== undefined && (
+                {operationProgress.progress !== undefined && operationProgress.status !== 'completed' && (
                   <div className="mt-4">
-                    <div className="w-full bg-slate-700/30 rounded-full h-2.5">
+                    <div className="w-full bg-slate-700/30 rounded-full h-2.5 overflow-hidden relative">
                       <div
-                        className={`bg-[#00f2fe] h-2.5 rounded-full transition-width duration-500`}
+                        className="bg-gradient-to-r from-[#00f2fe] to-blue-500 h-2.5 rounded-full transition-all duration-500 relative shadow-[0_0_10px_rgba(0,242,254,0.5)]"
                         style={{ width: `${operationProgress.progress}%` }}
-                      ></div>
+                      >
+                        <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-400 mt-1">
-                      {operationProgress.progress}% 完成
+                    <p className="text-xs text-slate-400 mt-1 flex justify-between">
+                      <span>處理進度</span>
+                      <span>{operationProgress.progress}% 完成</span>
                     </p>
                   </div>
                 )}
                 <div className="mt-4 flex justify-end">
                   <button
                     onClick={() => setOperationProgress(null)}
-                    className="px-4 py-2 bg-slate-800 text-slate-400 rounded-xl hover:bg-slate-700"
+                    className="px-4 py-2 bg-slate-800 text-slate-400 rounded-xl hover:bg-slate-700 transition-colors"
                   >
                     關閉
                   </button>

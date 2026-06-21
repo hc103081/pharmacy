@@ -23,20 +23,24 @@ function sleep(ms: number) {
 }
 
 // Helper to estimate photo total size via HEAD requests
-async function estimatePhotoTotalSize(photoUrls: string[]): Promise<number> {
+// Also returns individual file sizes for data.json
+async function estimatePhotoTotalSize(photoUrls: string[]): Promise<{ total: number; fileSizes: Map<string, number> }> {
   let total = 0;
+  const fileSizes = new Map<string, number>();
   for (const url of photoUrls) {
     try {
       const res = await fetch(url, { method: 'HEAD' });
       const contentLength = res.headers.get('content-length');
       if (contentLength) {
-        total += parseInt(contentLength, 10);
+        const size = parseInt(contentLength, 10);
+        total += size;
+        fileSizes.set(url, size);
       }
     } catch (err) {
       console.warn(`Failed to HEAD ${url}:`, err);
     }
   }
-  return total;
+  return { total, fileSizes };
 }
 
 // Helper to create SSE formatted message
@@ -156,7 +160,7 @@ serve(async (req: Request) => {
       const photoUrls = drugItems
         .map(item => item.photo_url)
         .filter((url): url is string => !!url);
-      const totalSize = await estimatePhotoTotalSize(photoUrls);
+      const { total: totalSize, fileSizes } = await estimatePhotoTotalSize(photoUrls);
 
       if (totalSize > MAX_PHOTO_TOTAL_SIZE) {
         await send({ status: 'failed', message: `照片總大小 (${Math.round(totalSize / 1024 / 1024)}MB) 超過限制 (${MAX_PHOTO_TOTAL_SIZE / 1024 / 1024}MB)` });
@@ -182,6 +186,7 @@ serve(async (req: Request) => {
         actual_quantity: item.actual_quantity,
         counted_status: item.counted_status,
         photo_ext: item.photo_url ? item.photo_url.split('.').pop()?.toLowerCase() || 'jpg' : 'jpg',
+        file_size_bytes: item.photo_url ? (fileSizes.get(item.photo_url) ?? 0) : 0,
       }));
 
       // Step 5: Create streaming ZIP and upload to storage
@@ -259,6 +264,7 @@ serve(async (req: Request) => {
           archive_status: 'archived',
           archived_zip_path: zipPath,
           archive_locked_at: null,
+          storage_size_bytes: zipArrayBuffer.length,
         })
         .eq('id', manifestId);
 
