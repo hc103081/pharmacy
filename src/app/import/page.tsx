@@ -167,6 +167,7 @@ export default function ImportPage() {
         } else if (errorMessage.includes('上傳失敗') || errorMessage.includes('upload')) {
           errorMessage = `圖片上傳失敗: ${errorMessage}。請確認 Supabase Storage 的 import_screenshots bucket 已建立且服務正常運作`;
         }
+        // 若為 503/429 等暫時性 AI 錯誤，friendlyGeminiError 已在前端轉換為友善訊息，直接顯示即可
       }
       setMessage(`PDF 處理失敗: ${errorMessage}`);
       setPdfProgress(null);

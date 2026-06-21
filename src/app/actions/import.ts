@@ -37,6 +37,22 @@ async function fetchImageAsBase64(url: string): Promise<string> {
 }
 
 /**
+ * 將 Gemini API 錯誤轉換為友善的中文提示訊息
+ */
+function friendlyGeminiError(rawMessage: string): string {
+  if (rawMessage.includes('503') || rawMessage.includes('Service Unavailable') || rawMessage.includes('high demand')) {
+    return 'AI 服務暫時過載 (503)，請稍後 1-2 分鐘再試。若持續發生，請聯絡管理員。';
+  }
+  if (rawMessage.includes('429') || rawMessage.includes('rate') || rawMessage.includes('quota')) {
+    return 'AI API 配額已用盡或請求過於頻繁 (429)，請稍後再試。';
+  }
+  if (rawMessage.includes('500') || rawMessage.includes('Internal Error')) {
+    return 'AI 服務內部錯誤 (500)，請稍後再試。';
+  }
+  return rawMessage;
+}
+
+/**
  * 從出貨單第一頁提取表頭資訊（出貨單號、交貨日期）
  */
 export async function parseHeaderWithGemini(url: string): Promise<{ success: boolean; order_number?: string; delivery_date?: string; error?: string }> {
@@ -71,9 +87,10 @@ export async function parseHeaderWithGemini(url: string): Promise<{ success: boo
     };
   } catch (error: unknown) {
     console.error('parseHeaderWithGemini Error:', error);
+    const rawMessage = error instanceof Error ? error.message : '表頭解析失敗';
     return {
       success: false,
-      error: error instanceof Error ? error.message : '表頭解析失敗',
+      error: friendlyGeminiError(rawMessage),
     };
   }
 }
@@ -151,9 +168,10 @@ line_number,barcode,drug_name,quantity,bonus_quantity
     return { success: true, items };
   } catch (error: unknown) {
     console.error('parseBatchWithGemini Error:', error);
+    const rawMessage = error instanceof Error ? error.message : '未知錯誤';
     return {
       success: false,
-      error: error instanceof Error ? error.message : '批次 OCR 辨識失敗',
+      error: friendlyGeminiError(rawMessage),
     };
   }
 }
@@ -245,9 +263,10 @@ export async function parsePdfWithGemini({ urls }: { urls: string[] }): Promise<
     };
   } catch (error: unknown) {
     console.error('parsePdfWithGemini Error:', error);
+    const rawMessage = error instanceof Error ? error.message : 'PDF 解析過程中發生錯誤';
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'PDF 解析過程中發生錯誤',
+      error: friendlyGeminiError(rawMessage),
     };
   }
 }
@@ -320,10 +339,8 @@ export async function processImagesWithGemini({ urls }: { urls: string[] }): Pro
     return { success: true, drugs };
   } catch (error: unknown) {
     console.error('Gemini OCR Error:', error);
-    if (error instanceof Error) {
-    return { success: false, error: error.message };
-  }
-  return { success: false, error: 'OCR 辨識失敗' };
+    const rawMessage = error instanceof Error ? error.message : 'OCR 辨識失敗';
+    return { success: false, error: friendlyGeminiError(rawMessage) };
   }
 }
 

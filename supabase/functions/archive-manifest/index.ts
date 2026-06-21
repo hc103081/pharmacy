@@ -1,10 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // @ts-expect-error: Deno std module not typed
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
-// For streaming ZIP creation - using npm
-import { ZipWriter, TextReader } from 'npm:@zip.js/zip.js@2.8.26';
+// Deno-native ZIP library (Supabase 官方推薦)
+import { JSZip } from 'https://deno.land/x/jszip/mod.ts';
 
-console.log('archive-manifest boot');
+console.log('archive-manifest boot (v3 - JSZip native)');
 
 declare const Deno: any;
 
@@ -16,32 +16,6 @@ const ARCHIVED_MANIFESTS_BUCKET = 'archived-manifests';
 const DRUG_PHOTOS_BUCKET = 'drug-photos';
 const MAX_PHOTO_TOTAL_SIZE = 200 * 1024 * 1024; // 200MB
 const LOCK_TIMEOUT_HOURS = 1;
-
-// Helper to sleep
-function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-// Helper to estimate photo total size via HEAD requests
-// Also returns individual file sizes for data.json
-async function estimatePhotoTotalSize(photoUrls: string[]): Promise<{ total: number; fileSizes: Map<string, number> }> {
-  let total = 0;
-  const fileSizes = new Map<string, number>();
-  for (const url of photoUrls) {
-    try {
-      const res = await fetch(url, { method: 'HEAD' });
-      const contentLength = res.headers.get('content-length');
-      if (contentLength) {
-        const size = parseInt(contentLength, 10);
-        total += size;
-        fileSizes.set(url, size);
-      }
-    } catch (err) {
-      console.warn(`Failed to HEAD ${url}:`, err);
-    }
-  }
-  return { total, fileSizes };
-}
 
 // Helper to create SSE formatted message
 function sseMessage(data: object): string {
@@ -64,9 +38,20 @@ async function safeLog(manifestId: string, action: string, trigger: string, stat
   }
 }
 
-// 檢查 byte array 是否為有效的 ZIP 檔案（以 PK 開頭）
-function isValidZip(data: Uint8Array): boolean {
-  return data.length >= 4 && data[0] === 0x50 && data[1] === 0x4B;
+// 從 photoUrls 解析出 storage path
+function extractPhotoStoragePath(url: string): string | null {
+  try {
+    const urlObj = new URL(url);
+    const pathname = urlObj.pathname;
+    const parts = pathname.split('/');
+    const bucketIndex = parts.indexOf(DRUG_PHOTOS_BUCKET);
+    if (bucketIndex !== -1 && bucketIndex + 1 < parts.length) {
+      return parts.slice(bucketIndex + 1).join('/');
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 serve(async (req: Request) => {
@@ -76,15 +61,13 @@ serve(async (req: Request) => {
 
   let trigger: 'manual' | 'cron' | 'dispatched' = 'manual';
   let manifestId: string | null = null;
-  let dryRun = false;
 
   try {
-    const { manifestId: id, trigger: t, dryRun: dr } = await req.json();
+    const { manifestId: id, trigger: t } = await req.json();
     manifestId = id;
     if (t) trigger = t;
-    dryRun = dr ?? false;
   } catch (e) {
-    // ignore
+    return new Response('manifestId required in JSON body', { status: 400 });
   }
 
   if (!manifestId) {
@@ -155,15 +138,99 @@ serve(async (req: Request) => {
         return;
       }
 
-      // Step 3: Estimate photo total size
-      await send({ status: 'estimating_photos', message: '估算照片大小...' });
+      // Step 3: Count photos
       const photoUrls = drugItems
-        .map(item => item.photo_url)
-        .filter((url): url is string => !!url);
-      const { total: totalSize, fileSizes } = await estimatePhotoTotalSize(photoUrls);
+        .map((item: any) => item.photo_url)
+        .filter((url: any): url is string => !!url);
 
-      if (totalSize > MAX_PHOTO_TOTAL_SIZE) {
-        await send({ status: 'failed', message: `照片總大小 (${Math.round(totalSize / 1024 / 1024)}MB) 超過限制 (${MAX_PHOTO_TOTAL_SIZE / 1024 / 1024}MB)` });
+      await send({
+        status: 'estimating_photos',
+        message: `找到 ${drugItems.length} 個藥品項目，${photoUrls.length} 個有照片`
+      });
+
+      const fileSizeMap = new Map<string, number>();
+
+      // Step 4: Create data.json content
+      await send({ status: 'preparing_data', message: '準備資料 JSON...' });
+      const dataJsonItems = drugItems.map((item: any) => {
+        let fileSizeBytes = 0;
+        if (item.photo_url) {
+          fileSizeBytes = fileSizeMap.get(item.photo_url) ?? 0;
+        }
+        return {
+          id: item.id,
+          manifest_id: item.manifest_id,
+          page_number: item.page_number,
+          item_order: item.item_order,
+          barcode: item.barcode,
+          name: item.name,
+          expected_quantity: item.expected_quantity,
+          bonus_quantity: item.bonus_quantity,
+          actual_quantity: item.actual_quantity,
+          counted_status: item.counted_status,
+          photo_ext: item.photo_url ? item.photo_url.split('.').pop()?.toLowerCase() || 'jpg' : 'jpg',
+          file_size_bytes: fileSizeBytes,
+        };
+      });
+
+      // Step 5: Create ZIP with JSZip
+      await send({ status: 'creating_zip', message: '建立 ZIP 檔案...' });
+      const zip = new JSZip();
+
+      // Add data.json
+      zip.addFile('data.json', new TextEncoder().encode(JSON.stringify(dataJsonItems, null, 2)));
+
+      // 下載照片並加入 ZIP（串列處理）
+      let photoCount = 0;
+      let failedPhotoCount = 0;
+      let totalPhotoSize = 0;
+
+      // 建立 photo_url -> drugItemId 的映射
+      const photoUrlToItemId = new Map<string, string>();
+      for (const item of drugItems) {
+        if ((item as any).photo_url) {
+          photoUrlToItemId.set((item as any).photo_url, item.id);
+        }
+      }
+
+      for (const url of photoUrls) {
+        try {
+          const drugItemId = photoUrlToItemId.get(url) || crypto.randomUUID();
+          const storagePath = extractPhotoStoragePath(url);
+          if (!storagePath) {
+            console.warn(`無法解析 storage path: ${url}`);
+            failedPhotoCount++;
+            continue;
+          }
+
+          const { data: photoBlob, error: downloadError } = await supabase.storage
+            .from(DRUG_PHOTOS_BUCKET)
+            .download(storagePath);
+
+          if (downloadError || !photoBlob) {
+            console.warn(`無法下載照片 ${storagePath}:`, downloadError);
+            failedPhotoCount++;
+            continue;
+          }
+
+          const arrayBuffer = await photoBlob.arrayBuffer();
+          const uint8Array = new Uint8Array(arrayBuffer);
+          const photoExt = url.split('.').pop()?.toLowerCase() || 'jpg';
+          const filename = `photos/${drugItemId}.${photoExt}`;
+
+          zip.addFile(filename, uint8Array);
+          fileSizeMap.set(url, uint8Array.length);
+          totalPhotoSize += uint8Array.length;
+          photoCount++;
+        } catch (err) {
+          console.warn(`無法處理照片 ${url}:`, err);
+          failedPhotoCount++;
+        }
+      }
+
+      // 檢查照片總大小
+      if (totalPhotoSize > MAX_PHOTO_TOTAL_SIZE) {
+        await send({ status: 'failed', message: `照片總大小 (${Math.round(totalPhotoSize / 1024 / 1024)}MB) 超過限制 (${MAX_PHOTO_TOTAL_SIZE / 1024 / 1024}MB)` });
         await supabase
           .from('manifests')
           .update({ archive_status: null, archive_locked_at: null })
@@ -172,69 +239,29 @@ serve(async (req: Request) => {
         return;
       }
 
-      // Step 4: Create data.json content
-      await send({ status: 'preparing_data', message: '準備資料 JSON...' });
-      const dataJsonItems = drugItems.map(item => ({
-        id: item.id,
-        manifest_id: item.manifest_id,
-        page_number: item.page_number,
-        item_order: item.item_order,
-        barcode: item.barcode,
-        name: item.name,
-        expected_quantity: item.expected_quantity,
-        bonus_quantity: item.bonus_quantity,
-        actual_quantity: item.actual_quantity,
-        counted_status: item.counted_status,
-        photo_ext: item.photo_url ? item.photo_url.split('.').pop()?.toLowerCase() || 'jpg' : 'jpg',
-        file_size_bytes: item.photo_url ? (fileSizes.get(item.photo_url) ?? 0) : 0,
-      }));
+      await send({ status: 'creating_zip', message: `照片處理完成：成功 ${photoCount} 張，失敗 ${failedPhotoCount} 張` });
 
-      // Step 5: Create streaming ZIP and upload to storage
-      await send({ status: 'creating_zip', message: '建立 ZIP 檔案...' });
+      // 用 fileSizeMap 重新生成 data.json（確保 file_size_bytes 正確）
+      zip.addFile('data.json', new TextEncoder().encode(JSON.stringify(
+        drugItems.map((item: any) => ({
+          id: item.id,
+          manifest_id: item.manifest_id,
+          page_number: item.page_number,
+          item_order: item.item_order,
+          barcode: item.barcode,
+          name: item.name,
+          expected_quantity: item.expected_quantity,
+          bonus_quantity: item.bonus_quantity,
+          actual_quantity: item.actual_quantity,
+          counted_status: item.counted_status,
+          photo_ext: item.photo_url ? item.photo_url.split('.').pop()?.toLowerCase() || 'jpg' : 'jpg',
+          file_size_bytes: item.photo_url ? (fileSizeMap.get(item.photo_url) ?? 0) : 0,
+        })),
+        null, 2
+      )));
 
-      // 使用 BlobWriter 建立 ZIP 並收集所有 byte chunks
-      const allChunks: Uint8Array[] = [];
-      const zipStream = new WritableStream({
-        write(chunk) {
-          if (chunk instanceof Uint8Array) {
-            allChunks.push(chunk);
-          } else {
-            allChunks.push(new Uint8Array(chunk));
-          }
-        }
-      });
-      const zipWriter = new ZipWriter(zipStream);
-
-      // Add data.json
-      await zipWriter.add('data.json', new TextReader(JSON.stringify(dataJsonItems, null, 2)));
-
-      // Add photos
-      const photoPromises = photoUrls.map(async (url) => {
-        try {
-          const res = await fetch(url);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const arrayBuffer = await res.arrayBuffer();
-          const uint8Array = new Uint8Array(arrayBuffer);
-          const drugItemId = drugItems.find(d => d.photo_url === url)?.id || crypto.randomUUID();
-          const photoExt = url.split('.').pop()?.toLowerCase() || 'jpg';
-          const filename = `photos/${drugItemId}.${photoExt}`;
-          await zipWriter.add(filename, uint8Array);
-        } catch (err) {
-          console.warn(`無法處理照片 ${url}:`, err);
-        }
-      });
-
-      await Promise.all(photoPromises);
-      await zipWriter.close();
-
-      // 合併所有 chunks 為完整的 ArrayBuffer
-      const totalLength = allChunks.reduce((sum, chunk) => sum + chunk.length, 0);
-      const zipArrayBuffer = new Uint8Array(totalLength);
-      let offset = 0;
-      for (const chunk of allChunks) {
-        zipArrayBuffer.set(chunk, offset);
-        offset += chunk.length;
-      }
+      // 生成 ZIP Uint8Array
+      const zipArrayBuffer = await zip.generateAsync({ type: 'uint8array' });
 
       // Step 6: Upload ZIP to storage
       await send({ status: 'uploading_zip', message: '上傳 ZIP 到儲存空間...' });
@@ -272,7 +299,7 @@ serve(async (req: Request) => {
 
       // Step 8: Cleanup photos from drug-photos bucket (non-critical)
       await send({ status: 'cleaning_up', message: '清理照片...' });
-      const photoPathsToDelete = photoUrls.map(url => {
+      const photoPathsToDelete = photoUrls.map((url: string) => {
         try {
           const urlObj = new URL(url);
           const pathname = urlObj.pathname;
@@ -285,7 +312,7 @@ serve(async (req: Request) => {
         } catch (e) {
           return null;
         }
-      }).filter((path): path is string => !!path);
+      }).filter((path: any): path is string => !!path);
 
       if (photoPathsToDelete.length > 0) {
         const { error: deletePhotosError } = await supabase.storage
@@ -299,7 +326,7 @@ serve(async (req: Request) => {
       }
 
       // Step 9: Log success
-      await safeLog(manifestId!, 'archive', trigger, 'success', `Successfully archived manifest with ${drugItems.length} items and ${photoUrls.length} photos`);
+      await safeLog(manifestId!, 'archive', trigger, 'success', `Successfully archived manifest with ${drugItems.length} items and ${photoCount} photos`);
 
       await send({ status: 'completed', message: '封存完成' });
     } catch (error: any) {

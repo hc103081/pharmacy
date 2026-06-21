@@ -108,7 +108,8 @@ export async function parsePdf(
           result = await parseBatchWithGemini(url, globalBatchIdx);
         }
         if (!result.success || !result.items) {
-          throw new Error(`批次 ${globalBatchIdx + 1} OCR 辨識失敗: ${result.error || '未知錯誤'}`);
+          const errorMsg = result.error || '未知錯誤';
+          throw new Error(`批次 ${globalBatchIdx + 1} OCR 辨識失敗: ${errorMsg}`);
         }
         return { batchIndex: globalBatchIdx, items: result.items };
       })

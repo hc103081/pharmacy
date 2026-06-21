@@ -1,10 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // @ts-expect-error: Deno std module not typed
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
-// For reading ZIP stream - using npm
-import { ZipReader, BlobReader, BlobWriter, TextWriter } from 'npm:@zip.js/zip.js@2.8.26';
+// Deno-native ZIP library (Supabase 官方推薦)
+import { JSZip } from 'https://deno.land/x/jszip/mod.ts';
 
-console.log('restore-manifest boot');
+console.log('restore-manifest boot (v3 - JSZip native)');
 
 declare const Deno: any;
 
@@ -108,28 +108,28 @@ serve(async (req: Request) => {
 
       // Step 2: Download ZIP from archived-manifests bucket
       await send({ status: 'downloading_zip', message: '下載封存 ZIP...' });
-      const { data: zipData, error: downloadError } = await supabase.storage
+      const { data: zipBlob, error: downloadError } = await supabase.storage
         .from(ARCHIVED_MANIFESTS_BUCKET)
         .download(zipPath);
 
       if (downloadError) throw downloadError;
-      if (!zipData) {
+      if (!zipBlob) {
         throw new Error('ZIP file not found in storage');
       }
 
-      // Step 3: Extract data.json and restore drug_items
-      await send({ status: 'restoring_items', message: '還原藥品資料...' });
-      // 直接用下載的 Blob 建立 BlobReader（supabase storage download 回傳 Blob）
-      const zipReader = new ZipReader(new BlobReader(zipData));
-      const entries = await zipReader.getEntries();
+      // Step 3: Load ZIP with JSZip
+      await send({ status: 'restoring_items', message: '載入封存資料...' });
+      const zipArrayBuffer = await zipBlob.arrayBuffer();
+      const zip = new JSZip();
+      await zip.loadAsync(new Uint8Array(zipArrayBuffer));
 
-      // Find data.json entry
-      const dataJsonEntry = entries.find((entry: any) => entry.filename === 'data.json');
-      if (!dataJsonEntry) {
+      // Find and parse data.json
+      const dataJsonFile = zip.file('data.json');
+      if (!dataJsonFile) {
         throw new Error('data.json not found in archive');
       }
 
-      const dataJsonText = await dataJsonEntry.getData(new TextWriter());
+      const dataJsonText = await dataJsonFile.async('text');
       let dataJsonItems: any[] = [];
       try {
         dataJsonItems = JSON.parse(dataJsonText);
@@ -162,30 +162,26 @@ serve(async (req: Request) => {
 
       // Step 4: Extract photos and upload to drug-photos bucket
       await send({ status: 'uploading_photos', message: '還原照片...' });
-      const photoEntries = entries.filter((entry: any) =>
-        entry.filename.startsWith('photos/')
-      );
 
-      // Map of drug_item_id to new photo URL
-      const photoUrlUpdates: { [drugItemId: string]: string } = {};
+      const photoUrlUpdates: { [drugItemId: string]: string } = { };
 
-      for (const entry of photoEntries) {
+      // 使用 deno.land/x/jszip 的 iterator 遍歷所有檔案
+      for (const entry of zip) {
+        const filename = (entry as any).name;
+        if (!filename || !filename.startsWith('photos/')) continue;
+
         try {
-          const filename = entry.filename;
           const basename = filename.split('/').pop();
           const drugItemId = basename?.split('.')[0];
           if (!drugItemId) continue;
 
-          const photoBlob = await entry.getData(new BlobWriter());
+          const photoUint8 = await (entry as any).async('uint8array');
           const ext = filename.split('.').pop();
-          const photoFile = new File([photoBlob], basename, {
-            type: ext === 'png' ? 'image/png' : 'image/jpeg',
-          });
 
           const photoPath = `${manifestId}/${drugItemId}.${ext}`;
-          const { error: uploadError, data: uploadData } = await supabase.storage
+          const { error: uploadError } = await supabase.storage
             .from(DRUG_PHOTOS_BUCKET)
-            .upload(photoPath, photoFile, {
+            .upload(photoPath, photoUint8, {
               contentType: ext === 'png' ? 'image/png' : 'image/jpeg',
               upsert: true,
             });
@@ -198,10 +194,12 @@ serve(async (req: Request) => {
           const { data: publicUrlData } = await supabase.storage
             .from(DRUG_PHOTOS_BUCKET)
             .getPublicUrl(photoPath);
-          const publicUrl = publicUrlData.publicUrl;
-          photoUrlUpdates[drugItemId] = publicUrl;
+
+          if (publicUrlData?.publicUrl) {
+            photoUrlUpdates[drugItemId] = publicUrlData.publicUrl;
+          }
         } catch (err) {
-          console.warn(`Failed to process photo entry ${entry.filename}:`, err);
+          console.warn(`Failed to process photo entry ${filename}:`, err);
         }
       }
 
@@ -258,7 +256,6 @@ serve(async (req: Request) => {
       await send({ status: 'completed', message: '還原完成' });
     } catch (error: any) {
       console.error('Restore manifest error:', error);
-      // Release lock on error (set back to archived)
       try {
         await supabase
           .from('manifests')
