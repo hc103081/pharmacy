@@ -123,8 +123,8 @@ serve(async (req: Request) => {
       await send({ status: 'fetching_items', message: '讀取藥品資料...' });
       const { data: drugItems, error: itemsError } = await supabase
         .from('drug_items')
-        .select('id, manifest_id, page_number, item_order, barcode, name, expected_quantity, bonus_quantity, actual_quantity, counted_status, photo_url')
-        .eq('manifest_id', manifestId);
+        .select('id, manifest_id, page_number, item_order, barcode, name, expected_quantity, bonus_quantity, actual_quantity, counted_status, photo_url, storage_location, category')
+      .eq('manifest_id', manifestId);
 
       if (itemsError) throw itemsError;
 
@@ -168,6 +168,8 @@ serve(async (req: Request) => {
           bonus_quantity: item.bonus_quantity,
           actual_quantity: item.actual_quantity,
           counted_status: item.counted_status,
+          storage_location: item.storage_location ?? null,
+          category: item.category ?? null,
           photo_ext: item.photo_url ? item.photo_url.split('.').pop()?.toLowerCase() || 'jpg' : 'jpg',
           file_size_bytes: fileSizeBytes,
         };
@@ -254,6 +256,8 @@ serve(async (req: Request) => {
           bonus_quantity: item.bonus_quantity,
           actual_quantity: item.actual_quantity,
           counted_status: item.counted_status,
+          storage_location: item.storage_location ?? null,
+          category: item.category ?? null,
           photo_ext: item.photo_url ? item.photo_url.split('.').pop()?.toLowerCase() || 'jpg' : 'jpg',
           file_size_bytes: item.photo_url ? (fileSizeMap.get(item.photo_url) ?? 0) : 0,
         })),

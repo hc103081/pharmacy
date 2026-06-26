@@ -6,7 +6,9 @@ export interface DrugItem {
   barcode: string;
   name: string;
   expected_quantity: number;
-  bonus_quantity: number;
+  bonus_quantity: number; // [保留欄位，新格式固定為 0]
+  storage_location: string; // 儲位（如 F3）
+  category: string; // 類別（如 4）
   actual_quantity: number;
   counted_status: 'pending' | 'completed' | 'error';
   photo_url: string | null;
@@ -17,7 +19,9 @@ export interface SummaryDrugItem {
   barcode: string;
   name: string;
   expected_quantity: number;
-  bonus_quantity: number;
+  bonus_quantity: number; // [保留欄位，新格式固定為 0]
+  storage_location: string; // 儲位
+  category: string; // 類別
   actual_quantity: number;
   counted_status: 'pending' | 'completed' | 'error';
 }

@@ -36,8 +36,10 @@ export default function PreviewPanel({
     const newItems = [...editedItems];
     const item = { ...newItems[index] };
     
-    if (field === 'quantity' || field === 'bonus_quantity') {
+    if (field === 'quantity') {
       (item as any)[field] = Number(value) || 0;
+    } else if (field === 'storage_location' || field === 'category') {
+      (item as any)[field] = value as string;
     } else {
       (item as any)[field] = value as string;
     }
@@ -172,11 +174,11 @@ export default function PreviewPanel({
               <thead className="sticky top-0 z-10 bg-[#162a56]">
                 <tr className="text-slate-500 border-b border-slate-800">
                   <th className="py-3 px-2 font-medium">序號</th>
+                  <th className="py-3 px-2 font-medium">儲位</th>
+                  <th className="py-3 px-2 font-medium">類別</th>
                   <th className="py-3 px-2 font-medium">條碼</th>
                   <th className="py-3 px-2 font-medium">品名</th>
-                  <th className="py-3 px-2 font-medium text-right">數量</th>
-                  <th className="py-3 px-2 font-medium text-right">贈量</th>
-                  <th className="py-3 px-2 font-medium text-right">合計</th>
+                  <th className="py-3 px-2 font-medium text-right">補貨量</th>
                   <th className="py-3 px-2 font-medium text-center">同碼合併</th>
                   <th className="py-3 px-2 font-medium text-center">狀態</th>
                 </tr>
@@ -191,6 +193,20 @@ export default function PreviewPanel({
                   return (
                     <tr key={item.line_number} className={`group transition-colors ${status === 'error' ? 'bg-red-500/5' : drugRisk ? 'bg-orange-500/5' : status === 'warn' ? 'bg-yellow-500/5' : ''}`}>
                       <td className="py-3 px-2 text-slate-400 font-mono">{item.line_number}</td>
+                      <td className="py-3 px-2">
+                        <input 
+                          value={item.storage_location || ''} 
+                          onChange={(e) => handleInputChange(idx, 'storage_location', e.target.value)}
+                          className="bg-transparent text-slate-200 border border-transparent hover:border-slate-700 focus:border-[#00f2fe] focus:bg-slate-950 outline-none px-1 rounded transition-all font-mono w-12"
+                        />
+                      </td>
+                      <td className="py-3 px-2">
+                        <input 
+                          value={item.category || ''} 
+                          onChange={(e) => handleInputChange(idx, 'category', e.target.value)}
+                          className="bg-transparent text-slate-200 border border-transparent hover:border-slate-700 focus:border-[#00f2fe] focus:bg-slate-950 outline-none px-1 rounded transition-all font-mono w-10"
+                        />
+                      </td>
                       <td className="py-3 px-2">
                         <input 
                           value={item.barcode} 
@@ -218,15 +234,6 @@ export default function PreviewPanel({
                           className="bg-transparent text-slate-200 border border-transparent hover:border-slate-700 focus:border-[#00f2fe] focus:bg-slate-950 outline-none px-1 rounded transition-all text-right w-16"
                         />
                       </td>
-                      <td className="py-3 px-2 text-right">
-                        <input 
-                          type="number"
-                          value={item.bonus_quantity} 
-                          onChange={(e) => handleInputChange(idx, 'bonus_quantity', e.target.value)}
-                          className="bg-transparent text-slate-200 border border-transparent hover:border-slate-700 focus:border-[#00f2fe] focus:bg-slate-950 outline-none px-1 rounded transition-all text-right w-16"
-                        />
-                      </td>
-                      <td className="py-3 px-2 text-right font-bold text-slate-300">{item.quantity + item.bonus_quantity}</td>
                       <td className="py-3 px-2 text-right">
                         {(item.merged_count && item.merged_count > 1) ? (
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/10 text-[#00f2fe] border border-cyan-500/30">
@@ -287,10 +294,12 @@ export default function PreviewPanel({
                           className={`w-full bg-transparent text-slate-200 border-none focus:outline-none focus:ring-0 appearance-none truncate ${drugRisk ? 'border-orange-500/50' : ''}`}
                         />
                         <div className="flex items-center gap-1 mt-2 flex-nowrap">
-                          <span className="text-slate-400 text-xs whitespace-nowrap">數量</span>
+                          <span className="text-slate-400 text-xs whitespace-nowrap">補貨量</span>
                           <input type="number" value={item.quantity} onChange={(e) => handleInputChange(idx, 'quantity', e.target.value)} className="w-14 bg-transparent text-slate-200 border-none focus:outline-none focus:ring-0 appearance-none" />
-                          <span className="text-slate-400 text-xs whitespace-nowrap">贈品</span>
-                          <input type="number" value={item.bonus_quantity} onChange={(e) => handleInputChange(idx, 'bonus_quantity', e.target.value)} className="w-14 bg-transparent text-slate-200 border-none focus:outline-none focus:ring-0 appearance-none" />
+                          <span className="text-slate-400 text-xs whitespace-nowrap">儲位</span>
+                          <input value={item.storage_location || ''} onChange={(e) => handleInputChange(idx, 'storage_location', e.target.value)} className="w-10 bg-transparent text-slate-200 border-none focus:outline-none focus:ring-0 appearance-none" />
+                          <span className="text-slate-400 text-xs whitespace-nowrap">類別</span>
+                          <input value={item.category || ''} onChange={(e) => handleInputChange(idx, 'category', e.target.value)} className="w-8 bg-transparent text-slate-200 border-none focus:outline-none focus:ring-0 appearance-none" />
                         </div>
                       </div>
                     </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Camera, CheckCircle2, AlertCircle, Loader2, Search, Info, RotateCcw } from 'lucide-react';
+import { Camera, CheckCircle2, AlertCircle, Loader2, Search, RotateCcw } from 'lucide-react';
 import type { DrugItem } from '@/types';
 
 interface DrugCardProps {
@@ -69,6 +69,12 @@ export default function DrugCard({
             )}
           </div>
           <div className="min-w-0 flex-1">
+            {/* 儲位-類別 小字 */}
+            {(drug.storage_location || drug.category) && (
+              <div className="text-[10px] text-gray-400 mb-0.5">
+                {[drug.storage_location, drug.category].filter(Boolean).join('-')}
+              </div>
+            )}
             <div className={`font-bold truncate text-base lg:text-lg ${isMatched ? 'text-[#00f2fe]' : 'text-white'}`}>
               {drug.name}
             </div>
@@ -79,13 +85,6 @@ export default function DrugCard({
                   <span className="text-[#ff4b5c] font-bold"> / 實際: {drug.actual_quantity}</span>
                 )}
               </span>
-              {drug.bonus_quantity > 0 && (
-                <span title={`原數量: ${drug.expected_quantity - drug.bonus_quantity} + 贈量: ${drug.bonus_quantity}`}>
-                  <Info 
-                    className="w-3 h-3 shrink-0 cursor-help" 
-                  />
-                </span>
-              )}
               {onFilterByBarcode && (
                 <button
                   onClick={(e) => {

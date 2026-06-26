@@ -141,11 +141,11 @@ serve(async (req: Request) => {
       for (let i = 0; i < dataJsonItems.length; i += BATCH_SIZE) {
         const batch = dataJsonItems.slice(i, i + BATCH_SIZE);
         const values = batch.map(item => 
-          `('${item.id}', '${item.manifest_id}', ${item.page_number}, ${item.item_order}, '${item.barcode}', '${item.name.replace(/'/g, "''")}', ${item.expected_quantity}, ${item.bonus_quantity}, ${item.actual_quantity}, '${item.counted_status}', NULL, '${item.created_at ?? new Date().toISOString()}', '${item.updated_at ?? new Date().toISOString()}')`
+          `('${item.id}', '${item.manifest_id}', ${item.page_number}, ${item.item_order}, '${item.barcode}', '${item.name.replace(/'/g, "''")}', ${item.expected_quantity}, ${item.bonus_quantity ?? 0}, ${item.actual_quantity}, '${item.counted_status}', NULL, ${item.storage_location ? `'${item.storage_location}'` : 'NULL'}, ${item.category ? `'${item.category}'` : 'NULL'}, '${item.created_at ?? new Date().toISOString()}', '${item.updated_at ?? new Date().toISOString()}')`
         ).join(', ');
 
         const sql = `
-          INSERT INTO drug_items (id, manifest_id, page_number, item_order, barcode, name, expected_quantity, bonus_quantity, actual_quantity, counted_status, photo_url, created_at, updated_at)
+          INSERT INTO drug_items (id, manifest_id, page_number, item_order, barcode, name, expected_quantity, bonus_quantity, actual_quantity, counted_status, photo_url, storage_location, category, created_at, updated_at)
           VALUES ${values}
           ON CONFLICT (id) DO UPDATE SET
             manifest_id = EXCLUDED.manifest_id,
@@ -158,6 +158,8 @@ serve(async (req: Request) => {
             actual_quantity = EXCLUDED.actual_quantity,
             counted_status = EXCLUDED.counted_status,
             photo_url = EXCLUDED.photo_url,
+            storage_location = EXCLUDED.storage_location,
+            category = EXCLUDED.category,
             updated_at = NOW();
         `;
 
@@ -176,9 +178,11 @@ serve(async (req: Request) => {
                 barcode: item.barcode,
                 name: item.name,
                 expected_quantity: item.expected_quantity,
-                bonus_quantity: item.bonus_quantity,
+                bonus_quantity: item.bonus_quantity ?? 0,
                 actual_quantity: item.actual_quantity,
                 counted_status: item.counted_status,
+                storage_location: item.storage_location ?? null,
+                category: item.category ?? null,
                 photo_url: null, // Will be set later
                 created_at: item.created_at ?? new Date().toISOString(),
                 updated_at: item.updated_at ?? new Date().toISOString(),

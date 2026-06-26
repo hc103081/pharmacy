@@ -48,7 +48,7 @@ export default function SummaryPage() {
 
         const { data: dData } = await supabase
           .from('drug_items')
-          .select('id, barcode, name, expected_quantity, bonus_quantity, actual_quantity, counted_status')
+          .select('id, barcode, name, expected_quantity, bonus_quantity, actual_quantity, counted_status, storage_location, category')
           .eq('manifest_id', manifestId);
         
         setAllDrugs(dData || []);
@@ -169,12 +169,13 @@ export default function SummaryPage() {
     if (!manifest || allDrugs.length === 0) return;
 
     // CSV 表頭
-    const headers = ['藥品名稱', '條碼', '預期數量', '贈量', '實際數量', '差異', '狀態'];
+    const headers = ['藥品名稱', '條碼', '預期數量', '儲位', '類別', '實際數量', '差異', '狀態'];
     const rows = allDrugs.map(item => [
       item.name,
       item.barcode,
       item.expected_quantity,
-      item.bonus_quantity,
+      (item as any).storage_location || '',
+      (item as any).category || '',
       item.actual_quantity,
       item.actual_quantity - item.expected_quantity,
       item.counted_status === 'error' ? '數量不符' : item.counted_status === 'completed' ? '正確' : '未清點'

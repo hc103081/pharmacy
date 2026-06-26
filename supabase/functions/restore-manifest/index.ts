@@ -150,9 +150,11 @@ serve(async (req: Request) => {
             barcode: item.barcode,
             name: item.name,
             expected_quantity: item.expected_quantity,
-            bonus_quantity: item.bonus_quantity,
+            bonus_quantity: item.bonus_quantity ?? 0,
             actual_quantity: item.actual_quantity,
             counted_status: item.counted_status,
+            storage_location: item.storage_location ?? null,
+            category: item.category ?? null,
             photo_url: null, // Will be updated after photo restore
             created_at: item.created_at ?? new Date().toISOString(),
             updated_at: item.updated_at ?? new Date().toISOString(),

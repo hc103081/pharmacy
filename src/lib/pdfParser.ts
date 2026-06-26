@@ -3,9 +3,15 @@ export interface ParsedItem {
   barcode: string;
   drug_name: string;
   quantity: number;
-  bonus_quantity: number;
+  bonus_quantity: number; // [保留欄位，新格式固定為 0]
+  storage_location: string; // 儲位（如 F3）
+  category: string; // 類別（如 4）
   /** 合併自幾個相同條碼的項目（1 表示未合併） */
   merged_count?: number;
+  /** 來源照片的頁碼（用於排序） */
+  page_number?: number;
+  /** 原始上傳順序（頁碼 OCR 失敗時的 fallback） */
+  upload_index?: number;
 }
 
 export interface ParsedPdf {
@@ -86,7 +92,7 @@ export async function parsePdf(
   // ── Step 5: 逐批 AI 辨識藥品項目 ──
   // 計算進度分配：Step 5 佔 35%~95%（60%的進度空間）
   const BATCH_CONCURRENCY = 3;
-  const allBatchResults: { batchIndex: number; items: ParsedItem[] }[] = [];
+  const allBatchResults: any[] = [];
   let completedBatches = 0;
 
   for (let i = 0; i < urls.length; i += BATCH_CONCURRENCY) {
@@ -118,10 +124,16 @@ export async function parsePdf(
     completedBatches += batchSlice.length;
   }
 
-  // ── Step 6: 合併所有 items 並重新編號 ──
+  // ── Step 6: 合併所有 items，按頁碼排序並重新編號 ──
   onProgress?.({ step: 'done', label: '解析完成，正在整理結果...', percent: 98 });
   allBatchResults.sort((a, b) => a.batchIndex - b.batchIndex);
   const mergedItems = allBatchResults.flatMap(r => r.items);
+
+  // 穩健排序：按頁碼排序，頁碼缺失時 fallback 到上傳順序
+  mergedItems.sort((a, b) => {
+    if (a.page_number && b.page_number) return a.page_number - b.page_number;
+    return (a.upload_index ?? 0) - (b.upload_index ?? 0);
+  });
 
   const finalItems: ParsedItem[] = mergedItems.map((item, idx) => ({
     line_number: idx + 1,
@@ -129,6 +141,8 @@ export async function parsePdf(
     drug_name: item.drug_name,
     quantity: item.quantity,
     bonus_quantity: item.bonus_quantity,
+    storage_location: item.storage_location,
+    category: item.category,
   }));
 
   onProgress?.({ step: 'done', label: '解析完成！', percent: 100 });

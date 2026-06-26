@@ -210,23 +210,24 @@ export default function ImportPage() {
   };
 
   const handleImport = async (items?: ParsedItem[]) => {
-    if (!manifestName) {
-      alert('請輸入清單名稱');
-      return;
-    }
     try {
       setStatus('loading');
       setIsImporting(true);
       let drugs: ImportDrugItem[] = [];
+      let ocrOrderNumber: string | undefined;
+
       if (parsedData) {
         const sourceItems = items || parsedData.items;
         drugs = sourceItems.map(item => ({
           barcode: item.barcode,
           name: item.drug_name,
-          expected_quantity: item.quantity + item.bonus_quantity,
-          bonus_quantity: item.bonus_quantity
+          expected_quantity: item.quantity,
+          bonus_quantity: 0,
+          storage_location: item.storage_location || '',
+          category: item.category || '',
         }));
-        const result = await importDrugs(manifestName, drugs, user!.id, {
+        const pdfFinalName = manifestName.trim() || parsedData.order_metadata.order_number || `匯入清單 ${new Date().toLocaleDateString('zh-TW')}`;
+        const result = await importDrugs(pdfFinalName, drugs, user!.id, {
           order_number: parsedData.order_metadata.order_number,
           delivery_date: parsedData.order_metadata.delivery_date,
           source_file: ''
@@ -253,9 +254,7 @@ export default function ImportPage() {
           return;
         }
         drugs = ocrResult.drugs || [];
-      } else {
-        setMessage('正在從 JSON 匯入數據...');
-        drugs = JSON.parse(jsonData);
+        ocrOrderNumber = ocrResult.order_number;
       }
       if (drugs.length === 0) {
         setIsImporting(false);
@@ -263,8 +262,14 @@ export default function ImportPage() {
         setMessage('沒有可匯入的藥品數據');
         return;
       }
+      // 自動命名：使用者輸入 > OCR 出貨單號 > 日期 fallback
+      const finalName = manifestName.trim() || ocrOrderNumber || `匯入清單 ${new Date().toLocaleDateString('zh-TW')}`;
       setMessage('正在匯入並進行分頁處理...');
-      const result = await importDrugs(manifestName, drugs, user!.id, { source_images: uploadedUrls });
+      const result = await importDrugs(finalName, drugs, user!.id, {
+        source_images: uploadedUrls,
+        order_number: ocrOrderNumber,
+        delivery_date: undefined,
+      });
       if (result.success) {
         setIsImporting(false);
         setStatus('success');
@@ -473,7 +478,7 @@ export default function ImportPage() {
                       className="ml-2 px-3 py-1 bg-[#00f2fe] rounded-full active:scale-95"
                       onClick={handlePdfRetry}
                     >
-                      重新上傳 PDF
+                      重新上傳
                     </button>
                   </div>
                 )}
@@ -486,7 +491,7 @@ export default function ImportPage() {
                         className="tech-button w-full py-2.5 text-sm flex items-center justify-center gap-2"
                       >
                         {status === 'loading' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
-                        上傳 {selectedImages.length} 張截圖至雲端
+                        上傳 {selectedImages.length} 張照片至雲端
                       </button>
                     )}
                     {uploadedUrls.length > 0 && (
@@ -494,7 +499,7 @@ export default function ImportPage() {
                         <div className="flex items-center gap-2">
                           <ImageIcon className="w-4 h-4 text-green-400" />
                           <p className="text-xs text-slate-400">
-                            已上傳 <span className="text-green-400 font-bold">{uploadedUrls.length}</span> 張截圖
+                            已上傳 <span className="text-green-400 font-bold">{uploadedUrls.length}</span> 張照片
                           </p>
                         </div>
                         <div className="grid grid-cols-4 lg:grid-cols-6 gap-2">
@@ -511,20 +516,6 @@ export default function ImportPage() {
                     )}
                   </>
                 )}
-                <div className="relative py-3">
-                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-slate-800"></span></div>
-                  <div className="relative flex justify-center text-[11px] uppercase"><span className="bg-[#07142b] px-2 text-slate-500">或者使用 JSON 快速匯入</span></div>
-                </div>
-                <div className="space-y-2">
-                  <label className="block text-xs lg:text-sm font-medium text-slate-400">藥品數據 (JSON 格式)</label>
-                  <textarea
-                    value={jsonData}
-                    onChange={(e) => setJsonData(e.target.value)}
-                    rows={6}
-                    placeholder={`[\n  { "barcode": "12345678", "name": "藥品名稱", "expected_quantity": 10 }\n]`}
-                    className="tech-input w-full font-mono text-xs lg:text-sm bg-slate-950/50"
-                  />
-                </div>
                 <div className="flex flex-col gap-3">
                   <button
                     onClick={() => handleImport()}

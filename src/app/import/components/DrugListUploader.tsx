@@ -115,7 +115,7 @@ const DrugListUploader: React.FC<DrugListUploaderProps> = ({
   return (
     <div className="space-y-3">
       <label className="block text-xs lg:text-sm font-medium text-slate-400">
-        上傳藥品清單 (PDF) 與截圖
+        上傳藥品清單 (PDF) 與照片
       </label>
 
       {/* 主拖拉區塊 */}
@@ -141,10 +141,10 @@ const DrugListUploader: React.FC<DrugListUploaderProps> = ({
         <div className={`${isDragOver ? 'invisible' : ''}`}>
           <UploadCloud className="w-12 h-12 text-slate-500 mx-auto mb-4 group-hover:text-cyan-400 transition-colors" />
           <p className="text-slate-300 font-semibold text-base mb-2">
-            拖拉 PDF 出貨單或截圖至此處
+            拖拉 PDF 出貨單或掃描照片至此處
           </p>
           <p className="text-slate-500 text-sm mb-5">
-            支援 PDF (.pdf) 與圖片 (.jpg, .png) 檔案
+            支援 PDF (.pdf) 與掃描照片 (.jpg, .png)
           </p>
 
           {/* 分隔線 */}
@@ -186,12 +186,12 @@ const DrugListUploader: React.FC<DrugListUploaderProps> = ({
                 border border-slate-600 hover:border-cyan-500/50"
             >
               <ImageIcon className="w-4 h-4 text-green-400" />
-              選擇圖片
+              選擇照片
             </button>
           </div>
 
           <p className="text-[11px] text-slate-600 mt-4">
-            可同時上傳 PDF 出貨單（自動解析條碼與數量）與截圖（AI OCR 輔助辨識）
+            可同時上傳 PDF 出貨單（自動解析條碼與數量）與掃描照片（AI OCR 輔助辨識）
           </p>
         </div>
 
@@ -240,7 +240,7 @@ const DrugListUploader: React.FC<DrugListUploaderProps> = ({
           <div className="flex items-center gap-2">
             <ImageIcon className="w-4 h-4 text-cyan-400" />
             <p className="text-xs text-slate-400">
-              已選取 <span className="text-cyan-400 font-bold">{selectedImages.length}</span> 張截圖
+              已選取 <span className="text-cyan-400 font-bold">{selectedImages.length}</span> 張照片
             </p>
           </div>
           <div className="grid grid-cols-4 lg:grid-cols-6 gap-2">

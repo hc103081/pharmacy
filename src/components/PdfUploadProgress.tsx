@@ -83,7 +83,9 @@ export default function PdfUploadProgress({ file, onComplete }: Props) {
             barcode: '123456789012',
             drug_name: 'Mock Drug',
             quantity: 1,
-            bonus_quantity: 0
+            bonus_quantity: 0,
+            storage_location: 'A1',
+            category: '1'
           }
         ]
       });

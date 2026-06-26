@@ -8,7 +8,9 @@ export interface ImportDrugItem {
   barcode: string;
   name: string;
   expected_quantity: number;
-  bonus_quantity: number;
+  bonus_quantity: number; // [保留欄位，新格式固定為 0]
+  storage_location?: string; // 儲位
+  category?: string; // 類別
 }
 
 export interface ImportResponse {
@@ -53,9 +55,9 @@ function friendlyGeminiError(rawMessage: string): string {
 }
 
 /**
- * 從出貨單第一頁提取表頭資訊（出貨單號、交貨日期）
+ * 從總倉撿貨單第一頁提取表頭資訊（出貨單號、交貨日期、頁碼）
  */
-export async function parseHeaderWithGemini(url: string): Promise<{ success: boolean; order_number?: string; delivery_date?: string; error?: string }> {
+export async function parseHeaderWithGemini(url: string): Promise<{ success: boolean; order_number?: string; delivery_date?: string; page_number?: number; total_pages?: number; error?: string }> {
   try {
     const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) {
@@ -67,12 +69,14 @@ export async function parseHeaderWithGemini(url: string): Promise<{ success: boo
 
     const base64Data = await fetchImageAsBase64(url);
 
-    const prompt = `這是安得福藥局出貨單的第一頁。請找出以下資訊：
-1. 出貨單號 (order_number)
-2. 出貨日期 (delivery_date)，請將日期格式化為 YYYY-MM-DD
+    const prompt = `這是安得福藥局總倉撿貨單（彙總）的圖片。請找出以下資訊：
+1. 出貨單號 (order_number)，格式如 R012606220001
+2. 列印時間 (delivery_date)，請將日期格式化為 YYYY-MM-DD
+3. 頁次 (page_number)，照片底部的當前頁碼數字
+4. 總頁數 (total_pages)，照片底部的總頁數數字
 
 輸出嚴格 JSON 格式，不要 markdown 標記：
-{ "order_number": "單號", "delivery_date": "YYYY-MM-DD" }`;
+{ "order_number": "單號", "delivery_date": "YYYY-MM-DD", "page_number": 3, "total_pages": 6 }`;
 
     const result = await model.generateContent([
       prompt,
@@ -84,6 +88,8 @@ export async function parseHeaderWithGemini(url: string): Promise<{ success: boo
       success: true,
       order_number: parsed.order_number || '未知單號',
       delivery_date: parsed.delivery_date || '',
+      page_number: parsed.page_number,
+      total_pages: parsed.total_pages,
     };
   } catch (error: unknown) {
     console.error('parseHeaderWithGemini Error:', error);
@@ -96,15 +102,17 @@ export async function parseHeaderWithGemini(url: string): Promise<{ success: boo
 }
 
 interface PageItem {
-  line_number: number;
+  storage_location: string;
+  category: string;
   barcode: string;
   drug_name: string;
-  quantity: number;
-  bonus_quantity: number;
+  quantity: string; // 原始字串如 "1罐"，後續用正則提取數字
+  page_number?: number; // 照片頁碼（用於排序）
+  upload_index?: number; // 原始上傳順序（fallback 排序）
 }
 
 /**
- * 使用 Gemini OCR 提取一批合併圖片中的藥品項目 (CSV 格式)
+ * 使用 Gemini OCR 提取一批合併圖片中的藥品項目 (JSON 格式)
  */
 export async function parseBatchWithGemini(url: string, _batchIndex: number): Promise<{ success: boolean; items?: PageItem[]; error?: string }> {
   try {
@@ -118,51 +126,73 @@ export async function parseBatchWithGemini(url: string, _batchIndex: number): Pr
 
     const base64Data = await fetchImageAsBase64(url);
 
-    const prompt = `這是一組合併後的藥局出貨單圖片（包含多頁）。
-請提取所有藥品項目，並嚴格以 CSV 格式輸出。
+    const prompt = `這是一組合併後的藥局總倉撿貨單圖片（包含多頁）。
+請提取所有藥品項目，並以 JSON 格式輸出。
 
-CSV 欄位定義：
-line_number,barcode,drug_name,quantity,bonus_quantity
+提取欄位：
+- storage_location: 儲位（如 F3）
+- category: 類別（如 4）
+- barcode: 商品代號（即國際條碼）
+- drug_name: 中文品名
+- quantity: 補貨量（保留原始格式如 "1罐"、"5盒"）
 
-提取規則：
-1. 這是一份專業的藥局出貨單，請特別注意中文字形辨識，避免將藥品名稱誤判為無意義的文字。
-2. 不要輸出標題行（Header）。
-3. 不要使用 markdown 標記（不要 \`\`\`csv）。
-4. 每行代表一個項目，欄位間以逗號分隔。
-5. quantity 和 bonus_quantity 必須是數字。
-6. 忽略表頭、頁尾及「以下空白」內容。
-7. 保持項目在圖片中出現的物理順序。
+同時請找出圖片底部的頁次資訊（如「頁次 3 of 6」），並在回傳中加入 page_number 和 total_pages。
 
-輸出範例：
-1,12345678,品名A,10,0
-2,87654321,品名B,5,1`;
+輸出格式（嚴格 JSON，不要 markdown 標記）：
+{
+  "page_number": 3,
+  "total_pages": 6,
+  "items": [
+    {"storage_location": "F3", "category": "4", "barcode": "4987241141005", "drug_name": "樂敦-維他眼藥水", "quantity": "1罐"}
+  ]
+}
+
+注意事項：
+1. 這是一份專業的藥局總倉撿貨單，請特別注意中文字形辨識，避免將藥品名稱誤判為無意義的文字。
+2. 保持項目在圖片中出現的物理順序。
+3. 忽略表頭、頁尾及其他非藥品項目內容。
+4. quantity 欄位保留原始格式（如 "1罐"、"5盒"），不要轉為純數字。`;
 
     const result = await model.generateContent([
       prompt,
       { inlineData: { data: base64Data, mimeType: 'image/jpeg' } },
     ]);
-    
-    const text = result.response.text().trim();
-    
-    // 解析 CSV — 品名可能含逗號，使用「從右側拆最後 3 個數字欄位」策略
-    const lines = text.split('\n').filter(line => line.trim() && !line.startsWith('#') && !line.startsWith('line_number'));
-    const items: PageItem[] = lines.map((line, idx) => {
-      const trimmed = line.trim();
-      // 從右側拆分：bonus_quantity, quantity 一定是數字，取最後 2 個逗號分隔
-      const lastComma2 = trimmed.lastIndexOf(',');
-      const lastComma1 = trimmed.lastIndexOf(',', lastComma2 - 1);
-      const lastComma0 = trimmed.lastIndexOf(',', lastComma1 - 1);
 
-      const bonus_quantity = parseInt(trimmed.slice(lastComma2 + 1).trim()) || 0;
-      const quantity = parseInt(trimmed.slice(lastComma1 + 1, lastComma2).trim()) || 0;
-      const drug_name = trimmed.slice(lastComma0 + 1, lastComma1).trim();
-      const beforeDrugName = trimmed.slice(0, lastComma0).trim();
-      // beforeDrugName = "line_number,barcode" 或 "line_number,barcode"
-      const firstComma = beforeDrugName.indexOf(',');
-      const line_number = parseInt(beforeDrugName.slice(0, firstComma).trim()) || idx + 1;
-      const barcode = beforeDrugName.slice(firstComma + 1).trim();
+    const text = result.response.text().replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(text);
 
-      return { line_number, barcode, drug_name, quantity, bonus_quantity };
+    // 提取頁碼資訊
+    const pageNumber: number | undefined = parsed.page_number;
+    const totalPages: number | undefined = parsed.total_pages;
+
+    // 解析 items 陣列
+    const rawItems: Array<{
+      storage_location?: string;
+      category?: string;
+      barcode?: string;
+      drug_name?: string;
+      quantity?: string;
+    }> = Array.isArray(parsed.items) ? parsed.items : [];
+
+    const items: PageItem[] = rawItems.map((item, idx) => {
+      const rawQuantity = item.quantity || '';
+      const match = rawQuantity.match(/\d+/);
+      const expected_quantity = match ? parseInt(match[0], 10) : 0;
+
+      // 若 expected_quantity === 0，在 drug_name 標記需確認
+      const drugName = expected_quantity === 0 && item.drug_name
+        ? `${item.drug_name}(數量待確認)`
+        : (item.drug_name || '');
+
+      return {
+        storage_location: item.storage_location || '',
+        category: item.category || '',
+        barcode: (item.barcode || '').trim(),
+        drug_name: drugName,
+        quantity: rawQuantity,
+        page_number: pageNumber,
+        upload_index: _batchIndex * 100 + idx, // 以批次索引為基礎的 fallback 排序值
+      };
     });
 
     return { success: true, items };
@@ -211,42 +241,67 @@ export async function parsePdfWithGemini({ urls }: { urls: string[] }): Promise<
       allBatchResults.push(...batchResults);
     }
 
-    // 3. 合併所有 items，將相同條碼項目合併數量
+    // 3. 合併所有 items，按頁碼排序後重新編號
     allBatchResults.sort((a, b) => a.batchIndex - b.batchIndex);
     const rawItems: PageItem[] = allBatchResults.flatMap(r => r.items);
 
     if (rawItems.length === 0) {
-      return { success: false, error: '未辨識到任何藥品項目，請確認 PDF 內容是否為藥局出貨單' };
+      return { success: false, error: '未辨識到任何藥品項目，請確認 PDF 內容是否為總倉撿貨單' };
     }
 
-    // 以條碼為鍵合併相同項目（quantity / bonus_quantity 分別累加），並記錄合併次數
-    const barcodeMap = new Map<string, PageItem>();
+    // 穩健排序：按頁碼排序，頁碼缺失時 fallback 到上傳順序
+    rawItems.sort((a, b) => {
+      if (a.page_number != null && b.page_number != null) return a.page_number - b.page_number;
+      if (a.page_number != null) return -1; // 有頁碼的排前面
+      if (b.page_number != null) return 1;
+      return (a.upload_index ?? 0) - (b.upload_index ?? 0);
+    });
+
+    // 以條碼為鍵合併相同項目（expected_quantity 累加），並記錄合併次數
+    const barcodeMap = new Map<string, { barcode: string; drug_name: string; expected_quantity: number; storage_location: string; category: string }>();
     const mergeCountMap = new Map<string, number>(); // 記錄每個條碼出現次數
     for (const item of rawItems) {
       const key = item.barcode.trim();
+      // 從原始 quantity 字串提取數字
+      const match = item.quantity.match(/\d+/);
+      const qty = match ? parseInt(match[0], 10) : 0;
+
       if (!key) {
         const fakeKey = `__NO_BARCODE_${barcodeMap.size}__`;
-        barcodeMap.set(fakeKey, { ...item });
+        barcodeMap.set(fakeKey, {
+          barcode: item.barcode,
+          drug_name: item.drug_name,
+          expected_quantity: qty,
+          storage_location: item.storage_location,
+          category: item.category,
+        });
         mergeCountMap.set(fakeKey, 1);
         continue;
       }
       mergeCountMap.set(key, (mergeCountMap.get(key) || 0) + 1);
       const existing = barcodeMap.get(key);
       if (existing) {
-        existing.quantity += item.quantity;
-        existing.bonus_quantity += item.bonus_quantity;
+        existing.expected_quantity += qty;
       } else {
-        barcodeMap.set(key, { ...item });
+        barcodeMap.set(key, {
+          barcode: item.barcode,
+          drug_name: item.drug_name,
+          expected_quantity: qty,
+          storage_location: item.storage_location,
+          category: item.category,
+        });
       }
     }
 
-    // 4. 重新編號
+    // 4. 重新編號（已按頁碼排好序）
     const finalItems: ParsedItem[] = [...barcodeMap.entries()].map(([key, item], idx) => ({
       line_number: idx + 1,
       barcode: item.barcode,
       drug_name: item.drug_name,
-      quantity: item.quantity,
-      bonus_quantity: item.bonus_quantity,
+      quantity: item.expected_quantity,
+      bonus_quantity: 0,
+      storage_location: item.storage_location,
+      category: item.category,
       merged_count: mergeCountMap.get(key) || 1,
     }));
 
@@ -276,9 +331,9 @@ export async function parsePdfWithGemini({ urls }: { urls: string[] }): Promise<
 // ---------------------------------------------------------------------------
 
 /**
- * 使用 Gemini Vision OCR 提取藥品數據
+ * 使用 Gemini Vision OCR 提取藥品數據（總倉撿貨單格式）
  */
-export async function processImagesWithGemini({ urls }: { urls: string[] }): Promise<{ success: boolean; drugs?: ImportDrugItem[]; error?: string }> {
+export async function processImagesWithGemini({ urls }: { urls: string[] }): Promise<{ success: boolean; order_number?: string; delivery_date?: string; drugs?: ImportDrugItem[]; error?: string }> {
   try {
     const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) {
@@ -308,25 +363,38 @@ export async function processImagesWithGemini({ urls }: { urls: string[] }): Pro
       };
     }));
 
-    const prompt = `
-      你是一個精準的醫藥清單 OCR 提取專家。
-      請分析提供的截圖，提取出所有藥品項目。
+    const prompt = `你是一個精準的醫藥清單 OCR 提取專家。請分析提供的總倉撿貨單截圖。
 
-      提取要求：
-      1. 僅提取以下三個欄位：
-         - barcode: 藥品條碼 (數字字串)
-         - name: 藥品名稱
-         - expected_quantity: 應有數量 (數字)
-      2. 忽略所有表格樣式、頁碼或其他雜訊。
-      3. 保持項目在截圖中出現的物理順序。
-      4. 如果某個欄位缺失，請設為空字串或 0。
-      5. 輸出格式必須是嚴格的 JSON 陣列，例如:
-         [
-           { "barcode": "12345678", "name": "藥品 A", "expected_quantity": 10 },
-           { "barcode": "87654321", "name": "藥品 B", "expected_quantity": 5 }
-         ]
-      不要輸出任何 Markdown 程式碼塊標記 (如 \`\`\`json)，只要純 JSON。
-    `;
+請從第一張圖片中找出：
+1. 出貨單號 (order_number)，格式如 R012606220001
+2. 列印時間 (delivery_date)，請將日期格式化為 YYYY-MM-DD
+
+然後請分析所有圖片，提取出所有藥品項目。
+
+藥品欄位：
+- barcode: 商品代號（即國際條碼）
+- name: 中文品名
+- expected_quantity: 補貨量（數字）
+- storage_location: 儲位（如 F3）
+- category: 類別（如 4）
+
+同時請找出每張圖片底部的頁次資訊（如「頁次 3 of 6」），並在回傳中包含 page_number 和 total_pages。
+
+輸出格式（嚴格 JSON，不要 markdown 標記）：
+{
+  "order_number": "R012606220001",
+  "delivery_date": "2026-06-22",
+  "items": [
+    { "barcode": "4987241141005", "name": "樂敦-維他眼藥水", "expected_quantity": 1, "storage_location": "F3", "category": "4", "page_number": 3 }
+  ]
+}
+
+注意事項：
+1. 忽略所有表格樣式、頁碼或其他雜訊。
+2. 保持項目在截圖中出現的物理順序。
+3. 如果某個欄位缺失，請設為空字串或 0。
+4. expected_quantity 必須是數字。
+5. 不要輸出任何 Markdown 程式碼塊標記，只要純 JSON。`;
 
     const result = await model.generateContent([prompt, ...imageParts]);
     const response = await result.response;
@@ -334,9 +402,38 @@ export async function processImagesWithGemini({ urls }: { urls: string[] }): Pro
 
     // 清理可能存在的 Markdown 標記
     const cleanedText = text.replace(/```json|```/g, '').trim();
-    const drugs: ImportDrugItem[] = JSON.parse(cleanedText);
+    const parsed = JSON.parse(cleanedText);
 
-    return { success: true, drugs };
+    // 解析 items 陣列，對 quantity 做正則防禦
+    const rawItems: Array<{
+      barcode?: string;
+      name?: string;
+      expected_quantity?: number | string;
+      storage_location?: string;
+      category?: string;
+    }> = Array.isArray(parsed.items) ? parsed.items : (Array.isArray(parsed) ? parsed : []);
+
+    const drugs: ImportDrugItem[] = rawItems.map((item) => {
+      // 若 expected_quantity 是字串（如 "1罐"），用正則提取數字
+      let expectedQuantity = 0;
+      if (typeof item.expected_quantity === 'number') {
+        expectedQuantity = item.expected_quantity;
+      } else if (typeof item.expected_quantity === 'string') {
+        const match = item.expected_quantity.match(/\d+/);
+        expectedQuantity = match ? parseInt(match[0], 10) : 0;
+      }
+
+      return {
+        barcode: (item.barcode || '').trim(),
+        name: item.name || '',
+        expected_quantity: expectedQuantity,
+        bonus_quantity: 0,
+        storage_location: item.storage_location || '',
+        category: item.category || '',
+      };
+    });
+
+    return { success: true, order_number: parsed.order_number, delivery_date: parsed.delivery_date, drugs };
   } catch (error: unknown) {
     console.error('Gemini OCR Error:', error);
     const rawMessage = error instanceof Error ? error.message : 'OCR 辨識失敗';
@@ -429,7 +526,7 @@ export async function importDrugs(
       return { success: false, error: '藥品清單不能為空' };
     }
 
-    // 0. 合併相同條碼的項目（數量疊加）
+    // 0. 合併相同條碼的項目（數量疊加，保留 storage_location 和 category）
     const mergedMap = new Map<string, ImportDrugItem>();
     for (const drug of drugs) {
       const key = drug.barcode.trim();
@@ -442,7 +539,6 @@ export async function importDrugs(
       const existing = mergedMap.get(key);
       if (existing) {
         existing.expected_quantity += drug.expected_quantity;
-        existing.bonus_quantity += drug.bonus_quantity;
       } else {
         mergedMap.set(key, { ...drug });
       }
@@ -482,7 +578,9 @@ export async function importDrugs(
         barcode: drug.barcode,
         name: drug.name,
         expected_quantity: drug.expected_quantity,
-        bonus_quantity: drug.bonus_quantity,
+        bonus_quantity: 0,
+        storage_location: drug.storage_location || '',
+        category: drug.category || '',
         counted_status: 'pending',
       };
     });

@@ -87,15 +87,33 @@ export function validateParsedPdf(data: ParsedPdf): PdfValidationResult {
     }
 
     // 3. 數量合理性
-    if (item.quantity + item.bonus_quantity <= 0) {
+    if (item.quantity <= 0) {
       status = 'error';
-      messages.push('總數量必須大於 0');
+      messages.push('補貨量必須大於 0');
     }
 
-    // 4. 合併後數量合理性（合併後數量過大可能需人工確認）
-    if (item.quantity + item.bonus_quantity > 999) {
+    // 4. 數量為 0 的警告（正則提取失敗的可能性）
+    if (item.quantity === 0) {
       if (status !== 'error') status = 'warn';
-      messages.push('合併後總數量異常偏大');
+      messages.push('補貨量為 0，請確認是否正則提取失敗');
+    }
+
+    // 5. 合併後數量合理性（數量過大可能需人工確認）
+    if (item.quantity > 999) {
+      if (status !== 'error') status = 'warn';
+      messages.push('補貨量異常偏大');
+    }
+
+    // 6. 儲位合理性
+    if (item.storage_location && item.storage_location.trim().length > 10) {
+      if (status !== 'error') status = 'warn';
+      messages.push('儲位格式異常');
+    }
+
+    // 7. 類別合理性
+    if (item.category && item.category.trim().length > 10) {
+      if (status !== 'error') status = 'warn';
+      messages.push('類別格式異常');
     }
 
     if (status === 'error') errorCount++;
