@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -11,13 +11,17 @@ import {
   FileText,
   AlertCircle,
   ChevronDown,
+  X,
+  Camera as CameraIcon,
+  RefreshCw
 } from 'lucide-react';
 import Link from 'next/link';
 import { TeachingButton } from '@/components/teaching';
-import { DrugCard, ErrorDrawer, JumpDialog, PhotoPreview, BarcodeSearchBar } from './components';
+import { DrugCard, ErrorDrawer, JumpDialog, PhotoPreview, BarcodeSearchBar, CameraModal } from './components';
 import { useBarcodeMatch, usePhotoCapture, usePagePersistence } from './hooks';
 import type { DrugItem, ErrorDrugItem, JumpTarget } from '@/types';
 import { resetDrugStatus } from '@/app/actions/scan/resetDrug';
+import { updateDrugStatus } from '@/app/actions/scan/updatePhoto';
 
 export default function ScanContent() {
   const searchParams = useSearchParams();
@@ -37,9 +41,11 @@ export default function ScanContent() {
   const [errorTotal, setErrorTotal] = useState(0);
   const [errorDrugs, setErrorDrugs] = useState<ErrorDrugItem[]>([]);
   const [isErrorDrawerOpen, setIsErrorDrawerOpen] = useState(false);
+  const [selectedItemPendingAction, setSelectedItemPendingAction] = useState<string | null>(null);
+  const [manuallySelectedDrugId, setManuallySelectedDrugId] = useState<string | null>(null);
 
   const [actualQuantity, setActualQuantity] = useState<string>('');
-  const [selectedStatus, setSelectedStatus] = useState<'correct' | 'incorrect' | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<'correct' | 'incorrect' | 'pending_photo' | 'pending_skip' | null>(null);
   const [jumpTarget, setJumpTarget] = useState<JumpTarget | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -56,6 +62,23 @@ export default function ScanContent() {
     setToast(message);
     setTimeout(() => setToast(null), 2000);
   }, []);
+
+  const handleSkipPhoto = useCallback(
+    async (drugId: string) => {
+      if (!matchingItem || matchingItem.id !== drugId) return;
+      setSelectedStatus('pending_skip');
+      try {
+        const res = await updateDrugStatus(drugId, null, parseInt(actualQuantity || '0'));
+        if (!res.success) throw new Error(res.error);
+        await fetchPageData();
+        showToast('已標記為有誤（未拍照）');
+      } catch (err: any) {
+        setSelectedStatus(null);
+        showToast(`跳過失敗：${err.message}`);
+      }
+    },
+    [matchingItem, actualQuantity, fetchPageData, showToast, updateDrugStatus]
+  );
 
   const fetchPageData = useCallback(async () => {
     if (!manifestId) return;
@@ -189,6 +212,23 @@ export default function ScanContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchPageData, showToast]);
 
+  const handleSkipPhoto = useCallback(
+    async (drugId: string) => {
+      if (!matchingItem || matchingItem.id !== drugId) return;
+      setSelectedStatus('pending_skip');
+      try {
+        const res = await updateDrugStatus(drugId, null, parseInt(actualQuantity || '0'));
+        if (!res.success) throw new Error(res.error);
+        await fetchPageData();
+        showToast('已標記為有誤（未拍照）');
+      } catch (err: any) {
+        setSelectedStatus(null);
+        showToast(`跳過失敗：${err.message}`);
+      }
+    },
+    [matchingItem, actualQuantity, fetchPageData, showToast, updateDrugStatus]
+  );
+
   // 取得清單名稱
   useEffect(() => {
     if (!manifestId) {
@@ -253,7 +293,16 @@ export default function ScanContent() {
 
 
 
-  const { fileInputRef, uploadingQueue, triggerCamera, handleFileUpload } = usePhotoCapture({
+  const { 
+    fileInputRef, 
+    uploadingQueue, 
+    triggerCamera, 
+    handleFileUpload,
+    showCameraModal,
+    setShowCameraModal,
+    cameraError,
+    checkingCameraSupport
+  } = usePhotoCapture({
     manifestId,
     matchingItem,
     selectedStatus,
@@ -633,31 +682,41 @@ export default function ScanContent() {
                 .filter((drug) => !barcodeInput || getMatchScore(drug, barcodeInput) > 0)
                 .map((drug) => {
                   const isMatched = getMatchScore(drug, barcodeInput) > 0;
-                  const isUploading = uploadingQueue.has(drug.id);
-  
-                  return (
-                    <div
-                      key={drug.id}
-                      className={`transition-all duration-300 mb-4 ${
-                        barcodeInput && !isMatched ? 'opacity-25 grayscale scale-[0.98]' : ''
-                      }`}
-                    >
-                      <DrugCard
-                        drug={drug}
-                        isMatched={isMatched}
-                        isUploading={isUploading}
-                        isLocked={isLocked}
-                        actualQuantity={actualQuantity}
-                        selectedStatus={selectedStatus}
-                        onStatusSelect={setSelectedStatus}
-                        onActualQuantityChange={setActualQuantity}
-                        onTriggerCamera={triggerCamera}
-                        onPreviewPhoto={setPreviewImage}
-                        onFilterByBarcode={setBarcodeInput}
-                        onResetDrug={handleResetDrug}
-                      />
-                    </div>
-                  );
+      const isUploading = uploadingQueue.has(drug.id);
+      const isManuallySelected = manuallySelectedDrugId === drug.id;
+      // 手動選取優先於 barcodeInput 讓操作區可見
+      const shouldShowActionsForCard = isMatched || isManuallySelected;
+      // 有條碼篩選又不是手動選取的卡片就隱藏
+      const isDimmed = barcodeInput && !isMatched && !isManuallySelected;
+
+      return (
+        <div
+          key={drug.id}
+          className={`transition-all duration-300 mb-4 ${
+            isDimmed ? 'opacity-25 grayscale scale-[0.98]' : ''
+          }`}
+        >
+          <DrugCard
+            drug={drug}
+            isMatched={isMatched}
+            isUploading={isUploading}
+            isLocked={isLocked}
+            isManuallySelected={isManuallySelected}
+            actualQuantity={actualQuantity}
+            selectedStatus={selectedStatus}
+            onStatusSelect={setSelectedStatus}
+            onActualQuantityChange={setActualQuantity}
+            onTriggerCamera={triggerCamera}
+            onPreviewPhoto={setPreviewImage}
+            onFilterByBarcode={setBarcodeInput}
+            onResetDrug={handleResetDrug}
+            onSkipPhoto={handleSkipPhoto}
+            onCardClick={(id) => {
+              setManuallySelectedDrugId(id);
+            }}
+          />
+        </div>
+      );
                 })}
             </div>
           )}
@@ -877,19 +936,21 @@ export default function ScanContent() {
                 .map((drug) => {
                   const isMatched = getMatchScore(drug, barcodeInput) > 0;
                   const isUploading = uploadingQueue.has(drug.id);
-  
+                  const isManuallySelected = manuallySelectedDrugId === drug.id;
+                  const shouldShowActionsForCard = isMatched || isManuallySelected;
+                  const isDimmed = barcodeInput && !isMatched && !isManuallySelected;
+
                   return (
                     <div
                       key={drug.id}
-                      className={`transition-all duration-300 ${
-                        barcodeInput && !isMatched ? 'opacity-25 grayscale scale-[0.98]' : ''
-                      }`}
+                      className={`transition-all duration-300 ${isDimmed ? 'opacity-25 grayscale scale-[0.98]' : ''}`}
                     >
                       <DrugCard
                         drug={drug}
                         isMatched={isMatched}
                         isUploading={isUploading}
                         isLocked={isLocked}
+                        isManuallySelected={isManuallySelected}
                         actualQuantity={actualQuantity}
                         selectedStatus={selectedStatus}
                         onStatusSelect={setSelectedStatus}
@@ -898,6 +959,10 @@ export default function ScanContent() {
                         onPreviewPhoto={setPreviewImage}
                         onFilterByBarcode={setBarcodeInput}
                         onResetDrug={handleResetDrug}
+                        onSkipPhoto={handleSkipPhoto}
+                        onCardClick={(id) => {
+                          setManuallySelectedDrugId(id);
+                        }}
                       />
                     </div>
                   );
@@ -907,5 +972,13 @@ export default function ScanContent() {
         </main>
       </div>
     </div>
+    {showCameraModal && (
+      <CameraModal
+        isOpen={showCameraModal}
+        onClose={() => setShowCameraModal(false)}
+        onCapture={handleCameraFile}
+        onError={setCameraError}
+        onCheckingSupport={setCheckingCameraSupport}
+      )}
   );
 }

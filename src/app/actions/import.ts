@@ -130,9 +130,9 @@ export async function parseBatchWithGemini(url: string, _batchIndex: number): Pr
 請提取所有藥品項目，並以 JSON 格式輸出。
 
 提取欄位：
-- storage_location: 儲位（如 F3）
-- category: 類別（如 4）
-- barcode: 商品代號（即國際條碼）
+- storage_location: 儲位（如 F3），找不到請設為空字串，不要猜測或自動填補
+- category: 類別（如 4），找不到請設為空字串，不要猜測或自動填補
+- barcode: 健保代碼（如 AC16496100），找不到請設為空字串
 - drug_name: 中文品名
 - quantity: 補貨量（保留原始格式如 "1罐"、"5盒"）
 
@@ -143,15 +143,18 @@ export async function parseBatchWithGemini(url: string, _batchIndex: number): Pr
   "page_number": 3,
   "total_pages": 6,
   "items": [
-    {"storage_location": "F3", "category": "4", "barcode": "4987241141005", "drug_name": "樂敦-維他眼藥水", "quantity": "1罐"}
+    {"storage_location": "F3", "category": "4", "barcode": "AC16496100", "drug_name": "胃利贊膜衣錠20毫克", "quantity": "1罐"},
+    {"storage_location": "", "category": "4", "barcode": "", "drug_name": "某藥品名稱", "quantity": "2盒"}
   ]
 }
 
 注意事項：
 1. 這是一份專業的藥局總倉撿貨單，請特別注意中文字形辨識，避免將藥品名稱誤判為無意義的文字。
-2. 保持項目在圖片中出現的物理順序。
-3. 忽略表頭、頁尾及其他非藥品項目內容。
-4. quantity 欄位保留原始格式（如 "1罐"、"5盒"），不要轉為純數字。`;
+2. storage_location 和 category 是選填欄位，如果照片中沒有明確顯示，請務必設為空字串，不要猜測。
+3. barcode 欄位如果是健保代碼（格式如 AC12345678）或廠商自編碼，請如實回傳；如果完全看不到任何代碼，請設為空字串。
+4. 保持項目在圖片中出現的物理順序。
+5. 忽略表頭、頁尾及其他非藥品項目內容。
+6. quantity 欄位保留原始格式（如 "1罐"、"5盒"），不要轉為純數字。`;
 
     const result = await model.generateContent([
       prompt,
@@ -372,11 +375,11 @@ export async function processImagesWithGemini({ urls }: { urls: string[] }): Pro
 然後請分析所有圖片，提取出所有藥品項目。
 
 藥品欄位：
-- barcode: 商品代號（即國際條碼）
+- barcode: 健保代碼（如 AC16496100），找不到請設為空字串
 - name: 中文品名
 - expected_quantity: 補貨量（數字）
-- storage_location: 儲位（如 F3）
-- category: 類別（如 4）
+- storage_location: 儲位（如 F3），找不到請設為空字串
+- category: 類別（如 4），找不到請設為空字串
 
 同時請找出每張圖片底部的頁次資訊（如「頁次 3 of 6」），並在回傳中包含 page_number 和 total_pages。
 
@@ -385,16 +388,18 @@ export async function processImagesWithGemini({ urls }: { urls: string[] }): Pro
   "order_number": "R012606220001",
   "delivery_date": "2026-06-22",
   "items": [
-    { "barcode": "4987241141005", "name": "樂敦-維他眼藥水", "expected_quantity": 1, "storage_location": "F3", "category": "4", "page_number": 3 }
+    { "barcode": "AC16496100", "name": "胃利贊膜衣錠20毫克", "expected_quantity": 1, "storage_location": "F3", "category": "4", "page_number": 3 },
+    { "barcode": "", "name": "某藥品名稱", "expected_quantity": 2, "storage_location": "", "category": "4", "page_number": 3 }
   ]
 }
 
 注意事項：
 1. 忽略所有表格樣式、頁碼或其他雜訊。
 2. 保持項目在截圖中出現的物理順序。
-3. 如果某個欄位缺失，請設為空字串或 0。
-4. expected_quantity 必須是數字。
-5. 不要輸出任何 Markdown 程式碼塊標記，只要純 JSON。`;
+3. storage_location 和 category 是選填欄位，如果圖中沒有明確顯示，請務必設為空字串，不要猜測。
+4. barcode 如果是健保代碼（格式如 AC12345678）或廠商自編碼，請如實回傳；完全看不到代碼時請設為空字串。
+5. expected_quantity 必須是數字。
+6. 不要輸出任何 Markdown 程式碼塊標記，只要純 JSON。`;
 
     const result = await model.generateContent([prompt, ...imageParts]);
     const response = await result.response;
@@ -544,6 +549,32 @@ export async function importDrugs(
       }
     }
     const mergedDrugs = [...mergedMap.values()];
+    
+    // 0.5. NHI 藥品中文名稱查詢與替換
+    const drugsWithChineseName = await Promise.all(
+      mergedDrugs.map(async (drug) => {
+        // 如果有條碼（健保代碼），查詢 NHI 取得中文名稱
+        if (drug.barcode && drug.barcode.trim() !== '') {
+          try {
+            const { data } = await supabaseAdmin
+              .from('nhi_drug_lookup')
+              .select('chinese_name')
+              .eq('drug_code', drug.barcode.trim())
+              .single();
+            
+            if (data && data.chinese_name) {
+              // 使用 NHI 查得的中文名稱
+              return { ...drug, name: data.chinese_name };
+            }
+          } catch (error) {
+            // 查詢失敗時保留原名稱，不中斷流程
+            console.warn(`NHI lookup failed for barcode ${drug.barcode}:`, error);
+          }
+        }
+        // 無條碼或查詢失敗時保留原名稱
+        return drug;
+      })
+    );
 
     // 1. 建立 Manifest (清單批號)
     const { data: manifest, error: manifestError } = await supabaseAdmin
@@ -553,7 +584,7 @@ export async function importDrugs(
         order_number: options.order_number,
         delivery_date: options.delivery_date,
         source_file: options.source_file,
-        total_items: mergedDrugs.length,
+        total_items: drugsWithChineseName.length,
         status: 'active',
         user_id: userId,
         source_images: options.source_images,
@@ -566,29 +597,29 @@ export async function importDrugs(
     }
 
     // 2. 實作嚴格的分頁與排序
-    const ITEMS_PER_PAGE = 44;
-    const drugItemsToInsert = mergedDrugs.map((drug, index) => {
-      const itemOrder = index + 1; // 原始流水號 (1, 2, 3...)
-      const pageNumber = Math.ceil(itemOrder / ITEMS_PER_PAGE);
+      const ITEMS_PER_PAGE = 44;
+      const drugItemsToInsert = drugsWithChineseName.map((drug, index) => {
+        const itemOrder = index + 1; // 原始流水號 (1, 2, 3...)
+        const pageNumber = Math.ceil(itemOrder / ITEMS_PER_PAGE);
 
-      return {
-        manifest_id: manifest.id,
-        item_order: itemOrder,
-        page_number: pageNumber,
-        barcode: drug.barcode,
-        name: drug.name,
-        expected_quantity: drug.expected_quantity,
-        bonus_quantity: 0,
-        storage_location: drug.storage_location || '',
-        category: drug.category || '',
-        counted_status: 'pending',
-      };
-    });
+        return {
+          manifest_id: manifest.id,
+          item_order: itemOrder,
+          page_number: pageNumber,
+          barcode: drug.barcode,
+          name: drug.name,
+          expected_quantity: drug.expected_quantity,
+          bonus_quantity: 0,
+          storage_location: drug.storage_location || '',
+          category: drug.category || '',
+          counted_status: 'pending',
+        };
+      });
 
-    // 3. 批量寫入資料庫
-    const { error: insertError } = await supabaseAdmin
-      .from('drug_items')
-      .insert(drugItemsToInsert);
+      // 3. 批量寫入資料庫
+      const { error: insertError } = await supabaseAdmin
+        .from('drug_items')
+        .insert(drugItemsToInsert);
 
     if (insertError) {
       throw new Error(`批量匯入藥品失敗: ${insertError.message}`);
@@ -597,7 +628,7 @@ export async function importDrugs(
     return {
       success: true,
       manifestId: manifest.id,
-      totalItems: mergedDrugs.length,
+      totalItems: drugsWithChineseName.length,
     };
 
   } catch (error: unknown) {
