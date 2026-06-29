@@ -27,7 +27,10 @@ BEGIN
   VALUES (
     p_manifest->>'name',
     p_manifest->>'order_number',
-    NULLIF(p_manifest->>'delivery_date', ''),
+    NULLIF(
+      NULLIF(p_manifest->>'delivery_date', ''),
+      'invalid-date'
+    )::date,
     p_manifest->>'source_file',
     (p_manifest->>'total_items')::int,
     'active',
