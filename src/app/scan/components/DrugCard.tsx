@@ -132,6 +132,19 @@ export default function DrugCard({
               <span className="text-xl font-bold text-[#00f2fe] drop-shadow-[0_0_8px_rgba(0,242,254,0.4)]">
                 {drug.expected_quantity}
               </span>
+              {/* 放大鏡：點擊以條碼篩選 */}
+              {!isNoBarcode && onFilterByBarcode && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onFilterByBarcode(drug.barcode);
+                  }}
+                  className="p-1 rounded-full hover:bg-slate-700/50 transition-colors"
+                  title="以條碼篩選"
+                >
+                  <Search className="w-3.5 h-3.5 text-slate-400 hover:text-[#00f2fe]" />
+                </button>
+              )}
             </div>
 
             {isError && drug.actual_quantity !== undefined && (
@@ -274,10 +287,10 @@ export default function DrugCard({
                     onClick={() => onStatusSelect('incorrect')}
                     disabled={isLocked}
                     className={`flex-1 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 ${
-                      selectedStatus === 'incorrect' || selectedStatus === 'pending_photo' || selectedStatus === 'pending_skip'
-                        ? 'bg-[#ff4b5c] text-white shadow-[0_0_10px_rgba(255,75,92,0.4)]'
-                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                    } ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+          (selectedStatus === 'incorrect' || isPendingPhotoChoice)
+            ? 'bg-[#ff4b5c] text-white shadow-[0_0_10px_rgba(255,75,92,0.4)]'
+            : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+        } ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     有誤
                   </button>

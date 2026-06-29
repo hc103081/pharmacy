@@ -132,7 +132,7 @@ export async function parseBatchWithGemini(url: string, _batchIndex: number): Pr
 提取欄位：
 - storage_location: 儲位（如 F3），找不到請設為空字串，不要猜測或自動填補
 - category: 類別（如 4），找不到請設為空字串，不要猜測或自動填補
-- barcode: 健保代碼（如 AC16496100），找不到請設為空字串
+- barcode: 健保代碼（格式如 A000015421、AC16496100），找不到請設為空字串
 - drug_name: 中文品名
 - quantity: 補貨量（保留原始格式如 "1罐"、"5盒"）
 
@@ -151,7 +151,7 @@ export async function parseBatchWithGemini(url: string, _batchIndex: number): Pr
 注意事項：
 1. 這是一份專業的藥局總倉撿貨單，請特別注意中文字形辨識，避免將藥品名稱誤判為無意義的文字。
 2. storage_location 和 category 是選填欄位，如果照片中沒有明確顯示，請務必設為空字串，不要猜測。
-3. barcode 欄位如果是健保代碼（格式如 AC12345678）或廠商自編碼，請如實回傳；如果完全看不到任何代碼，請設為空字串。
+3. barcode 欄位如果是健保代碼（格式如 A000015421、AC16496100）或廠商自編碼，請如實回傳；如果完全看不到任何代碼，請設為空字串。
 4. 保持項目在圖片中出現的物理順序。
 5. 忽略表頭、頁尾及其他非藥品項目內容。
 6. quantity 欄位保留原始格式（如 "1罐"、"5盒"），不要轉為純數字。`;
@@ -375,7 +375,7 @@ export async function processImagesWithGemini({ urls }: { urls: string[] }): Pro
 然後請分析所有圖片，提取出所有藥品項目。
 
 藥品欄位：
-- barcode: 健保代碼（如 AC16496100），找不到請設為空字串
+- barcode: 健保代碼（格式如 A000015421、AC16496100），找不到請設為空字串
 - name: 中文品名
 - expected_quantity: 補貨量（數字）
 - storage_location: 儲位（如 F3），找不到請設為空字串
@@ -551,16 +551,21 @@ export async function importDrugs(
     const mergedDrugs = [...mergedMap.values()];
     
     // 0.5. NHI 藥品中文名稱查詢與替換
+    console.log(`[NHI] 開始查詢，共 ${mergedDrugs.length} 筆藥品`);
     const drugsWithChineseName = await Promise.all(
       mergedDrugs.map(async (drug) => {
         // 如果有條碼（健保代碼），查詢 NHI 取得中文名稱
         if (drug.barcode && drug.barcode.trim() !== '') {
           try {
-            const { data } = await supabaseAdmin
+            const trimmed = drug.barcode.trim();
+            console.log(`[NHI] 查詢條碼: "${trimmed}"`);
+            const { data, error } = await supabaseAdmin
               .from('nhi_drug_lookup')
-              .select('chinese_name')
-              .eq('drug_code', drug.barcode.trim())
-              .single();
+              .select('drug_code, chinese_name')
+              .eq('drug_code', trimmed)
+              .maybeSingle();
+            
+            console.log(`[NHI] 查詢結果 for "${trimmed}":`, data ? `找到 - ${data.chinese_name}` : '未找到');
             
             if (data && data.chinese_name) {
               // 使用 NHI 查得的中文名稱
@@ -568,7 +573,7 @@ export async function importDrugs(
             }
           } catch (error) {
             // 查詢失敗時保留原名稱，不中斷流程
-            console.warn(`NHI lookup failed for barcode ${drug.barcode}:`, error);
+            console.warn(`[NHI] 查詢失敗 for barcode ${drug.barcode}:`, error);
           }
         }
         // 無條碼或查詢失敗時保留原名稱
@@ -576,58 +581,48 @@ export async function importDrugs(
       })
     );
 
-    // 1. 建立 Manifest (清單批號)
-    const { data: manifest, error: manifestError } = await supabaseAdmin
-      .from('manifests')
-      .insert({
-        name: manifestName,
-        order_number: options.order_number,
-        delivery_date: options.delivery_date,
-        source_file: options.source_file,
-        total_items: drugsWithChineseName.length,
-        status: 'active',
-        user_id: userId,
-        source_images: options.source_images,
-      })
-      .select()
-      .single();
+    // 1. 建構明細資料（分頁與排序）
+    const ITEMS_PER_PAGE = 44;
+    const drugItemsToInsert = drugsWithChineseName.map((drug, index) => {
+      const itemOrder = index + 1;
+      const pageNumber = Math.ceil(itemOrder / ITEMS_PER_PAGE);
 
-    if (manifestError || !manifest) {
-      throw new Error(`建立清單失敗: ${manifestError?.message}`);
-    }
+      return {
+        item_order: itemOrder,
+        page_number: pageNumber,
+        barcode: drug.barcode,
+        name: drug.name,
+        expected_quantity: drug.expected_quantity,
+        bonus_quantity: 0,
+        storage_location: drug.storage_location || '',
+        category: drug.category || '',
+      };
+    });
 
-    // 2. 實作嚴格的分頁與排序
-      const ITEMS_PER_PAGE = 44;
-      const drugItemsToInsert = drugsWithChineseName.map((drug, index) => {
-        const itemOrder = index + 1; // 原始流水號 (1, 2, 3...)
-        const pageNumber = Math.ceil(itemOrder / ITEMS_PER_PAGE);
+    // 2. 原子化寫入：單一 RPC 交易同時建立 manifest + drug_items
+    const { data: manifestId, error: rpcError } = await supabaseAdmin.rpc(
+      'create_manifest_with_items',
+      {
+        p_manifest: {
+          name: manifestName,
+          order_number: options.order_number ?? '',
+          delivery_date: options.delivery_date ?? '',
+          source_file: options.source_file ?? '',
+          total_items: drugItemsToInsert.length,
+          user_id: userId,
+          source_images: options.source_images ?? [],
+        },
+        p_items: drugItemsToInsert,
+      },
+    );
 
-        return {
-          manifest_id: manifest.id,
-          item_order: itemOrder,
-          page_number: pageNumber,
-          barcode: drug.barcode,
-          name: drug.name,
-          expected_quantity: drug.expected_quantity,
-          bonus_quantity: 0,
-          storage_location: drug.storage_location || '',
-          category: drug.category || '',
-          counted_status: 'pending',
-        };
-      });
-
-      // 3. 批量寫入資料庫
-      const { error: insertError } = await supabaseAdmin
-        .from('drug_items')
-        .insert(drugItemsToInsert);
-
-    if (insertError) {
-      throw new Error(`批量匯入藥品失敗: ${insertError.message}`);
+    if (rpcError || !manifestId) {
+      throw new Error(`匯入清單失敗: ${rpcError?.message ?? 'RPC 未回傳 manifestId'}`);
     }
 
     return {
       success: true,
-      manifestId: manifest.id,
+      manifestId: manifestId as string,
       totalItems: drugsWithChineseName.length,
     };
 

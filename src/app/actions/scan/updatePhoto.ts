@@ -13,7 +13,7 @@ export interface UpdatePhotoResponse {
  */
 export async function updateDrugStatus(
   drugId: string, 
-  photoUrl: string, 
+  photoUrl: string | null, 
   actualQuantity: number
 ): Promise<UpdatePhotoResponse> {
   try {

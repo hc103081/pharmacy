@@ -7,7 +7,17 @@ import { PackageSearch, FileUp, ClipboardCheck, CheckCircle } from 'lucide-react
 import { UserMenu } from '@/components/UserMenu';
 import { TeachingButton } from '@/components/teaching';
 
+import { Suspense } from 'react';
+
 export default function HomePage() {
+  return (
+    <Suspense fallback={<div className="fixed inset-0 bg-[#07142b] flex items-center justify-center text-slate-500">載入中...</div>}>
+      <HomeContent />
+    </Suspense>
+  );
+}
+
+function HomeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const emailVerified = searchParams.get('email_verified') === 'true';

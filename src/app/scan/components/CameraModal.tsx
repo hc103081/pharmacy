@@ -4,35 +4,32 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { X, Camera as CameraIcon, RefreshCw } from 'lucide-react';
 
 interface CameraModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onCapture: (file: File) => Promise<void>; // Callback to handle the captured file
-  onError: (message: string) => void; // Callback for errors
-  onCheckingSupport: (isSupported: boolean | null) => void; // Callback to update support status
-  frontCamera?: boolean; // Initial camera preference
-}
-
-interface CameraModalReturn {
-  videoRef: React.RefObject<HTMLVideoElement>;
+ isOpen: boolean;
+ onClose: () => void;
+ onCapture: (file: File) => Promise<void>; // Callback to handle the captured file
+ onError: (message: string) => void; // Callback for errors
+ onCheckingSupport: (isSupported: boolean | null) => void; // Callback to update support status
+ frontCamera?: boolean; // Initial camera preference
 }
 
 export default function CameraModal({
-  isOpen,
-  onClose,
-  onCapture,
-  onError,
-  onCheckingSupport,
-  frontCamera = false
-}: CameraModalProps): CameraModalReturn {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [hasUserMedia, setHasUserMedia] = useState<boolean | null>(null); // null = checking, true = supported, false = not supported
+ isOpen,
+ onClose,
+ onCapture,
+ onError,
+ onCheckingSupport,
+ frontCamera: frontCameraProp = false
+}: CameraModalProps) {
+ const videoRef = useRef<HTMLVideoElement>(null);
+ const streamRef = useRef<MediaStream | null>(null);
+ const [isLoading, setIsLoading] = useState(false);
+ const [error, setError] = useState<string | null>(null);
+ const [hasUserMedia, setHasUserMedia] = useState<boolean | null>(null); // null = checking, true = supported, false = not supported
+ const [frontCamera, setFrontCamera] = useState(frontCameraProp);
 
   // Check getUserMedia support on mount
   useEffect(() => {
-    if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
       setHasUserMedia(true);
       onCheckingSupport(true);
     } else {
@@ -250,8 +247,7 @@ export default function CameraModal({
             >
               {/* Inner circle for feedback */}
               <div className="absolute inset-0">
-                <div className="w-full h-full rounded-full bg-white dark:bg-gray-200 opacity-0 transition-opacity duration-200 
-                  {isLoading ? 'opacity-60' : ''}">
+                <div className={`w-full h-full rounded-full bg-white dark:bg-gray-200 opacity-0 transition-opacity duration-200 ${isLoading ? 'opacity-60' : ''}`}>
                 </div>
               </div>
               <CameraIcon className="h-6 w-6 text-white dark:text-gray-800" />

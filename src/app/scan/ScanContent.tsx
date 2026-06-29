@@ -63,23 +63,6 @@ export default function ScanContent() {
     setTimeout(() => setToast(null), 2000);
   }, []);
 
-  const handleSkipPhoto = useCallback(
-    async (drugId: string) => {
-      if (!matchingItem || matchingItem.id !== drugId) return;
-      setSelectedStatus('pending_skip');
-      try {
-        const res = await updateDrugStatus(drugId, null, parseInt(actualQuantity || '0'));
-        if (!res.success) throw new Error(res.error);
-        await fetchPageData();
-        showToast('已標記為有誤（未拍照）');
-      } catch (err: any) {
-        setSelectedStatus(null);
-        showToast(`跳過失敗：${err.message}`);
-      }
-    },
-    [matchingItem, actualQuantity, fetchPageData, showToast, updateDrugStatus]
-  );
-
   const fetchPageData = useCallback(async () => {
     if (!manifestId) return;
 
@@ -212,23 +195,6 @@ export default function ScanContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchPageData, showToast]);
 
-  const handleSkipPhoto = useCallback(
-    async (drugId: string) => {
-      if (!matchingItem || matchingItem.id !== drugId) return;
-      setSelectedStatus('pending_skip');
-      try {
-        const res = await updateDrugStatus(drugId, null, parseInt(actualQuantity || '0'));
-        if (!res.success) throw new Error(res.error);
-        await fetchPageData();
-        showToast('已標記為有誤（未拍照）');
-      } catch (err: any) {
-        setSelectedStatus(null);
-        showToast(`跳過失敗：${err.message}`);
-      }
-    },
-    [matchingItem, actualQuantity, fetchPageData, showToast, updateDrugStatus]
-  );
-
   // 取得清單名稱
   useEffect(() => {
     if (!manifestId) {
@@ -257,6 +223,23 @@ export default function ScanContent() {
 
   const { initializedRef, lastVisitedPage, setLastVisitedPage, lastVisitedPageRef, lastScrollY, setLastScrollY, lastScrollYRef, saveState, restorePage } = usePagePersistence(manifestId);
   const { matchingItem, getMatchScore } = useBarcodeMatch(drugs, barcodeInput);
+
+  const handleSkipPhoto = useCallback(
+    async (drugId: string) => {
+      if (!matchingItem || matchingItem.id !== drugId) return;
+      setSelectedStatus('pending_skip');
+      try {
+        const res = await updateDrugStatus(drugId, null, parseInt(actualQuantity || '0'));
+        if (!res.success) throw new Error(res.error);
+        await fetchPageData();
+        showToast('已標記為有誤（未拍照）');
+      } catch (err: any) {
+        setSelectedStatus(null);
+        showToast(`跳過失敗：${err.message}`);
+      }
+    },
+    [matchingItem, actualQuantity, fetchPageData, showToast, updateDrugStatus]
+  );
 
   // 當匹配到已確認的藥品時，自動恢復上次選擇的狀態和實際數量
   useEffect(() => {
@@ -298,10 +281,13 @@ export default function ScanContent() {
     uploadingQueue, 
     triggerCamera, 
     handleFileUpload,
+    handleCameraFile,
     showCameraModal,
     setShowCameraModal,
     cameraError,
-    checkingCameraSupport
+    setCameraError,
+    checkingCameraSupport,
+    setCheckingCameraSupport
   } = usePhotoCapture({
     manifestId,
     matchingItem,
@@ -466,6 +452,7 @@ export default function ScanContent() {
   }, [allPageCompleted, currentPage, totalPages, loading]);
 
   return (
+    <>
     <div className="fixed inset-0 bg-[#07142b] text-slate-200 flex flex-col overflow-hidden">
       <ErrorDrawer
         isOpen={isErrorDrawerOpen}
@@ -710,7 +697,7 @@ export default function ScanContent() {
             onPreviewPhoto={setPreviewImage}
             onFilterByBarcode={setBarcodeInput}
             onResetDrug={handleResetDrug}
-            onSkipPhoto={handleSkipPhoto}
+            onSkipPhoto={() => handleSkipPhoto(drug.id)}
             onCardClick={(id) => {
               setManuallySelectedDrugId(id);
             }}
@@ -959,7 +946,7 @@ export default function ScanContent() {
                         onPreviewPhoto={setPreviewImage}
                         onFilterByBarcode={setBarcodeInput}
                         onResetDrug={handleResetDrug}
-                        onSkipPhoto={handleSkipPhoto}
+                        onSkipPhoto={() => handleSkipPhoto(drug.id)}
                         onCardClick={(id) => {
                           setManuallySelectedDrugId(id);
                         }}
@@ -979,6 +966,8 @@ export default function ScanContent() {
         onCapture={handleCameraFile}
         onError={setCameraError}
         onCheckingSupport={setCheckingCameraSupport}
-      )}
+      />
+    )}
+    </>
   );
 }
