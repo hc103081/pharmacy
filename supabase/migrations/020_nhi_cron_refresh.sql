@@ -1,25 +1,33 @@
 -- 020_nhi_cron_refresh.sql
--- 健保藥品對照表「每月 1 日 03:00」的自動重匯流程說明：
--- 由於 Supabase 受管理的 PostgreSQL 不允許執行擴充功能（如 net.http_post）來進行外部 HTTP 呼叫，
--- 因此此排程僅負責在每月 1 日 03:00 (UTC) 重設匯入狀態（last_row=0），
--- 實際的藥品對照表更新由 Vercel Cron 觸發的 Edge Function 執行。
--- 兩者皆設定為同一時間執行，以確保資料同步。
+-- 健保藥品對照表「每月 1 日 03:00」的自動重匯流程
+-- 使用 pg_net 擴充功能的 net.http_post 直接呼叫 Edge Function
 
--- 1. 建立一個簡單的函式，僅重設匯入狀態（實際更新由 Vercel 處理）
-CREATE OR REPLACE FUNCTION public.reset_nhi_import_state()
+-- 1. 確保 pg_net 擴充功能已安裝 (透過之前的驗證確認已存在)
+-- CREATE EXTENSION IF NOT EXISTS pg_net; -- 已經安裝，此行可註解掉或保留為安全措施
+
+-- 2. 建立呼叫 NHI 更新 Edge Function 的 SQL 函式
+CREATE OR REPLACE FUNCTION public.trigger_nhi_refresh()
 RETURNS void
-LANGUAGE plpgsql
+LANGUAGE sql
 AS $$
-BEGIN
-  UPDATE public.nhi_import_state
-  SET last_row = 0
-  WHERE id = 1;
-END;
+  -- 呼叫我們已部署的 refresh-nhi-lookup Edge Function
+  -- 使用 net.http_post 從 pg_net 擴充功能
+  SELECT net.http_post(
+    url => 'https://epjyodyjdssgjqrzgtnc.supabase.co/functions/v1/refresh-nhi-lookup',
+    body => '{}'::jsonb,
+    params => '{}'::jsonb,
+    headers => jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwanlvZHlqZHNzZ2pxcnpndG5jIiwicm9zZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTI0ODIyNSwiZXhwIjoyMDk2ODI0MjI1fQ.rzePXeqQzsTiQxgosduqvEFGdnfbylV2CIp_XxrA8oA'
+    ),
+    timeout_milliseconds => 300000
+  );
 $$;
 
--- 2. 排程：每月 1 日 03:00 (UTC) 執行一次
+-- 3. 設定每月 1 日 03:00 (UTC) 執行一次
+-- 對應到台灣時間是每月 1 日 11:00
 SELECT cron.schedule(
-  'nhi_monthly_reset',
+  'nhi_monthly_refresh',
   '0 3 1 * *',
-  'SELECT public.reset_nhi_import_state()'
+  'SELECT public.trigger_nhi_refresh()'
 );

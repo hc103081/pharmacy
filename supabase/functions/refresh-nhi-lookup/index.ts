@@ -23,7 +23,7 @@ serve(async (req) => {
     const NHI_DATASET_ID = 'A21030000I-E41001-001'
     const BATCH_SIZE = 200
     const STATE_TABLE = 'nhi_import_state'
-    const MAX_LINES_PER_INVOCATION = 20000
+    const MAX_LINES_PER_INVOCATION = 50000
 
     let { data: stateRows } = await supabase
       .from(STATE_TABLE)
@@ -33,13 +33,59 @@ serve(async (req) => {
     const startLine = (stateRows?.[0]?.last_row ?? 0) as number
 
     const url = `${NHI_API_URL}?rId=${NHI_DATASET_ID}`
-    const res = await fetch(url, {
-      headers: {
-        accept: 'text/csv,text/plain,*/*',
-        'user-agent': 'Mozilla/5.0 (compatible; Supabase Edge Function)'
-      }
+    
+    // Enhanced headers to mimic a real browser request
+    const headers = new Headers({
+      'accept': 'text/csv,text/plain,*/*',
+      'accept-encoding': 'gzip, deflate, br',
+      'accept-language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+      'cache-control': 'no-cache',
+      'pragma': 'no-cache',
+      'upgrade-insecure-requests': '1',
+      'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'referer': 'https://www.nhi.gov.tw/'
     })
-    if (!res.ok) throw new Error(`NHI fetch failed: ${res.status}`)
+
+    console.log(`Fetching from: ${url}`)
+    
+    // Add retry logic for connection issues
+    let res
+    let lastError
+    const maxRetries = 3
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        res = await fetch(url, {
+          method: 'GET',
+          headers: headers,
+          redirect: 'follow'
+        })
+        
+        if (res.ok) {
+          break // Success, exit retry loop
+        }
+        
+        lastError = new Error(`HTTP ${res.status}: ${res.statusText}`)
+        console.log(`Attempt ${attempt + 1} failed: ${lastError.message}`)
+        
+        if (attempt < maxRetries - 1) {
+          // Wait before retry (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)))
+        }
+      } catch (err) {
+        lastError = err
+        console.log(`Attempt ${attempt + 1} failed with error: ${err.message}`)
+        
+        if (attempt < maxRetries - 1) {
+          // Wait before retry (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)))
+        }
+      }
+    }
+    
+    if (!res || !res.ok) {
+      throw lastError || new Error(`Failed to fetch after ${maxRetries} attempts`)
+    }
 
     const reader = res.body?.getReader()
     if (!reader) throw new Error('Response body is empty')
@@ -67,7 +113,7 @@ serve(async (req) => {
       if (error) throw new Error(`upsert failed: ${error.message}`)
     }
 
-    function parseCsvLine(line: string) {
+    function parseCsvLine(line: string): string[] {
       const result: string[] = []
       let current = ''
       let inQuotes = false
@@ -101,13 +147,13 @@ serve(async (req) => {
       return result
     }
 
-    function findColIndices(header: string[]) {
+    function findColIndices(header: string[]): number[] {
       const norm = header.map(h =>
         h
           .replace(/[`'"「」『』【】\[\]（）\s\u00A0-\u00FF]/g, '')
           .toLowerCase()
       )
-      const pick = (cands: string[]) => {
+      const pick = (cands: string[]): number => {
         for (const c of cands) {
           const idx = norm.findIndex(h => h.includes(c) || c.includes(h))
           if (idx !== -1) return idx
@@ -117,7 +163,7 @@ serve(async (req) => {
       colDrugCode = pick(['藥品代號', '藥品代碼', 'drugcode', 'drug_code'])
       colChinese = pick(['藥品中文名稱', '中文名稱', '藥品名稱', 'chinesename', 'chinese_name'])
       colEnglish = pick(['藥品英文名稱', '英文名稱', 'englishname', 'english_name'])
-      return colDrugCode !== -1 && colChinese !== -1
+      return colDrugCode !== -1 && colChinese !== -1 ? [colDrugCode, colChinese, colEnglish] : [-1, -1, -1]
     }
 
     try {
@@ -138,7 +184,8 @@ serve(async (req) => {
 
             if (!headerFound) {
               headerFound = true
-              if (!findColIndices(parseCsvLine(line))) {
+              const cols = parseCsvLine(line)
+              if (!findColIndices(cols)) {
                 throw new Error(`Required columns not found (header sample: ${line.slice(0, 120)})`)
               }
               continue
