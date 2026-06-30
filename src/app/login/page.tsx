@@ -4,6 +4,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Suspense, useState, useEffect } from 'react';
 import { Mail, Loader2 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
+import { login } from './actions';
 
 function LoginForm() {
   const searchParams = useSearchParams();
