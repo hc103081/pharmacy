@@ -2,10 +2,8 @@
 
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Suspense, useState, useEffect } from 'react';
-import { login } from './actions';
 import { Mail, Loader2 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
-import { createClient } from '@/lib/supabase/client';
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -13,30 +11,40 @@ function LoginForm() {
   const { user } = useAuth();
   const sent = searchParams.get('sent');
   const error = searchParams.get('error');
+
   const [loading, setLoading] = useState(false);
-  // 取得 email 參數
   const email = searchParams.get('email') ?? '';
-  // 重新寄送驗證信的狀態
+
   const [resendLoading, setResendLoading] = useState(false);
   const [resendMsg, setResendMsg] = useState('');
   const [resendError, setResendError] = useState('');
-  // 重新寄送驗證信的處理函式
+
   const handleResend = async () => {
     if (!email) return;
     setResendLoading(true);
     setResendMsg('');
     setResendError('');
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback` },
-    });
-    setResendLoading(false);
-    if (error) setResendError(error.message);
-    else setResendMsg('驗證信已重新寄送，請檢查信箱。');
+
+    try {
+      const response = await fetch('/api/auth/magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        setResendError(data.error ?? '重新寄送失敗');
+      } else {
+        setResendMsg('驗證信已重新寄送，請檢查信箱。');
+      }
+    } catch (err) {
+      setResendError('重新寄送失敗，請稍後再試');
+    } finally {
+      setResendLoading(false);
+    }
   };
 
-  // 已登入自動跳轉
   useEffect(() => {
     if (user) {
       router.push('/');
@@ -62,10 +70,10 @@ function LoginForm() {
             {resendMsg && <p className="text-sm text-[#00f2fe]">{resendMsg}</p>}
           </div>
           <button
-              onClick={handleResend}
-              disabled={resendLoading}
-              aria-label="重新寄送驗證信"
-              className="mt-4 tech-button tech-button-primary w-full py-2 font-medium flex items-center justify-center gap-2"
+            onClick={handleResend}
+            disabled={resendLoading}
+            aria-label="重新寄送驗證信"
+            className="mt-4 tech-button tech-button-primary w-full py-2 font-medium flex items-center justify-center gap-2"
           >
             {resendLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : '重新寄送驗證信'}
           </button>
@@ -88,15 +96,12 @@ function LoginForm() {
       </div>
 
       {error && (
-          <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm animate-pulse-glow">
-            {error}
-          </div>
-        )}
+        <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm animate-pulse-glow">
+          {error}
+        </div>
+      )}
 
-      <form
-        className="space-y-4"
-        onSubmit={() => setLoading(true)}
-      >
+      <form className="space-y-4" onSubmit={() => setLoading(true)}>
         <div className="space-y-2">
           <label htmlFor="email" className="block text-sm font-medium text-slate-400">
             Email
@@ -136,13 +141,14 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    // 把固定定位的 top 設為 header 高度 (3rem) 讓內容不被遮住
     <div className="fixed top-12 left-0 right-0 bottom-0 bg-[#07142b] text-slate-200 flex items-center justify-center p-4 lg:p-6 overflow-y-auto overscroll-contain scrolling-touch">
-      <Suspense fallback={
-        <div className="tech-card p-8 max-w-md w-full text-center">
-          <Loader2 className="w-8 h-8 text-[#00f2fe] animate-spin mx-auto" />
-        </div>
-      }>
+      <Suspense
+        fallback={
+          <div className="tech-card p-8 max-w-md w-full text-center">
+            <Loader2 className="w-8 h-8 text-[#00f2fe] animate-spin mx-auto" />
+          </div>
+        }
+      >
         <LoginForm />
       </Suspense>
     </div>
