@@ -26,7 +26,7 @@ export default function PreviewPanel({
 }: PreviewPanelProps) {
   const [editedItems, setEditedItems] = useState<ParsedItem[]>(data.items);
   const [filter, setFilter] = useState<FilterMode>('all');
-  const [viewMode, setViewMode] = useState<'table' | 'card'>(typeof window !== 'undefined' && window.innerWidth < 768 ? 'card' : 'table');
+  const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
 
   useEffect(() => {
     setTimeout(() => setEditedItems(data.items), 0);
