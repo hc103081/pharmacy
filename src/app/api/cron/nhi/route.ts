@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
+export const dynamic = 'force-dynamic'
+
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const CRON_SECRET = process.env.CRON_SECRET || process.env.CRON_TOKEN || ''
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-
-export const dynamic = 'force-dynamic'
-
 async function processQueueItem(): Promise<boolean> {
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+
   // Get the oldest unprocessed queue item
   const { data: queueItem, error: fetchError } = await supabase
     .from('nhi_refresh_queue')
@@ -57,9 +57,9 @@ async function processQueueItem(): Promise<boolean> {
     // Mark the queue item as processed
     const { error: updateError } = await supabase
       .from('nhi_refresh_queue')
-      .update({ 
-        processed: true, 
-        processed_at: new Date().toISOString() 
+      .update({
+        processed: true,
+        processed_at: new Date().toISOString()
       })
       .eq('id', queueItem.id)
 
@@ -87,22 +87,22 @@ export async function GET(request: Request) {
 
   try {
     const processed = await processQueueItem()
-    
+
     if (processed) {
-      return NextResponse.json({ 
-        success: true, 
-        message: 'Processed one queue item' 
+      return NextResponse.json({
+        success: true,
+        message: 'Processed one queue item'
       })
     } else {
-      return NextResponse.json({ 
-        success: true, 
-        message: 'No queue items to process' 
+      return NextResponse.json({
+        success: true,
+        message: 'No queue items to process'
       })
     }
   } catch (error) {
     console.error('Cron job failed:', error)
     return NextResponse.json(
-      { error: 'Internal server error' }, 
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }
