@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   }
 }
 
-function drugLookupByCode(itemCode) {
+function drugLookupByCode(itemCode: string) {
   return {
     itemCode,
     chineseName: `模擬中文名_${itemCode}`,

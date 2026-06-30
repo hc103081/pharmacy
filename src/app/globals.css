@@ -147,3 +147,8 @@ body {
 .animate-progress-indeterminate {
   animation: progress-indeterminate 1.8s ease-in-out infinite;
 }
+
+/* 篩選模式：不匹配的卡片用 visibility:hidden 隱藏（保留空間），瞬間生效無動畫 */
+.filter-active > [data-filter-match="0"] {
+  visibility: hidden;
+}

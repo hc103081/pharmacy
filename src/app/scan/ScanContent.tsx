@@ -262,19 +262,64 @@ export default function ScanContent() {
     setCurrentPage(page);
   };
 
-  // 清除搜尋並平滑滾動到第一個未清點項
+  // 清除搜尋（不再自動跳轉，因為雙層架構下底層自動保持位置）
   const clearBarcodeAndJumpToPending = useCallback(() => {
     setBarcodeInput('');
-    const nextPending = drugs.find((d) => d.counted_status === 'pending');
-    if (nextPending) {
-      setTimeout(() => {
-        const element = document.querySelector(`[data-drug-id="${nextPending.id}"]`);
-        element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 80);
+  }, []);
+
+  // 拍照專用：只更新統計數字 + 刷新特定藥品狀態，不重載全部列表
+  const refreshStatsOnly = useCallback(async () => {
+    if (!manifestId) return;
+    try {
+      // 先記住當前匹配的藥品 ID（之後會被清空）
+      const targetDrugId = matchingItem?.id;
+
+      const [totalRes, completedRes, errorItemsRes] = await Promise.all([
+        supabase
+          .from('drug_items')
+          .select('*', { count: 'exact', head: true })
+          .eq('manifest_id', manifestId),
+        supabase
+          .from('drug_items')
+          .select('*', { count: 'exact', head: true })
+          .eq('manifest_id', manifestId)
+          .eq('counted_status', 'completed'),
+        supabase
+          .from('drug_items')
+          .select('id, page_number, name, barcode, actual_quantity, expected_quantity')
+          .eq('manifest_id', manifestId)
+          .eq('counted_status', 'error')
+          .order('page_number', { ascending: true }),
+      ]);
+      setTotalItems(totalRes.count || 0);
+      setCompletedTotal(completedRes.count || 0);
+      setErrorTotal(errorItemsRes.data?.length || 0);
+      setErrorDrugs(errorItemsRes.data || []);
+
+      // 從 server 取該藥品的最新資料來刷新本地列表
+      if (targetDrugId) {
+        const { data: updatedDrug } = await supabase
+          .from('drug_items')
+          .select('id, manifest_id, page_number, name, barcode, actual_quantity, expected_quantity, storage_location, category, bonus_quantity, counted_status, item_order, photo_url')
+          .eq('id', targetDrugId)
+          .single();
+
+        if (updatedDrug) {
+          setDrugs(prev => prev.map(d => d.id === targetDrugId ? updatedDrug as DrugItem : d));
+        }
+      }
+    } catch (err) {
+      console.error('Error refreshing stats:', err);
     }
-  }, [drugs]);
+  }, [manifestId, supabase, matchingItem]);
 
-
+    // 拍照專用：清空輸入，不觸發自動跳轉（滾動位置由相機關閉時恢復）
+  const onResetInputForCamera = useCallback(() => {
+    setBarcodeInput('');
+    setActualQuantity('');
+    setSelectedStatus(null);
+    // 不設定 shouldJumpToNextRef.current = true，避免自動滾動
+  }, []);
 
   const { 
     fileInputRef, 
@@ -294,13 +339,8 @@ export default function ScanContent() {
     selectedStatus,
     actualQuantity,
     onToast: showToast,
-    onRefresh: fetchPageData,
-    onResetInput: () => {
-      setBarcodeInput('');
-      setActualQuantity('');
-      setSelectedStatus(null);
-      shouldJumpToNextRef.current = true;
-    },
+    onRefresh: refreshStatsOnly,
+    onResetInput: onResetInputForCamera,
   });
 
   // 恢復上次的頁碼
@@ -400,7 +440,7 @@ export default function ScanContent() {
   }, [barcodeInput, drugs, manifestId, currentPage]);
 
   const handleJumpToDrug = (target: JumpTarget) => {
-    const isSamePage = target.page === currentPage;
+  const isSamePage = target.page === currentPage;
 
     if (isSamePage) {
       setBarcodeInput(target.barcode);
@@ -643,7 +683,7 @@ export default function ScanContent() {
         </div>
 
         {/* 藥品列表 */}
-        <main className="flex-1 min-h-0 px-4 overflow-y-auto pb-4">
+        <main data-scroll-main className="flex-1 min-h-0 px-4 overflow-y-auto pb-4 relative">
           <input
             type="file"
             ref={fileInputRef}
@@ -664,48 +704,44 @@ export default function ScanContent() {
               <p className="text-slate-500">本頁沒有藥品項目</p>
             </div>
           ) : (
-            <div className="space-y-3 pt-2">
-              {drugs
-                .filter((drug) => !barcodeInput || getMatchScore(drug, barcodeInput) > 0)
-                .map((drug) => {
-                  const isMatched = getMatchScore(drug, barcodeInput) > 0;
-      const isUploading = uploadingQueue.has(drug.id);
-      const isManuallySelected = manuallySelectedDrugId === drug.id;
-      // 手動選取優先於 barcodeInput 讓操作區可見
-      const shouldShowActionsForCard = isMatched || isManuallySelected;
-      // 有條碼篩選又不是手動選取的卡片就隱藏
-      const isDimmed = barcodeInput && !isMatched && !isManuallySelected;
+            <>
+              <div className={`space-y-3 pt-2 ${barcodeInput ? 'filter-active' : ''}`}>
+                {drugs.map((drug) => {
+                  const isMatched = barcodeInput ? getMatchScore(drug, barcodeInput) > 0 : false;
+                  const isUploading = uploadingQueue.has(drug.id);
+                  const isManuallySelected = manuallySelectedDrugId === drug.id;
+                  const shouldShowActionsForCard = isMatched || isManuallySelected;
 
-      return (
-        <div
-          key={drug.id}
-          className={`transition-all duration-300 mb-4 ${
-            isDimmed ? 'opacity-25 grayscale scale-[0.98]' : ''
-          }`}
-        >
-          <DrugCard
-            drug={drug}
-            isMatched={isMatched}
-            isUploading={isUploading}
-            isLocked={isLocked}
-            isManuallySelected={isManuallySelected}
-            actualQuantity={actualQuantity}
-            selectedStatus={selectedStatus}
-            onStatusSelect={setSelectedStatus}
-            onActualQuantityChange={setActualQuantity}
-            onTriggerCamera={triggerCamera}
-            onPreviewPhoto={setPreviewImage}
-            onFilterByBarcode={setBarcodeInput}
-            onResetDrug={handleResetDrug}
-            onSkipPhoto={() => handleSkipPhoto(drug.id)}
-            onCardClick={(id) => {
-              setManuallySelectedDrugId(id);
-            }}
-          />
-        </div>
-      );
+                  return (
+                    <div
+                      key={drug.id}
+                      data-filter-match={barcodeInput ? (isMatched || isManuallySelected ? '1' : '0') : undefined}
+                      className="mb-4"
+                    >
+                      <DrugCard
+                        drug={drug}
+                        isMatched={shouldShowActionsForCard}
+                        isUploading={isUploading}
+                        isLocked={isLocked}
+                        isManuallySelected={isManuallySelected}
+                        actualQuantity={actualQuantity}
+                        selectedStatus={selectedStatus}
+                        onStatusSelect={setSelectedStatus}
+                        onActualQuantityChange={setActualQuantity}
+                        onTriggerCamera={triggerCamera}
+                        onPreviewPhoto={setPreviewImage}
+                        onFilterByBarcode={setBarcodeInput}
+                        onResetDrug={handleResetDrug}
+                        onSkipPhoto={() => handleSkipPhoto(drug.id)}
+                        onCardClick={(id) => {
+                          setManuallySelectedDrugId(id);
+                        }}
+                      />
+                    </div>
+                  );
                 })}
-            </div>
+              </div>
+            </>
           )}
         </main>
   
@@ -896,7 +932,7 @@ export default function ScanContent() {
         </aside>
   
         {/* 右側主區域: 藥品列表 */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main data-scroll-main className="flex-1 overflow-y-auto p-6 relative">
           <input
             type="file"
             ref={fileInputRef}
@@ -917,24 +953,22 @@ export default function ScanContent() {
               <p className="text-slate-500">本頁沒有藥品項目</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-              {drugs
-                .filter((drug) => !barcodeInput || getMatchScore(drug, barcodeInput) > 0)
-                .map((drug) => {
-                  const isMatched = getMatchScore(drug, barcodeInput) > 0;
+            <>
+              <div className={`grid grid-cols-1 xl:grid-cols-2 gap-4 ${barcodeInput ? 'filter-active' : ''}`}>
+                {drugs.map((drug) => {
+                  const isMatched = barcodeInput ? getMatchScore(drug, barcodeInput) > 0 : false;
                   const isUploading = uploadingQueue.has(drug.id);
                   const isManuallySelected = manuallySelectedDrugId === drug.id;
                   const shouldShowActionsForCard = isMatched || isManuallySelected;
-                  const isDimmed = barcodeInput && !isMatched && !isManuallySelected;
 
                   return (
                     <div
                       key={drug.id}
-                      className={`transition-all duration-300 ${isDimmed ? 'opacity-25 grayscale scale-[0.98]' : ''}`}
+                      data-filter-match={barcodeInput ? (isMatched || isManuallySelected ? '1' : '0') : undefined}
                     >
                       <DrugCard
                         drug={drug}
-                        isMatched={isMatched}
+                        isMatched={shouldShowActionsForCard}
                         isUploading={isUploading}
                         isLocked={isLocked}
                         isManuallySelected={isManuallySelected}
@@ -954,7 +988,8 @@ export default function ScanContent() {
                     </div>
                   );
                 })}
-            </div>
+              </div>
+            </>
           )}
         </main>
       </div>
