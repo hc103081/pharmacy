@@ -41,6 +41,7 @@ export default function ManifestsPage() {
     message: string;
     progress?: number;
   } | null>(null);
+  const [showProgressModal, setShowProgressModal] = useState(false);
   const [archiveAllLoading, setArchiveAllLoading] = useState(false);
   const [batchActionMode, setBatchActionMode] = useState<'archive' | 'delete'>('archive');
 
@@ -88,6 +89,7 @@ export default function ManifestsPage() {
       status: operation === 'archive' ? 'archiving' : 'restoring',
       message: operation === 'archive' ? '封存中...' : '還原中...',
     });
+    setShowProgressModal(true);
 
     try {
       const res = await fetch(`/api/manifest-operation`, {
@@ -111,6 +113,7 @@ export default function ManifestsPage() {
         status: 'completed',
         message: result.message || (operation === 'archive' ? '封存完成' : '還原完成'),
       });
+      setShowProgressModal(false);
 
       setTimeout(() => {
         fetchManifests();
@@ -123,6 +126,8 @@ export default function ManifestsPage() {
         status: 'error',
         message: err instanceof Error ? err.message : '未知錯誤',
       });
+      setShowProgressModal(false);
+
       setTimeout(() => {
         fetchManifests();
         setOperationProgress(null);
@@ -343,14 +348,16 @@ export default function ManifestsPage() {
                     >
                       {/* 操作進行中的覆蓋層 */}
                       {isOperationInProgress && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-[#162a56]/60 backdrop-blur-sm">
-                          <div className="flex items-center gap-3 px-5 py-2.5 bg-slate-900/80 rounded-xl border border-[#00f2fe]/40 shadow-[0_0_20px_rgba(0,242,254,0.3)]">
-                            <Loader2 className="w-5 h-5 text-[#00f2fe] animate-spin drop-shadow-[0_0_6px_rgba(0,242,254,0.6)]" />
-                            <span className="text-sm font-bold text-[#00f2fe] animate-text-shimmer">
-                              {operationProgress?.message}
-                            </span>
-                          </div>
-                        </div>
+                        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-[#162a56]/60 backdrop-blur-sm overflow-hidden">
+                {/* 掃描光帶 */}
+                <div className={`scan-beam ${operationProgress?.status === 'archiving' ? 'scan-archive-beam' : 'scan-restore-beam'}`} />
+                <div className="relative z-10 flex items-center gap-3 px-5 py-2.5 bg-slate-900/80 rounded-xl border border-[#00f2fe]/40 shadow-[0_0_20px_rgba(0,242,254,0.3)]">
+                  <Loader2 className="w-5 h-5 text-[#00f2fe] animate-spin drop-shadow-[0_0_6px_rgba(0,242,254,0.6)]" />
+                  <span className="text-sm font-bold text-[#00f2fe] animate-text-shimmer">
+                    {operationProgress?.message}
+                  </span>
+                </div>
+              </div>
                       )}
                       {/* 操作完成的覆蓋層 */}
                       {isOperationCompleted && (
@@ -495,51 +502,55 @@ export default function ManifestsPage() {
           )}
 
           {/* Operation Progress Modal */}
-          {operationProgress && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-              <div className="tech-card p-6 max-w-md w-full space-y-4 animate-in zoom-in duration-200 border-[#00f2fe]/50">
-                <div className="flex items-center gap-3 text-[#00f2fe]">
-                  {operationProgress.status === 'completed' ? (
-                    <CheckCircle2 className="w-6 h-6 animate-check-pop" />
-                  ) : (
-                    <Loader2 className="w-7 h-7 text-[#00f2fe] animate-spin drop-shadow-[0_0_8px_rgba(0,242,254,0.6)]" />
-                  )}
-                  <h3 className="font-bold text-lg">
-                    {operationProgress.status === 'completed' 
-                      ? '操作成功' 
-                      : (operationProgress.status === 'archiving' ? '封存中' : '還原中')}
-                  </h3>
-                </div>
-                <p className={`text-sm leading-relaxed ${operationProgress.status === 'completed' ? 'text-white' : 'text-slate-400'}`}>
-                  {operationProgress.message}
-                </p>
-                {operationProgress.progress !== undefined && operationProgress.status !== 'completed' && (
-                  <div className="mt-4">
-                    <div className="w-full bg-slate-700/30 rounded-full h-2.5 overflow-hidden relative">
-                      <div
-                        className="bg-gradient-to-r from-[#00f2fe] to-blue-500 h-2.5 rounded-full transition-all duration-500 relative shadow-[0_0_10px_rgba(0,242,254,0.5)]"
-                        style={{ width: `${operationProgress.progress}%` }}
-                      >
-                        <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-                      </div>
-                    </div>
-                    <p className="text-xs text-slate-400 mt-1 flex justify-between">
-                      <span>處理進度</span>
-                      <span>{operationProgress.progress}% 完成</span>
-                    </p>
+            {showProgressModal && operationProgress && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                <div className="tech-card p-6 max-w-md w-full space-y-4 animate-in zoom-in duration-200 border-[#00f2fe]/50">
+                  <div className="flex items-center gap-3 text-[#00f2fe]">
+                    {operationProgress.status === 'completed' ? (
+                      <CheckCircle2 className="w-6 h-6 animate-check-pop" />
+                    ) : (
+                      <Loader2 className="w-7 h-7 text-[#00f2fe] animate-spin drop-shadow-[0_0_8px_rgba(0,242,254,0.6)]" />
+                    )}
+                    <h3 className="font-bold text-lg">
+                      {operationProgress.status === 'completed'
+                        ? '操作成功'
+                        : operationProgress.status === 'error'
+                          ? '操作失敗'
+                          : operationProgress.status === 'archiving'
+                            ? '封存中'
+                            : '還原中'}
+                    </h3>
                   </div>
-                )}
-                <div className="mt-4 flex justify-end">
-                  <button
-                    onClick={() => setOperationProgress(null)}
-                    className="px-4 py-2 bg-slate-800 text-slate-400 rounded-xl hover:bg-slate-700 transition-colors"
-                  >
-                    關閉
-                  </button>
+                  <p className={`text-sm leading-relaxed ${operationProgress.status === 'completed' ? 'text-white' : operationProgress.status === 'error' ? 'text-red-400' : 'text-slate-400'}`}>
+                    {operationProgress.message}
+                  </p>
+                  {operationProgress.progress !== undefined && operationProgress.status !== 'completed' && operationProgress.status !== 'error' && (
+                    <div className="mt-4">
+                      <div className="w-full bg-slate-700/30 rounded-full h-2.5 overflow-hidden relative">
+                        <div
+                          className="bg-gradient-to-r from-[#00f2fe] to-blue-500 h-2.5 rounded-full transition-all duration-500 relative shadow-[0_0_10px_rgba(0,242,254,0.5)]"
+                          style={{ width: `${operationProgress.progress}%` }}
+                        >
+                          <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1 flex justify-between">
+                        <span>處理進度</span>
+                        <span>{operationProgress.progress}% 完成</span>
+                      </p>
+                    </div>
+                  )}
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      onClick={() => setShowProgressModal(false)}
+                      className="px-4 py-2 bg-slate-800 text-slate-400 rounded-xl hover:bg-slate-700 transition-colors"
+                    >
+                      關閉
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
         </div>
       </div>
     </>
