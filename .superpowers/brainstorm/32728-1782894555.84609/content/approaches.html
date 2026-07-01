@@ -1,0 +1,105 @@
+<h2>篩選層實作方案比較</h2>
+<p class="subtitle">三種方式實現「篩選時完全取代主清單」</p>
+
+<div class="cards">
+
+  <!-- 方案 A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#07142b;padding:20px;min-height:280px;display:flex;flex-direction:column;">
+        <div style="color:#00f2fe;font-size:11px;font-weight:bold;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;">🔍 篩選結果層 (absolute overlay)</div>
+        <!-- 篩選層 -->
+        <div style="background:#0d1f3ef0;backdrop-filter:blur(4px);border-radius:12px;padding:16px;border:1px solid #00f2fe30;flex:1;">
+          <div style="border:1px solid #00f2fe;border-radius:12px;padding:12px;margin-bottom:8px;background:#162a56;box-shadow:0 0 15px rgba(0,242,254,0.2);">
+            <div style="color:#00f2fe;font-weight:bold">✓ 阿斯匹靈</div>
+          </div>
+          <div style="border:1px solid #00f2fe;border-radius:12px;padding:12px;margin-bottom:8px;background:#162a56;box-shadow:0 0 15px rgba(0,242,254,0.2);">
+            <div style="color:#00f2fe;font-weight:bold">✓ 維他命C</div>
+          </div>
+          <div style="border:1px solid #00f2fe;border-radius:12px;padding:12px;background:#162a56;box-shadow:0 0 15px rgba(0,242,254,0.2);">
+            <div style="color:#00f2fe;font-weight:bold">✓ 感冒藥</div>
+          </div>
+        </div>
+        <!-- 底層被完全遮蓋，看不見 -->
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 疊層覆蓋 (Absolute Overlay)</h3>
+      <p>篩選時在主清單上方加上 absolute 定位的篩選結果容器，完全遮住底層。清除篩選時直接移除疊層，主清單原封不動保持滾動位置。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>優點</h4><ul><li>主清單滾動位置完全保留</li><li>實作最簡單，只加一個容器</li><li>清除時瞬間切回，零延遲</li></ul></div>
+        <div class="cons"><h4>缺點</h4><ul><li>篩選層自身需獨立管理滾動</li><li>底層內容仍在 DOM（但不可見）</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 方案 B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#07142b;padding:20px;min-height:280px;display:flex;flex-direction:column;">
+        <div style="color:#00f2fe;font-size:11px;font-weight:bold;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;">🔍 篩選結果層 (conditional render)</div>
+        <!-- 只渲染篩選結果 -->
+        <div style="border-radius:12px;padding:16px;border:1px solid #00f2fe30;flex:1;background:#0d1f3e;">
+          <div style="border:1px solid #00f2fe;border-radius:12px;padding:12px;margin-bottom:8px;background:#162a56;box-shadow:0 0 15px rgba(0,242,254,0.2);">
+            <div style="color:#00f2fe;font-weight:bold">✓ 阿斯匹靈</div>
+          </div>
+          <div style="border:1px solid #00f2fe;border-radius:12px;padding:12px;margin-bottom:8px;background:#162a56;box-shadow:0 0 15px rgba(0,242,254,0.2);">
+            <div style="color:#00f2fe;font-weight:bold">✓ 維他命C</div>
+          </div>
+          <div style="border:1px solid #00f2fe;border-radius:12px;padding:12px;background:#162a56;box-shadow:0 0 15px rgba(0,242,254,0.2);">
+            <div style="color:#00f2fe;font-weight:bold">✓ 感冒藥</div>
+          </div>
+        </div>
+        <!-- 底層完全不存在 -->
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 條件渲染切換 (Conditional Render)</h3>
+      <p>有篩選輸入時，整個列表區域切換渲染：只渲染匹配的卡片。清除時切回原完整列表。用 <code>barcodeInput ? <FilterList/> : <FullList/></code>。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>優點</h4><ul><li>最乾淨：篩選時不渲染不匹配項</li><li>DOM 節點最少，效能好</li><li>清除瞬間切回原列表</li></ul></div>
+        <div class="cons"><h4>缺點</h4><ul><li>需額外保存/恢復滾動位置</li><li>切換時所有卡片需重新掛載</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 方案 C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#07142b;padding:20px;min-height:280px;display:flex;flex-direction:column;">
+        <div style="color:#00f2fe;font-size:11px;font-weight:bold;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;">🔍 篩選結果層 (display:none)</div>
+        <!-- 主清單 display:none -->
+        <div style="display:none;">
+          <div style="background:#162a56;border-radius:12px;padding:12px;margin-bottom:8px;"><span>藥品 A</span></div>
+          <div style="background:#162a56;border-radius:12px;padding:12px;margin-bottom:8px;"><span>藥品 B</span></div>
+        </div>
+        <!-- 篩選列表 display:block -->
+        <div style="border-radius:12px;padding:16px;border:1px solid #00f2fe30;flex:1;background:#0d1f3e;">
+          <div style="border:1px solid #00f2fe;border-radius:12px;padding:12px;margin-bottom:8px;background:#162a56;box-shadow:0 0 15px rgba(0,242,254,0.2);">
+            <div style="color:#00f2fe;font-weight:bold">✓ 阿斯匹靈</div>
+          </div>
+          <div style="border:1px solid #00f2fe;border-radius:12px;padding:12px;margin-bottom:8px;background:#162a56;box-shadow:0 0 15px rgba(0,242,254,0.2);">
+            <div style="color:#00f2fe;font-weight:bold">✓ 維他命C</div>
+          </div>
+          <div style="border:1px solid #00f2fe;border-radius:12px;padding:12px;background:#162a56;box-shadow:0 0 15px rgba(0,242,254,0.2);">
+            <div style="color:#00f2fe;font-weight:bold">✓ 感冒藥</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 雙容器 display 切換 (Twin Containers)</h3>
+      <p>同時渲染兩個容器：主清單與篩選清單。篩選時 <code>display:none</code> 隱藏主清單、顯示篩選清單。兩個容器都在 DOM 中但同時只有一個可見。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>優點</h4><ul><li>主清單 DOM 完整保留在隱藏容器中</li><li>切換幾乎零成本（只改 CSS）</li><li>不需要恢復滾動位置（元素仍在）</li></ul></div>
+        <div class="cons"><h4>缺點</h4><ul><li>兩份完整 DOM 存在記憶體中</li><li>隱藏容器中的上傳狀態可能需同步</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:2rem;padding:1rem;background:#00f2fe10;border:1px solid #00f2fe30;border-radius:12px;">
+  <h3 style="color:#00f2fe;margin:0 0 0.5rem 0;">推薦：方案 B（條件渲染切換）</h3>
+  <p style="color:#94a3b8;margin:0;">原因：最符合「完全取代」的語意，DOM 乾淨、效能佳。滾動位置可透過現有的 <code>usePagePersistence</code> 機制保存恢復，且本頁最多44項，重新掛載成本極低。</p>
+</div>

@@ -6,11 +6,22 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code');
   const token_hash = searchParams.get('token_hash');
   const type = searchParams.get('type');
+  const error_param = searchParams.get('error');
+  const error_description = searchParams.get('error_description');
+
+  if (error_param || error_description) {
+    return NextResponse.redirect(
+      new URL(
+        `/login?error=${encodeURIComponent(error_description ?? error_param ?? '登入失敗')}`,
+        origin
+      )
+    );
+  }
 
   const supabase = await createClient();
 
   if (token_hash && type === 'magiclink') {
-    const { error } = await supabase.auth.verifyOtp({
+    const { data, error } = await supabase.auth.verifyOtp({
       type: 'email',
       token_hash,
     });
@@ -20,8 +31,25 @@ export async function GET(request: NextRequest) {
         new URL(`/login?error=${encodeURIComponent(error.message)}`, origin)
       );
     }
-  } else if (code) {
-    await supabase.auth.exchangeCodeForSession(code);
+
+    return NextResponse.redirect(
+      new URL(`/?email_verified=true&timestamp=${Date.now()}`, origin)
+    );
+  }
+
+  if (code) {
+    try {
+      await supabase.auth.exchangeCodeForSession(code);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      return NextResponse.redirect(
+        new URL(`/login?error=${encodeURIComponent(message)}`, origin)
+      );
+    }
+
+    return NextResponse.redirect(
+      new URL(`/?logged_in=true&timestamp=${Date.now()}`, origin)
+    );
   }
 
   return NextResponse.redirect(new URL('/', origin));

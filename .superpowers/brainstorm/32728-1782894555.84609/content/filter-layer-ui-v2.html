@@ -1,0 +1,81 @@
+<h2>篩選層 UI 設計（修正版）</h2>
+<p class="subtitle">操作流程：正確 → 直接完成 / 有誤 → 拍照或跳過</p>
+
+<div class="mockup">
+  <div class="mockup-header">狀態 1：篩選結果，尚未選擇</div>
+  <div class="mockup-body" style="background:#07142b;padding:16px;max-width:375px;margin:0 auto;">
+    <!-- 搜尋欄 -->
+    <div style="position:relative;margin-bottom:12px;">
+      <div style="width:100%;padding:10px 40px 10px 36px;background:#162a56;border:1px solid #00f2fe;border-radius:12px;box-shadow:0 0 15px rgba(0,242,254,0.5);color:#fff;font-family:monospace;font-size:16px;box-sizing:border-box;">🔍 1234 ✕</div>
+    </div>
+    
+    <!-- 篩選結果標題列 -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 4px;margin-bottom:12px;">
+      <span style="color:#00f2fe;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">🔍 篩選結果</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="background:#00f2fe15;border:1px solid #00f2fe40;color:#00f2fe;font-size:11px;font-weight:700;padding:2px 8px;border-radius:8px;">2 項匹配</span>
+        <button style="background:#ff4b5c15;border:1px solid #ff4b5c40;color:#ff4b5c;font-size:11px;font-weight:700;padding:2px 8px;border-radius:8px;cursor:pointer;">清除</button>
+      </div>
+    </div>
+
+    <!-- 匹配卡片：未選擇狀態 -->
+    <div style="border:1px solid #00f2fe;border-radius:12px;padding:14px;margin-bottom:12px;background:#162a56;box-shadow:0 0 15px rgba(0,242,254,0.2);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="color:#00f2fe;font-weight:bold;font-size:14px;">阿斯匹靈</span>
+        <span style="background:#00f2fe15;color:#00f2fe;font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid #00f2fe40;">條碼完全匹配</span>
+      </div>
+      <div style="color:#64748b;font-size:12px;font-family:monospace;">條碼: 12345678901234</div>
+      <div style="color:#64748b;font-size:12px;">倉位: A01 · 預期: 5</div>
+      <!-- 只有正確/有誤兩個按鈕 -->
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button style="flex:1;padding:8px;background:#00f2fe15;border:1px solid #00f2fe40;border-radius:10px;color:#00f2fe;font-size:12px;font-weight:600;cursor:pointer;">數量正確</button>
+        <button style="flex:1;padding:8px;background:#ff4b5c15;border:1px solid #ff4b5c40;border-radius:10px;color:#ff4b5c;font-size:12px;font-weight:600;cursor:pointer;">數量有誤</button>
+      </div>
+    </div>
+
+    <!-- 非最佳匹配卡片：較淡樣式，無操作按鈕 -->
+    <div style="border:1px solid #00f2fe80;border-radius:12px;padding:14px;margin-bottom:12px;background:#162a5680;box-shadow:0 0 8px rgba(0,242,254,0.1);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="color:#94a3b8;font-weight:bold;font-size:14px;">阿斯匹靈(腸溶)</span>
+        <span style="background:#00f2fe08;color:#64748b;font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid #334155;">名稱包含</span>
+      </div>
+      <div style="color:#64748b;font-size:12px;font-family:monospace;">條碼: 98765432109876</div>
+      <div style="color:#64748b;font-size:12px;">倉位: B03 · 預期: 3</div>
+    </div>
+  </div>
+</div>
+
+<div class="mockup" style="margin-top:1.5rem;">
+  <div class="mockup-header">狀態 2：按下「數量有誤」後 → 拍照/跳過出現</div>
+  <div class="mockup-body" style="background:#07142b;padding:16px;max-width:375px;margin:0 auto;">
+    <div style="border:1px solid #ff4b5c;border-radius:12px;padding:14px;margin-bottom:12px;background:#162a56;box-shadow:0 0 15px rgba(255,75,92,0.2);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="color:#ff4b5c;font-weight:bold;font-size:14px;">阿斯匹靈</span>
+        <span style="background:#ff4b5c15;color:#ff4b5c;font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid #ff4b5c40;">數量有誤</span>
+      </div>
+      <div style="color:#64748b;font-size:12px;font-family:monospace;">條碼: 12345678901234</div>
+      <div style="color:#64748b;font-size:12px;">倉位: A01 · 預期: 5</div>
+      <!-- 實際數量輸入 -->
+      <div style="margin-top:10px;">
+        <div style="color:#94a3b8;font-size:12px;margin-bottom:4px;">實際數量</div>
+        <div style="padding:8px 12px;background:#0d1f3e;border:1px solid #334155;border-radius:8px;color:#ff4b5c;font-size:16px;font-weight:bold;font-family:monospace;">3</div>
+      </div>
+      <!-- 拍照 / 跳過拍照 按鈕 -->
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button style="flex:1;padding:8px;background:#ff4b5c15;border:1px solid #ff4b5c40;border-radius:10px;color:#ff4b5c;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px;justify-content:center;">📷 拍照留存</button>
+        <button style="flex:1;padding:8px;background:#33415530;border:1px solid #475569;border-radius:10px;color:#94a3b8;font-size:12px;font-weight:600;cursor:pointer;">跳過拍照</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:1.5rem;padding:1rem;background:#00f2fe10;border:1px solid #00f2fe30;border-radius:12px;">
+  <h3 style="color:#00f2fe;margin:0 0 0.5rem 0;">操作流程確認</h3>
+  <p style="color:#94a3b8;margin:0;line-height:1.8;">
+    ① 條碼輸入 → 篩選層取代主清單<br>
+    ② 最高分卡片自動展開，顯示「正確/有誤」兩按鈕<br>
+    ③ 按「正確」→ 直接完成（現有邏輯）<br>
+    ④ 按「有誤」→ 顯示實際數量輸入 + 拍照/跳過拍照 按鈕（現有邏輯）<br>
+    ⑤ 清除搜尋 → 瞬間回到主清單，無動畫
+  </p>
+</div>

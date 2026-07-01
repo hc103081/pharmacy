@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useCallback } from 'react';
-import { UploadCloud, FileType, ImageIcon, X, FileText, AlertCircle } from 'lucide-react';
+import { UploadCloud, FileType, ImageIcon, X, FileText } from 'lucide-react';
 
 export type UploadMode = 'pdf' | 'images' | 'both';
 

@@ -10,6 +10,11 @@ export function useBarcodeMatch(drugs: DrugItem[], barcodeInput: string) {
     return 0;
   }, []);
 
+  // Fix: Return null when barcodeInput is empty to prevent incorrect matching
+  if (!barcodeInput) {
+    return { matchingItem: null, getMatchScore };
+  }
+
   const matchingItem = drugs.reduce((best, current) => {
     const score = getMatchScore(current, barcodeInput);
     if (score > (best ? getMatchScore(best, barcodeInput) : -1)) {

@@ -1,6 +1,6 @@
 'use server';
 
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 
 export interface ArchiveResponse {
   success: boolean;
@@ -12,24 +12,20 @@ export interface ArchiveResponse {
  */
 export async function archiveManifest(manifestId: string): Promise<ArchiveResponse> {
   try {
-    const { error } = await supabaseAdmin
+    const { error } = await getSupabaseAdmin()
       .from('manifests')
       .update({ status: 'completed' })
       .eq('id', manifestId);
 
-    if (error) throw error;
+    if (error) {
+      return { success: false, error: `封存清單失敗: ${error.message}` };
+    }
 
     return { success: true };
   } catch (error: unknown) {
     console.error('Archive Manifest Error:', error);
-    let errorMessage = '封存清單失敗';
-    if (error instanceof Error) {
-      errorMessage = error.message;
-    }
-    return { 
-      success: false, 
-      error: errorMessage 
-    };
+    const errorMessage = error instanceof Error ? error.message : '封存清單失敗';
+    return { success: false, error: errorMessage };
   }
 }
 
@@ -39,29 +35,33 @@ export async function archiveManifest(manifestId: string): Promise<ArchiveRespon
 export async function deleteManifest(manifestId: string): Promise<ArchiveResponse> {
   try {
     // 1. 獲取 manifest 資訊（檢查是否有封存 ZIP）
-    const { data: manifest, error: manifestError } = await supabaseAdmin
+    const { data: manifest, error: manifestError } = await getSupabaseAdmin()
       .from('manifests')
       .select('archived_zip_path, status')
       .eq('id', manifestId)
       .single();
 
-    if (manifestError && manifestError.code !== 'PGRST116') throw manifestError;
+    if (manifestError && manifestError.code !== 'PGRST116') {
+      return { success: false, error: `查詢清單失敗: ${manifestError.message}` };
+    }
 
     // 2. 刪除封存 ZIP（如果有的話，archived manifest）
     if (manifest?.archived_zip_path) {
-      const { error: zipError } = await supabaseAdmin.storage
+      const { error: zipError } = await getSupabaseAdmin().storage
         .from('archived-manifests')
         .remove([manifest.archived_zip_path]);
       if (zipError) console.error('Archive ZIP delete error:', zipError);
     }
 
     // 3. 獲取所有關聯項目的照片路徑（active manifest）
-    const { data: items, error: itemsError } = await supabaseAdmin
+    const { data: items, error: itemsError } = await getSupabaseAdmin()
       .from('drug_items')
       .select('photo_url')
       .eq('manifest_id', manifestId);
 
-    if (itemsError) throw itemsError;
+    if (itemsError) {
+      return { success: false, error: `查詢項目失敗: ${itemsError.message}` };
+    }
 
     // 4. 從 Storage 刪除照片
     const photosToDelete = items
@@ -76,31 +76,26 @@ export async function deleteManifest(manifestId: string): Promise<ArchiveRespons
       .filter((path): path is string => !!path);
 
     if (photosToDelete.length > 0) {
-      const { error: storageError } = await supabaseAdmin.storage
+      const { error: storageError } = await getSupabaseAdmin().storage
         .from('drug-photos')
         .remove(photosToDelete);
-      
       if (storageError) console.error('Storage delete error:', storageError);
     }
 
     // 5. 刪除 Manifest (觸發 Cascade Delete 刪除 drug_items)
-    const { error: deleteError } = await supabaseAdmin
+    const { error: deleteError } = await getSupabaseAdmin()
       .from('manifests')
       .delete()
       .eq('id', manifestId);
 
-    if (deleteError) throw deleteError;
+    if (deleteError) {
+      return { success: false, error: `刪除清單失敗: ${deleteError.message}` };
+    }
 
     return { success: true };
   } catch (error: unknown) {
     console.error('Delete Manifest Error:', error);
-    let errorMessage = '刪除清單失敗';
-    if (error instanceof Error) {
-      errorMessage = error.message;
-    }
-    return { 
-      success: false, 
-      error: errorMessage 
-    };
+    const errorMessage = error instanceof Error ? error.message : '刪除清單失敗';
+    return { success: false, error: errorMessage };
   }
 }

@@ -1,11 +1,39 @@
 'use client';
 
 import Link from 'next/link';
-import { PackageSearch, FileUp, ClipboardCheck } from 'lucide-react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { PackageSearch, FileUp, ClipboardCheck, CheckCircle } from 'lucide-react';
 import { UserMenu } from '@/components/UserMenu';
 import { TeachingButton } from '@/components/teaching';
 
+import { Suspense } from 'react';
+
 export default function HomePage() {
+  return (
+    <Suspense fallback={<div className="fixed inset-0 bg-[#07142b] flex items-center justify-center text-slate-500">載入中...</div>}>
+      <HomeContent />
+    </Suspense>
+  );
+}
+
+function HomeContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const emailVerified = searchParams.get('email_verified') === 'true';
+  const loggedIn = searchParams.get('logged_in') === 'true';
+  
+  // 清除 URL 參數以避免重複顯示訊息
+  useEffect(() => {
+    if (emailVerified || loggedIn) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('email_verified');
+      url.searchParams.delete('logged_in');
+      url.searchParams.delete('timestamp');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [emailVerified, loggedIn]);
+
   return (
     <>
       <main className="fixed inset-0 flex flex-col items-center justify-center p-4 lg:p-6 bg-[#07142b] text-slate-200 overflow-y-auto">
@@ -24,6 +52,32 @@ export default function HomePage() {
               藥局智能藥品清點與數位化管理系統
             </p>
           </div>
+
+          {/* 成功驗證訊息 */}
+          {emailVerified && (
+            <div className="bg-green-500/20 border border-green-500/30 text-green-400 rounded-lg px-4 py-3 mx-4 mb-6 animate-in fade-in zoom-in duration-300">
+              <div className="flex items-center space-x-3">
+                <CheckCircle className="w-5 h-5" />
+                <div>
+                  <p className="font-medium">電子郵件驗證成功！</p>
+                  <p className="text-sm">您的帳號已確認，現在可以正常使用系統。</p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* 登入成功訊息 */}
+          {loggedIn && (
+            <div className="bg-blue-500/20 border border-blue-500/30 text-blue-400 rounded-lg px-4 py-3 mx-4 mb-6 animate-in fade-in zoom-in duration-300">
+              <div className="flex items-center space-x-3">
+                <CheckCircle className="w-5 h-5" />
+                <div>
+                  <p className="font-medium">登入成功！</p>
+                  <p className="text-sm">歡迎回到 PhamaCount 系統。</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 px-0">
             <Link 
