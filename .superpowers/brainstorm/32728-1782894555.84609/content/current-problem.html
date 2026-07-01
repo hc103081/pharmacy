@@ -1,0 +1,84 @@
+<h2>目前篩選機制的視覺問題</h2>
+<p class="subtitle">當輸入條碼時，不匹配的項目用 visibility:hidden 隱藏，但保留了空間</p>
+
+<div class="split">
+  <!-- 左側：目前問題 -->
+  <div class="mockup">
+    <div class="mockup-header">目前：visibility:hidden（浮空問題）</div>
+    <div class="mockup-body" style="background:#07142b;padding:16px;">
+      <div style="border:1px solid #00f2fe;border-radius:12px;padding:12px;margin-bottom:12px;background:#162a56;">
+        <div style="color:#00f2fe;font-weight:bold">✓ 阿斯匹靈 條碼:1234</div>
+        <div style="color:#64748b;font-size:12px">匹配項目</div>
+      </div>
+      <!-- visibility:hidden 仍然佔空間 -->
+      <div style="border:1px dashed #334155;border-radius:12px;padding:12px;margin-bottom:12px;visibility:hidden;opacity:0.2;height:60px;display:flex;align-items:center;">
+        <div>隱藏的項目 B（佔空間）</div>
+      </div>
+      <div style="border:1px solid #00f2fe;border-radius:12px;padding:12px;margin-bottom:12px;background:#162a56;">
+        <div style="color:#00f2fe;font-weight:bold">✓ 維他命C 條碼:5678</div>
+        <div style="color:#64748b;font-size:12px">匹配項目</div>
+      </div>
+      <!-- 更多佔空間的空白 -->
+      <div style="border:1px dashed #334155;border-radius:12px;padding:12px;margin-bottom:12px;visibility:hidden;opacity:0.2;height:60px;">
+      </div>
+      <div style="border:1px dashed #334155;border-radius:12px;padding:12px;margin-bottom:12px;visibility:hidden;opacity:0.2;height:60px;">
+      </div>
+      <div style="border:1px dashed #334155;border-radius:12px;padding:12px;background:#162a56;">
+        <div style="color:#00f2fe;font-weight:bold">✓ 感冒藥 條碼:9012</div>
+        <div style="color:#64748b;font-size:12px">匹配項目</div>
+      </div>
+      <div style="margin-top:16px;padding:8px;background:#ff4b5c20;border:1px solid #ff4b5c50;border-radius:8px;">
+        <div style="color:#ff4b5c;font-size:12px">⚠ 匹配項目像「浮空」一樣散落各處</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右側：期望效果 -->
+  <div class="mockup">
+    <div class="mockup-header">期望：篩選層覆蓋在主清單上</div>
+    <div class="mockup-body" style="background:#07142b;padding:16px;position:relative;">
+      <!-- 底層：主清單（模糊/淡化） -->
+      <div style="opacity:0.25;filter:blur(1.5px);pointer-events:none;">
+        <div style="border:1px solid #334155;border-radius:12px;padding:12px;margin-bottom:8px;background:#162a56;">
+          <div style="color:#94a3b8;font-weight:bold">阿斯匹靈</div>
+        </div>
+        <div style="border:1px solid #334155;border-radius:12px;padding:12px;margin-bottom:8px;background:#162a56;">
+          <div style="color:#94a3b8;font-weight:bold">胃藥</div>
+        </div>
+        <div style="border:1px solid #334155;border-radius:12px;padding:12px;margin-bottom:8px;background:#162a56;">
+          <div style="color:#94a3b8;font-weight:bold">維他命C</div>
+        </div>
+        <div style="border:1px solid #334155;border-radius:12px;padding:12px;margin-bottom:8px;background:#162a56;">
+          <div style="color:#94a3b8;font-weight:bold">安慰劑</div>
+        </div>
+        <div style="border:1px solid #334155;border-radius:12px;padding:12px;margin-bottom:8px;background:#162a56;">
+          <div style="color:#94a3b8;font-weight:bold">退燒藥</div>
+        </div>
+        <div style="border:1px solid #334155;border-radius:12px;padding:12px;background:#162a56;">
+          <div style="color:#94a3b8;font-weight:bold">感冒藥</div>
+        </div>
+      </div>
+      <!-- 篩選層：覆蓋在上面，只顯示匹配項目 -->
+      <div style="position:absolute;top:16px;left:16px;right:16px;">
+        <div style="background:#07142be0;backdrop-filter:blur(8px);border-radius:16px;padding:16px;border:1px solid #00f2fe30;">
+          <div style="color:#00f2fe;font-size:11px;font-weight:bold;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;">🔍 篩選結果</div>
+          <div style="border:1px solid #00f2fe;border-radius:12px;padding:12px;margin-bottom:8px;background:#162a56;box-shadow:0 0 15px rgba(0,242,254,0.2);">
+            <div style="color:#00f2fe;font-weight:bold">✓ 阿斯匹靈 條碼:1234</div>
+            <div style="color:#64748b;font-size:12px">第1頁 · 待清點</div>
+          </div>
+          <div style="border:1px solid #00f2fe;border-radius:12px;padding:12px;margin-bottom:8px;background:#162a56;box-shadow:0 0 15px rgba(0,242,254,0.2);">
+            <div style="color:#00f2fe;font-weight:bold">✓ 維他命C 條碼:5678</div>
+            <div style="color:#64748b;font-size:12px">第1頁 · 待清點</div>
+          </div>
+          <div style="border:1px solid #00f2fe;border-radius:12px;padding:12px;background:#162a56;box-shadow:0 0 15px rgba(0,242,254,0.2);">
+            <div style="color:#00f2fe;font-weight:bold">✓ 感冒藥 條碼:9012</div>
+            <div style="color:#64748b;font-size:12px">第1頁 · 待清點</div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:16px;padding:8px;background:#00f2fe15;border:1px solid #00f2fe30;border-radius:8px;">
+        <div style="color:#00f2fe;font-size:12px">✓ 篩選結果緊湊呈現，主清單在底層保持位置</div>
+      </div>
+    </div>
+  </div>
+</div>

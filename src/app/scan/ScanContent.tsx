@@ -224,49 +224,6 @@ export default function ScanContent() {
   const { initializedRef, lastVisitedPage, setLastVisitedPage, lastVisitedPageRef, lastScrollY, setLastScrollY, lastScrollYRef, saveState, restorePage } = usePagePersistence(manifestId);
   const { matchingItem, getMatchScore } = useBarcodeMatch(drugs, barcodeInput);
 
-  const handleSkipPhoto = useCallback(
-    async (drugId: string) => {
-      if (!matchingItem || matchingItem.id !== drugId) return;
-      setSelectedStatus('pending_skip');
-      try {
-        const res = await updateDrugStatus(drugId, null, parseInt(actualQuantity || '0'));
-        if (!res.success) throw new Error(res.error);
-        await fetchPageData();
-        showToast('已標記為有誤（未拍照）');
-      } catch (err: any) {
-        setSelectedStatus(null);
-        showToast(`跳過失敗：${err.message}`);
-      }
-    },
-    [matchingItem, actualQuantity, fetchPageData, showToast, updateDrugStatus]
-  );
-
-  // 當匹配到已確認的藥品時，自動恢復上次選擇的狀態和實際數量
-  useEffect(() => {
-    if (matchingItem && matchingItem.counted_status !== 'pending') {
-      if (matchingItem.counted_status === 'completed') {
-        setSelectedStatus('correct');
-        setActualQuantity(String(matchingItem.expected_quantity));
-      } else if (matchingItem.counted_status === 'error') {
-        setSelectedStatus('incorrect');
-        setActualQuantity(String(matchingItem.actual_quantity));
-      }
-    } else if (!matchingItem) {
-      setSelectedStatus(null);
-      setActualQuantity('');
-    }
-  }, [matchingItem?.id]);
-
-  const navigateToPage = (page: number) => {
-    shouldJumpToNextRef.current = true;
-    setCurrentPage(page);
-  };
-
-  // 清除搜尋（不再自動跳轉，因為雙層架構下底層自動保持位置）
-  const clearBarcodeAndJumpToPending = useCallback(() => {
-    setBarcodeInput('');
-  }, []);
-
   // 拍照專用：只更新統計數字 + 刷新特定藥品狀態，不重載全部列表
   const refreshStatsOnly = useCallback(async () => {
     if (!manifestId) return;
@@ -313,7 +270,54 @@ export default function ScanContent() {
     }
   }, [manifestId, supabase, matchingItem]);
 
-    // 拍照專用：清空輸入，不觸發自動跳轉（滾動位置由相機關閉時恢復）
+  const handleSkipPhoto = useCallback(
+    async (drugId: string) => {
+      if (!matchingItem || matchingItem.id !== drugId) return;
+      try {
+        const res = await updateDrugStatus(drugId, null, parseInt(actualQuantity || '0'));
+        if (!res.success) throw new Error(res.error);
+
+        // 成功後重置輸入狀態，然後只刷新統計 + 單一 drug（不動整個列表）
+        setSelectedStatus(null);
+        setActualQuantity('');
+        setBarcodeInput('');
+        await refreshStatsOnly();
+        showToast('已標記為有誤（未拍照）');
+      } catch (err: any) {
+        setSelectedStatus(null);
+        showToast(`跳過失敗：${err.message}`);
+      }
+    },
+    [matchingItem, actualQuantity, refreshStatsOnly, showToast]
+  );
+
+  // 當匹配到已確認的藥品時，自動恢復上次選擇的狀態和實際數量
+  useEffect(() => {
+    if (matchingItem && matchingItem.counted_status !== 'pending') {
+      if (matchingItem.counted_status === 'completed') {
+        setSelectedStatus('correct');
+        setActualQuantity(String(matchingItem.expected_quantity));
+      } else if (matchingItem.counted_status === 'error') {
+        setSelectedStatus('incorrect');
+        setActualQuantity(String(matchingItem.actual_quantity));
+      }
+    } else if (!matchingItem) {
+      setSelectedStatus(null);
+      setActualQuantity('');
+    }
+  }, [matchingItem?.id]);
+
+  const navigateToPage = (page: number) => {
+    shouldJumpToNextRef.current = true;
+    setCurrentPage(page);
+  };
+
+  // 清除搜尋（不再自動跳轉，因為雙層架構下底層自動保持位置）
+  const clearBarcodeAndJumpToPending = useCallback(() => {
+    setBarcodeInput('');
+  }, []);
+
+  // 拍照專用：清空輸入，不觸發自動跳轉（滾動位置由相機關閉時恢復）
   const onResetInputForCamera = useCallback(() => {
     setBarcodeInput('');
     setActualQuantity('');
@@ -682,68 +686,155 @@ export default function ScanContent() {
           )}
         </div>
 
-        {/* 藥品列表 */}
-        <main data-scroll-main className="flex-1 min-h-0 px-4 overflow-y-auto pb-4 relative">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileUpload}
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-          />
+        {/* 藥品列表容器 */}
+        <div className="relative flex-1 min-h-0 overflow-hidden">
+          <main data-scroll-main className="absolute inset-0 overflow-y-auto pb-4 px-4">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+            />
   
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 space-y-4">
-              <div className="w-10 h-10 border-4 border-[#00f2fe] border-t-transparent rounded-full animate-spin" />
-              <p className="text-slate-500 animate-pulse">載入數據中...</p>
-            </div>
-          ) : drugs.length === 0 ? (
-            <div className="text-center py-20 tech-card border-dashed border-slate-700 space-y-4">
-              <Package className="w-12 h-12 text-slate-600 mx-auto" />
-              <p className="text-slate-500">本頁沒有藥品項目</p>
-            </div>
-          ) : (
-            <>
-              <div className={`space-y-3 pt-2 ${barcodeInput ? 'filter-active' : ''}`}>
-                {drugs.map((drug) => {
-                  const isMatched = barcodeInput ? getMatchScore(drug, barcodeInput) > 0 : false;
-                  const isUploading = uploadingQueue.has(drug.id);
-                  const isManuallySelected = manuallySelectedDrugId === drug.id;
-                  const shouldShowActionsForCard = isMatched || isManuallySelected;
-
-                  return (
-                    <div
-                      key={drug.id}
-                      data-filter-match={barcodeInput ? (isMatched || isManuallySelected ? '1' : '0') : undefined}
-                      className="mb-4"
-                    >
-                      <DrugCard
-                        drug={drug}
-                        isMatched={shouldShowActionsForCard}
-                        isUploading={isUploading}
-                        isLocked={isLocked}
-                        isManuallySelected={isManuallySelected}
-                        actualQuantity={actualQuantity}
-                        selectedStatus={selectedStatus}
-                        onStatusSelect={setSelectedStatus}
-                        onActualQuantityChange={setActualQuantity}
-                        onTriggerCamera={triggerCamera}
-                        onPreviewPhoto={setPreviewImage}
-                        onFilterByBarcode={setBarcodeInput}
-                        onResetDrug={handleResetDrug}
-                        onSkipPhoto={() => handleSkipPhoto(drug.id)}
-                        onCardClick={(id) => {
-                          setManuallySelectedDrugId(id);
-                        }}
-                      />
-                    </div>
-                  );
-                })}
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                <div className="w-10 h-10 border-4 border-[#00f2fe] border-t-transparent rounded-full animate-spin" />
+                <p className="text-slate-500 animate-pulse">載入數據中...</p>
               </div>
-            </>
+            ) : drugs.length === 0 ? (
+              <div className="text-center py-20 tech-card border-dashed border-slate-700 space-y-4">
+                <Package className="w-12 h-12 text-slate-600 mx-auto" />
+                <p className="text-slate-500">本頁沒有藥品項目</p>
+              </div>
+            ) : (
+              <div className={barcodeInput ? 'invisible' : 'visible'}>
+                <div className="space-y-3 pt-2">
+                  {drugs.map((drug) => {
+                    const isUploading = uploadingQueue.has(drug.id);
+                    const isManuallySelected = manuallySelectedDrugId === drug.id;
+                    const shouldShowActionsForCard = isManuallySelected;
+
+                    return (
+                      <div key={drug.id} className="mb-4">
+                        <DrugCard
+                          drug={drug}
+                          isMatched={shouldShowActionsForCard}
+                          isUploading={isUploading}
+                          isLocked={isLocked}
+                          isManuallySelected={isManuallySelected}
+                          actualQuantity={actualQuantity}
+                          selectedStatus={selectedStatus}
+                          onStatusSelect={setSelectedStatus}
+                          onActualQuantityChange={setActualQuantity}
+                          onTriggerCamera={triggerCamera}
+                          onPreviewPhoto={setPreviewImage}
+                          onFilterByBarcode={setBarcodeInput}
+                          onResetDrug={handleResetDrug}
+                          onSkipPhoto={() => handleSkipPhoto(drug.id)}
+                          onCardClick={(id) => {
+                            setManuallySelectedDrugId(id);
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </main>
+
+          {/* 篩選疊層 */}
+          {barcodeInput && (
+            <div data-scroll-filter className="absolute inset-0 overflow-y-auto bg-[#07142b] z-10 px-4 pb-4">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+              />
+              {loading ? (
+                <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                  <div className="w-10 h-10 border-4 border-[#00f2fe] border-t-transparent rounded-full animate-spin" />
+                  <p className="text-slate-500 animate-pulse">載入數據中...</p>
+                </div>
+              ) : drugs.length === 0 ? (
+                <div className="text-center py-20 tech-card border-dashed border-slate-700 space-y-4">
+                  <Package className="w-12 h-12 text-slate-600 mx-auto" />
+                  <p className="text-slate-500">本頁沒有藥品項目</p>
+                </div>
+              ) : (
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between px-1 py-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[#00f2fe] text-xs font-bold uppercase tracking-wider">🔍 篩選結果</span>
+                      <span className="text-[10px] font-bold text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
+                        {drugs.filter((d) => getMatchScore(d, barcodeInput) > 0).length} 項匹配
+                      </span>
+                    </div>
+                    <button
+                      onClick={clearBarcodeAndJumpToPending}
+                      className="text-[10px] font-bold text-red-400 bg-red-500/10 border border-red-500/30 px-2 py-1 rounded-lg hover:bg-red-500/20 transition-colors"
+                    >
+                      清除
+                    </button>
+                  </div>
+                  {(() => {
+                    const matchedDrugs = drugs
+                      .filter((d) => getMatchScore(d, barcodeInput) > 0)
+                      .sort((a, b) => {
+                        const scoreDiff = getMatchScore(b, barcodeInput) - getMatchScore(a, barcodeInput);
+                        if (scoreDiff !== 0) return scoreDiff;
+                        return a.item_order - b.item_order;
+                      });
+
+                    if (matchedDrugs.length === 0) {
+                      return (
+                        <div className="text-center py-12 tech-card border-dashed border-slate-700 space-y-3">
+                          <span className="text-slate-500 text-sm">無匹配項目</span>
+                          <span className="text-slate-600 text-xs">請嘗試其他條碼</span>
+                        </div>
+                      );
+                    }
+
+                    return matchedDrugs.map((drug) => {
+                      const isTopMatch = matchedDrugs[0].id === drug.id;
+                      const isUploading = uploadingQueue.has(drug.id);
+                      const isDimmed = !isTopMatch;
+
+                      return (
+                        <div key={drug.id} data-drug-id={drug.id} className={`mb-4 ${isDimmed ? 'opacity-60' : ''}`}>
+                          <DrugCard
+                            drug={drug}
+                            isMatched={isTopMatch}
+                            isUploading={isUploading}
+                            isLocked={isLocked}
+                            isManuallySelected={false}
+                            actualQuantity={actualQuantity}
+                            selectedStatus={isTopMatch ? selectedStatus : null}
+                            onStatusSelect={isTopMatch ? setSelectedStatus : () => {}}
+                            onActualQuantityChange={isTopMatch ? setActualQuantity : () => {}}
+                            onTriggerCamera={isTopMatch ? triggerCamera : () => {}}
+                            onPreviewPhoto={setPreviewImage}
+                            onFilterByBarcode={setBarcodeInput}
+                            onResetDrug={handleResetDrug}
+                            onSkipPhoto={() => isTopMatch && handleSkipPhoto(drug.id)}
+                            onCardClick={(id) => {
+                              setManuallySelectedDrugId(id);
+                            }}
+                          />
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              )}
+            </div>
           )}
-        </main>
+        </div>
   
         {/* 底部浮動導覽列 (鍵盤彈出時隱藏) */}
         <div
@@ -931,67 +1022,155 @@ export default function ScanContent() {
           </div>
         </aside>
   
-        {/* 右側主區域: 藥品列表 */}
-        <main data-scroll-main className="flex-1 overflow-y-auto p-6 relative">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileUpload}
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-          />
+        {/* 右側主區域: 藥品列表容器 */}
+        <div className="relative flex-1 min-h-0 overflow-hidden">
+          <main data-scroll-main className="absolute inset-0 overflow-y-auto p-6">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+            />
   
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 space-y-4">
-              <div className="w-10 h-10 border-4 border-[#00f2fe] border-t-transparent rounded-full animate-spin" />
-              <p className="text-slate-500 animate-pulse">載入數據中...</p>
-            </div>
-          ) : drugs.length === 0 ? (
-            <div className="text-center py-20 tech-card border-dashed border-slate-700 space-y-4">
-              <Package className="w-12 h-12 text-slate-600 mx-auto" />
-              <p className="text-slate-500">本頁沒有藥品項目</p>
-            </div>
-          ) : (
-            <>
-              <div className={`grid grid-cols-1 xl:grid-cols-2 gap-4 ${barcodeInput ? 'filter-active' : ''}`}>
-                {drugs.map((drug) => {
-                  const isMatched = barcodeInput ? getMatchScore(drug, barcodeInput) > 0 : false;
-                  const isUploading = uploadingQueue.has(drug.id);
-                  const isManuallySelected = manuallySelectedDrugId === drug.id;
-                  const shouldShowActionsForCard = isMatched || isManuallySelected;
-
-                  return (
-                    <div
-                      key={drug.id}
-                      data-filter-match={barcodeInput ? (isMatched || isManuallySelected ? '1' : '0') : undefined}
-                    >
-                      <DrugCard
-                        drug={drug}
-                        isMatched={shouldShowActionsForCard}
-                        isUploading={isUploading}
-                        isLocked={isLocked}
-                        isManuallySelected={isManuallySelected}
-                        actualQuantity={actualQuantity}
-                        selectedStatus={selectedStatus}
-                        onStatusSelect={setSelectedStatus}
-                        onActualQuantityChange={setActualQuantity}
-                        onTriggerCamera={triggerCamera}
-                        onPreviewPhoto={setPreviewImage}
-                        onFilterByBarcode={setBarcodeInput}
-                        onResetDrug={handleResetDrug}
-                        onSkipPhoto={() => handleSkipPhoto(drug.id)}
-                        onCardClick={(id) => {
-                          setManuallySelectedDrugId(id);
-                        }}
-                      />
-                    </div>
-                  );
-                })}
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                <div className="w-10 h-10 border-4 border-[#00f2fe] border-t-transparent rounded-full animate-spin" />
+                <p className="text-slate-500 animate-pulse">載入數據中...</p>
               </div>
-            </>
+            ) : drugs.length === 0 ? (
+              <div className="text-center py-20 tech-card border-dashed border-slate-700 space-y-4">
+                <Package className="w-12 h-12 text-slate-600 mx-auto" />
+                <p className="text-slate-500">本頁沒有藥品項目</p>
+              </div>
+            ) : (
+              <div className={barcodeInput ? 'invisible' : 'visible'}>
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  {drugs.map((drug) => {
+                    const isUploading = uploadingQueue.has(drug.id);
+                    const isManuallySelected = manuallySelectedDrugId === drug.id;
+                    const shouldShowActionsForCard = isManuallySelected;
+
+                    return (
+                      <div key={drug.id}>
+                        <DrugCard
+                          drug={drug}
+                          isMatched={shouldShowActionsForCard}
+                          isUploading={isUploading}
+                          isLocked={isLocked}
+                          isManuallySelected={isManuallySelected}
+                          actualQuantity={actualQuantity}
+                          selectedStatus={selectedStatus}
+                          onStatusSelect={setSelectedStatus}
+                          onActualQuantityChange={setActualQuantity}
+                          onTriggerCamera={triggerCamera}
+                          onPreviewPhoto={setPreviewImage}
+                          onFilterByBarcode={setBarcodeInput}
+                          onResetDrug={handleResetDrug}
+                          onSkipPhoto={() => handleSkipPhoto(drug.id)}
+                          onCardClick={(id) => {
+                            setManuallySelectedDrugId(id);
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </main>
+
+          {/* 篩選疊層 */}
+          {barcodeInput && (
+            <div data-scroll-filter className="absolute inset-0 overflow-y-auto bg-[#07142b] z-10 p-6">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+              />
+              {loading ? (
+                <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                  <div className="w-10 h-10 border-4 border-[#00f2fe] border-t-transparent rounded-full animate-spin" />
+                  <p className="text-slate-500 animate-pulse">載入數據中...</p>
+                </div>
+              ) : drugs.length === 0 ? (
+                <div className="text-center py-20 tech-card border-dashed border-slate-700 space-y-4">
+                  <Package className="w-12 h-12 text-slate-600 mx-auto" />
+                  <p className="text-slate-500">本頁沒有藥品項目</p>
+                </div>
+              ) : (
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between px-1 py-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[#00f2fe] text-xs font-bold uppercase tracking-wider">🔍 篩選結果</span>
+                      <span className="text-[10px] font-bold text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
+                        {drugs.filter((d) => getMatchScore(d, barcodeInput) > 0).length} 項匹配
+                      </span>
+                    </div>
+                    <button
+                      onClick={clearBarcodeAndJumpToPending}
+                      className="text-[10px] font-bold text-red-400 bg-red-500/10 border border-red-500/30 px-2 py-1 rounded-lg hover:bg-red-500/20 transition-colors"
+                    >
+                      清除
+                    </button>
+                  </div>
+                  {(() => {
+                    const matchedDrugs = drugs
+                      .filter((d) => getMatchScore(d, barcodeInput) > 0)
+                      .sort((a, b) => {
+                        const scoreDiff = getMatchScore(b, barcodeInput) - getMatchScore(a, barcodeInput);
+                        if (scoreDiff !== 0) return scoreDiff;
+                        return a.item_order - b.item_order;
+                      });
+
+                    if (matchedDrugs.length === 0) {
+                      return (
+                        <div className="text-center py-12 tech-card border-dashed border-slate-700 space-y-3">
+                          <span className="text-slate-500 text-sm">無匹配項目</span>
+                          <span className="text-slate-600 text-xs">請嘗試其他條碼</span>
+                        </div>
+                      );
+                    }
+
+                    return matchedDrugs.map((drug) => {
+                      const isTopMatch = matchedDrugs[0].id === drug.id;
+                      const isUploading = uploadingQueue.has(drug.id);
+                      const isDimmed = !isTopMatch;
+
+                      return (
+                        <div key={drug.id} data-drug-id={drug.id} className={`mb-4 ${isDimmed ? 'opacity-60' : ''}`}>
+                          <DrugCard
+                            drug={drug}
+                            isMatched={isTopMatch}
+                            isUploading={isUploading}
+                            isLocked={isLocked}
+                            isManuallySelected={false}
+                            actualQuantity={actualQuantity}
+                            selectedStatus={isTopMatch ? selectedStatus : null}
+                            onStatusSelect={isTopMatch ? setSelectedStatus : () => {}}
+                            onActualQuantityChange={isTopMatch ? setActualQuantity : () => {}}
+                            onTriggerCamera={isTopMatch ? triggerCamera : () => {}}
+                            onPreviewPhoto={setPreviewImage}
+                            onFilterByBarcode={setBarcodeInput}
+                            onResetDrug={handleResetDrug}
+                            onSkipPhoto={() => isTopMatch && handleSkipPhoto(drug.id)}
+                            onCardClick={(id) => {
+                              setManuallySelectedDrugId(id);
+                            }}
+                          />
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              )}
+            </div>
           )}
-        </main>
+        </div>
       </div>
     </div>
     {showCameraModal && (

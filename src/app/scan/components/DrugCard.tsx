@@ -148,28 +148,12 @@ export default function DrugCard({
             </div>
 
             {isError && drug.actual_quantity !== undefined && (
-              <div className="mt-0.5">
-                <span className="text-sm font-bold text-[#ff4b5c]">
-                  實際: {drug.actual_quantity}
-                </span>
-              </div>
-            )}
-
-            {isPendingPhotoChoice && (
-              <div className="mt-2 flex items-center gap-2">
-                <input
-                  type="number"
-                  value={actualQuantity}
-                  onChange={(e) => onActualQuantityChange(e.target.value)}
-                  disabled={isLocked}
-                  autoFocus
-                  className={`w-24 bg-transparent text-right font-mono text-lg text-[#00f2fe] outline-none border-b border-dashed border-slate-600 focus:border-[#00f2fe] transition-colors py-1 ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  placeholder="實際數量"
-                />
-              </div>
-            )}
-          </div>
+        <div className="mt-0.5">
+          <span className="text-sm font-bold text-[#ff4b5c]">實際: {drug.actual_quantity}</span>
         </div>
+      )}
+</div>
+    </div>
 
         {/* 照片縮圖 / 上傳中動畫 */}
         {isUploading ? (
@@ -253,6 +237,7 @@ export default function DrugCard({
                 <button
                   onClick={() => {
                     onStatusSelect('pending_skip');
+                    onActualQuantityChange('');
                     onSkipPhoto();
                   }}
                   disabled={isUploading || isLocked}
@@ -264,72 +249,79 @@ export default function DrugCard({
               </div>
             </div>
           ) : (
-            /* 未確認：顯示正確/有誤按鈕 + 拍照 */
-            <>
-              <div className="flex flex-col gap-2 flex-1 bg-slate-950/50 p-3 rounded-xl border border-slate-700">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      onStatusSelect('correct');
-                      onActualQuantityChange(String(drug.expected_quantity));
-                      onTriggerCamera();
-                    }}
-                    disabled={isLocked}
-                    className={`flex-1 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 ${
-                      selectedStatus === 'correct'
-                        ? 'bg-[#00f2fe] text-slate-900 shadow-[0_0_10px_rgba(0,242,254,0.4)]'
-                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                    } ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    正確
-                  </button>
-                  <button
-                    onClick={() => onStatusSelect('incorrect')}
-                    disabled={isLocked}
-                    className={`flex-1 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 ${
-          (selectedStatus === 'incorrect' || isPendingPhotoChoice)
+  /* 未確認：只顯示「正確/有誤」按鈕（不在這裡顯示拍照按鈕） */
+  <div className="flex flex-col gap-2 flex-1 bg-slate-950/50 p-3 rounded-xl border border-slate-700">
+    <div className="flex items-center gap-2">
+      <button
+        onClick={() => {
+          onStatusSelect('correct');
+          onActualQuantityChange(String(drug.expected_quantity));
+          onTriggerCamera();
+        }}
+        disabled={isLocked}
+        className={`flex-1 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 ${
+          selectedStatus === 'correct'
+            ? 'bg-[#00f2fe] text-slate-900 shadow-[0_0_10px_rgba(0,242,254,0.4)]'
+            : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+        } ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+        正確
+      </button>
+      <button
+        onClick={() => onStatusSelect('incorrect')}
+        disabled={isLocked}
+        className={`flex-1 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 ${
+          selectedStatus === 'incorrect' || isPendingPhotoChoice
             ? 'bg-[#ff4b5c] text-white shadow-[0_0_10px_rgba(255,75,92,0.4)]'
             : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
         } ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    有誤
-                  </button>
-                </div>
-                {selectedStatus === 'incorrect' && (
-                  <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                    <label className="text-xs font-bold text-slate-500 shrink-0">實際數量:</label>
-                    <input
-                      type="number"
-                      value={actualQuantity}
-                      onChange={(e) => onActualQuantityChange(e.target.value)}
-                      disabled={isLocked}
-                      autoFocus
-                      className={`flex-1 bg-transparent text-right font-mono text-lg text-[#00f2fe] outline-none border-b border-dashed border-slate-600 focus:border-[#00f2fe] transition-colors py-1 ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      placeholder="0"
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* 拍照按鈕 */}
-              <button
-                onClick={onTriggerCamera}
-                disabled={isUploading || isLocked || (!isCompleted && !isError && selectedStatus === 'incorrect' && !actualQuantity)}
-                className={`tech-button px-5 py-3 lg:py-2 lg:shrink-0 ${
-                  !isLocked ? 'tech-button-primary' : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                }`}
-              >
-                {isUploading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Camera className="w-5 h-5" />
-                )}
-                <span className="text-sm font-bold">
-                  {isUploading ? '上傳中...' : isCompleted || isError ? '重新拍照' : '拍照確認'}
-                </span>
-              </button>
-            </>
-          )}
+      >
+        有誤
+      </button>
+    </div>
+    {selectedStatus === 'incorrect' && (
+      <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
+        <label className="text-xs font-bold text-slate-500 shrink-0">實際數量:</label>
+        <input
+          type="number"
+          value={actualQuantity}
+          onChange={(e) => onActualQuantityChange(e.target.value)}
+          disabled={isLocked}
+          autoFocus
+          className={`flex-1 bg-transparent text-right font-mono text-lg text-[#00f2fe] outline-none border-b border-dashed border-slate-600 focus:border-[#00f2fe] transition-colors py-1 ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+          placeholder="0"
+        />
+      </div>
+    )}
+    {selectedStatus === 'incorrect' && actualQuantity && !isPendingPhotoChoice && (
+      <div className="flex items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+        <button
+          onClick={() => {
+            onStatusSelect('pending_photo');
+            onTriggerCamera();
+          }}
+          disabled={isUploading || isLocked}
+          className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 bg-[#00f2fe] text-slate-900 shadow-[0_0_10px_rgba(0,242,254,0.4)] hover:bg-[#00f2fe]/90 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Camera className="w-4 h-4" />
+          拍照確認
+        </button>
+        <button
+          onClick={() => {
+            onStatusSelect('pending_skip');
+            onActualQuantityChange('');
+            onSkipPhoto();
+          }}
+          disabled={isUploading || isLocked}
+          className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 bg-slate-800 text-slate-300 border border-slate-600 hover:bg-slate-700 hover:border-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <SkipForward className="w-4 h-4" />
+          跳過拍照
+        </button>
+      </div>
+    )}
+  </div>
+)}
         </div>
       ) : isLocked ? (
         /* 鎖定狀態 */

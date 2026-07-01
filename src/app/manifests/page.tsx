@@ -326,17 +326,47 @@ export default function ManifestsPage() {
                     operationProgress?.manifestId === m.id &&
                     (operationProgress.status === 'archiving' ||
                       operationProgress.status === 'restoring');
+                  const isOperationCompleted =
+                    operationProgress?.manifestId === m.id &&
+                    operationProgress.status === 'completed';
+                  const operationAnimClass = isOperationInProgress
+                    ? (operationProgress?.status === 'archiving'
+                        ? 'animate-archive-scan'
+                        : 'animate-restore-scan')
+                    : '';
                   return (
                     <div
                       key={m.id}
-                      className={`tech-card p-4 group hover:border-[#00f2fe]/50 flex items-center justify-between ${
-                        isOperationInProgress ? 'animate-pulse-glow border-[#00f2fe]/60' : ''
-                      }`}
+                      className={`tech-card p-4 group hover:border-[#00f2fe]/50 flex items-center justify-between relative ${
+                          isOperationCompleted ? 'border-green-400/60 shadow-[0_0_12px_rgba(74,222,128,0.4)]' : ''
+                        } ${operationAnimClass}`}
                     >
+                      {/* 操作進行中的覆蓋層 */}
+                      {isOperationInProgress && (
+                        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-[#162a56]/60 backdrop-blur-sm">
+                          <div className="flex items-center gap-3 px-5 py-2.5 bg-slate-900/80 rounded-xl border border-[#00f2fe]/40 shadow-[0_0_20px_rgba(0,242,254,0.3)]">
+                            <Loader2 className="w-5 h-5 text-[#00f2fe] animate-spin drop-shadow-[0_0_6px_rgba(0,242,254,0.6)]" />
+                            <span className="text-sm font-bold text-[#00f2fe] animate-text-shimmer">
+                              {operationProgress?.message}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      {/* 操作完成的覆蓋層 */}
+                      {isOperationCompleted && (
+                        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-[#162a56]/60 backdrop-blur-sm animate-in fade-in zoom-in duration-300">
+                          <div className="flex items-center gap-3 px-5 py-2.5 bg-slate-900/80 rounded-xl border border-green-400/40 shadow-[0_0_20px_rgba(74,222,128,0.3)]">
+                            <CheckCircle2 className="w-5 h-5 text-green-400 animate-check-pop" />
+                            <span className="text-sm font-bold text-green-400">
+                              {operationProgress?.message}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                       <Link
                         href={`/scan?manifestId=${m.id}`}
                         className={`flex items-center gap-4 flex-1 ${
-                          isOperationInProgress ? 'pointer-events-none opacity-50' : ''
+                          isOperationInProgress ? 'pointer-events-none' : ''
                         }`}
                       >
                         <div className="p-3 bg-blue-500/10 rounded-lg group-hover:bg-[#00f2fe]/20 transition-all duration-300 shadow-[0_0_15px_rgba(0,242,254,0.2)]">
@@ -420,15 +450,8 @@ export default function ManifestsPage() {
                             <ChevronRight className="w-5 h-5" />
                           </Link>
                         )}
-                        {isOperationInProgress && (
-                          <div className="flex items-center gap-2">
-                            <Loader2 className="w-5 h-5 text-[#00f2fe] animate-spin" />
-                            <span className="text-xs text-[#00f2fe] animate-breathe">
-                              {operationProgress?.message}
-                            </span>
-                          </div>
-                        )}
-                      </div>
+
+            </div>
                     </div>
                   );
                 })}

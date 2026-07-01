@@ -148,7 +148,87 @@ body {
   animation: progress-indeterminate 1.8s ease-in-out infinite;
 }
 
-/* 篩選模式：不匹配的卡片用 visibility:hidden 隱藏（保留空間），瞬間生效無動畫 */
-.filter-active > [data-filter-match="0"] {
-  visibility: hidden;
+/* 封存/還原進行中：掃描光帶 + 脈衝外框 */
+@keyframes archive-scan {
+  0% { left: -30%; }
+  100% { left: 130%; }
 }
+
+@keyframes archive-border-pulse {
+  0%, 100% { border-color: rgba(0, 242, 254, 0.3); box-shadow: 0 0 4px rgba(0, 242, 254, 0.2); }
+  50% { border-color: rgba(0, 242, 254, 0.8); box-shadow: 0 0 16px rgba(0, 242, 254, 0.5), 0 0 32px rgba(0, 242, 254, 0.15); }
+}
+
+@keyframes archive-text-shimmer {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.animate-archive-scan {
+  position: relative;
+  overflow: hidden;
+  animation: archive-border-pulse 1.5s ease-in-out infinite;
+}
+
+.animate-archive-scan::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -30%;
+  width: 30%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 242, 254, 0.03) 20%,
+    rgba(0, 242, 254, 0.08) 50%,
+    rgba(0, 242, 254, 0.03) 80%,
+    transparent 100%
+  );
+  animation: archive-scan 2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* 還原中：使用暖色系光帶 */
+@keyframes restore-border-pulse {
+  0%, 100% { border-color: rgba(0, 242, 254, 0.3); box-shadow: 0 0 4px rgba(0, 242, 254, 0.2); }
+  50% { border-color: rgba(0, 242, 254, 0.8); box-shadow: 0 0 16px rgba(0, 242, 254, 0.5), 0 0 32px rgba(0, 242, 254, 0.15); }
+}
+
+@keyframes restore-scan {
+  0% { left: -30%; }
+  100% { left: 130%; }
+}
+
+.animate-restore-scan {
+  position: relative;
+  overflow: hidden;
+  animation: restore-border-pulse 1.5s ease-in-out infinite;
+}
+
+.animate-restore-scan::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -30%;
+  width: 30%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 242, 254, 0.03) 20%,
+    rgba(0, 242, 254, 0.08) 50%,
+    rgba(0, 242, 254, 0.03) 80%,
+    transparent 100%
+  );
+  animation: restore-scan 2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.animate-text-shimmer {
+  animation: archive-text-shimmer 1.5s ease-in-out infinite;
+}
+
+

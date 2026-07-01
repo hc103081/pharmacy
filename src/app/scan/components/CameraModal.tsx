@@ -75,6 +75,10 @@ export default function CameraModal({
         streamRef.current.getTracks().forEach(track => track.stop());
         streamRef.current = null;
       }
+      // 明確清除 video srcObject，確保瀏覽器釋放相機
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
     };
   }, [isOpen, hasUserMedia, frontCamera]);
 
@@ -115,7 +119,14 @@ export default function CameraModal({
       
       try {
         await onCapture(file);
-        // 成功捕獲並處理後關閉相機模式
+        // 成功後先手動停止串流，再關閉 modal
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(track => track.stop());
+          streamRef.current = null;
+        }
+        if (videoRef.current) {
+          videoRef.current.srcObject = null;
+        }
         onClose();
       } catch (captureError: any) {
         setIsLoading(false);

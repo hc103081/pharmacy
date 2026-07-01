@@ -1,0 +1,77 @@
+<h2>篩選層 UI 設計</h2>
+<p class="subtitle">方案 B：條件渲染，篩選時完全取代主清單</p>
+
+<div class="mockup">
+  <div class="mockup-header">手機端：篩選層啟用時</div>
+  <div class="mockup-body" style="background:#07142b;padding:16px;max-width:375px;margin:0 auto;">
+    <!-- 搜尋欄 -->
+    <div style="position:relative;margin-bottom:12px;">
+      <div style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#fff;">🔍</div>
+      <div style="width:100%;padding:10px 40px 10px 36px;background:#162a56;border:1px solid #00f2fe;border-radius:12px;box-shadow:0 0 15px rgba(0,242,254,0.5);color:#fff;font-family:monospace;font-size:16px;box-sizing:border-box;">1234</div>
+      <div style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:#64748b;cursor:pointer;">✕</div>
+    </div>
+    
+    <!-- 篩選結果標題列 -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 4px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="color:#00f2fe;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">🔍 篩選結果</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="background:#00f2fe15;border:1px solid #00f2fe40;color:#00f2fe;font-size:11px;font-weight:700;padding:2px 8px;border-radius:8px;">2 項匹配</span>
+        <button style="background:#ff4b5c15;border:1px solid #ff4b5c40;color:#ff4b5c;font-size:11px;font-weight:700;padding:2px 8px;border-radius:8px;cursor:pointer;">清除</button>
+      </div>
+    </div>
+
+    <!-- 匹配的卡片 -->
+    <div style="border:1px solid #00f2fe;border-radius:12px;padding:14px;margin-bottom:12px;background:#162a56;box-shadow:0 0 15px rgba(0,242,254,0.2);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="color:#00f2fe;font-weight:bold;font-size:14px;">阿斯匹靈</span>
+        <span style="background:#00f2fe15;color:#00f2fe;font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid #00f2fe40;">條碼完全匹配</span>
+      </div>
+      <div style="color:#64748b;font-size:12px;font-family:monospace;">條碼: 12345678901234</div>
+      <div style="color:#64748b;font-size:12px;">倉位: A01 · 預期: 5</div>
+      <!-- 操作區 -->
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button style="flex:1;padding:8px;background:#00f2fe15;border:1px solid #00f2fe40;border-radius:10px;color:#00f2fe;font-size:12px;font-weight:600;cursor:pointer;">數量正確</button>
+        <button style="flex:1;padding:8px;background:#ff4b5c15;border:1px solid #ff4b5c40;border-radius:10px;color:#ff4b5c;font-size:12px;font-weight:600;cursor:pointer;">數量有誤</button>
+        <button style="padding:8px 12px;background:#162a56;border:1px solid #334155;border-radius:10px;color:#94a3b8;font-size:12px;cursor:pointer;">📷</button>
+      </div>
+    </div>
+
+    <div style="border:1px solid #00f2fe80;border-radius:12px;padding:14px;margin-bottom:12px;background:#162a56;box-shadow:0 0 8px rgba(0,242,254,0.1);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="color:#94a3b8;font-weight:bold;font-size:14px;">阿斯匹靈(腸溶)</span>
+        <span style="background:#00f2fe08;color:#64748b;font-size:10px;padding:2px 6px;border-radius:6px;border:1px solid #334155;">名稱包含</span>
+      </div>
+      <div style="color:#64748b;font-size:12px;font-family:monospace;">條碼: 98765432109876</div>
+      <div style="color:#64748b;font-size:12px;">倉位: B03 · 預期: 3</div>
+    </div>
+
+    <!-- 底部：已完成匹配提示 -->
+    <div style="padding:10px;background:#162a5630;border-radius:10px;border:1px solid #334155;text-align:center;">
+      <span style="color:#64748b;font-size:12px;">共 2 項匹配 · 清除搜尋返回完整清單</span>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:1.5rem;">
+  <h3>關鍵設計決策</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+    <div style="padding:1rem;background:#162a5630;border:1px solid #334155;border-radius:12px;">
+      <div style="color:#00f2fe;font-weight:bold;margin-bottom:8px;">匹配等級標籤</div>
+      <ul style="color:#94a3b8;font-size:13px;line-height:1.8;margin:0;padding-left:1.2rem;">
+        <li>分數 3：<span style="color:#00f2fe;">條碼完全匹配</span></li>
+        <li>分數 2：<span style="color:#64748b;">條碼部分匹配</span></li>
+        <li>分數 1：<span style="color:#64748b;">名稱包含</span></li>
+      </ul>
+    </div>
+    <div style="padding:1rem;background:#162a5630;border:1px solid #334155;border-radius:12px;">
+      <div style="color:#00f2fe;font-weight:bold;margin-bottom:8px;">排序規則</div>
+      <ul style="color:#94a3b8;font-size:13px;line-height:1.8;margin:0;padding-left:1.2rem;">
+        <li>依匹配分數降序排列</li>
+        <li>同分數依 item_order 排序</li>
+        <li>最高分卡片自動展開操作區</li>
+      </ul>
+    </div>
+  </div>
+</div>
