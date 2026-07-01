@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PhamaCount - 藥局智能清點系統",
-  description: "數位化藥品清點與管理系統，支援條碼掃描、拍照留存與分頁對應",
+  title: "PhamaCount - ?亙??箄皜?蝟餌絞",
+  description: "?訾????暺?蝞∠?蝟餌絞嚗?湔?蝣潭????抒?摮???撠?",
 };
 
 import { TeachingModal } from '@/components/teaching/TeachingModal';
@@ -29,7 +29,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="h-dvh flex flex-col overflow-hidden">
         <AuthProvider>
           <TeachingProvider>
             {children}

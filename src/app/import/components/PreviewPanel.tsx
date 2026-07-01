@@ -92,7 +92,7 @@ export default function PreviewPanel({
   }, [editedItems, validation]);
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* 表頭資訊 - 固定在頂部 */}
       <div className="flex-shrink-0 tech-card p-4 lg:p-6 rounded-b-none space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
@@ -364,3 +364,11 @@ export default function PreviewPanel({
 function Loader2({ className }: { className?: string }) {
   return <div className={`w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin ${className}`} />;
 }
+
+
+
+
+
+
+
+

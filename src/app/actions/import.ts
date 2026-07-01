@@ -336,7 +336,7 @@ export async function parsePdfWithGemini({ urls }: { urls: string[] }): Promise<
 /**
  * 使用 Gemini Vision OCR 提取藥品數據（總倉撿貨單格式）
  */
-export async function processImagesWithGemini({ urls }: { urls: string[] }): Promise<{ success: boolean; order_number?: string; delivery_date?: string; drugs?: ImportDrugItem[]; error?: string }> {
+export async function processImagesWithGemini({ urls }: { urls: string[] }): Promise<{ success: boolean; order_number?: string; delivery_date?: string; total_pages?: number; drugs?: ImportDrugItem[]; error?: string }> {
   try {
     const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) {
@@ -438,12 +438,73 @@ export async function processImagesWithGemini({ urls }: { urls: string[] }): Pro
       };
     });
 
-    return { success: true, order_number: parsed.order_number, delivery_date: parsed.delivery_date, drugs };
+    return { success: true, order_number: parsed.order_number, delivery_date: parsed.delivery_date, total_pages: parsed.total_pages, drugs };
   } catch (error: unknown) {
     console.error('Gemini OCR Error:', error);
     const rawMessage = error instanceof Error ? error.message : 'OCR 辨識失敗';
     return { success: false, error: friendlyGeminiError(rawMessage) };
   }
+}
+
+/**
+ * 照片匯入 OCR → ParsedPdf 轉換，用於 PreviewPanel 預覽
+ * 同時透過 NHI 將條碼對應為中文品名
+ */
+export async function processImagesWithGeminiAsPdf({ urls }: { urls: string[] }): Promise<{ success: boolean; data?: ParsedPdf; error?: string }> {
+  const ocrResult = await processImagesWithGemini({ urls });
+  if (!ocrResult.success || !ocrResult.drugs) {
+    return { success: false, error: ocrResult.error };
+  }
+
+  // 批次查詢 NHI 中文名稱（一次性 in 查詢，效能最佳）
+  const barcodes = ocrResult.drugs
+    .map(d => d.barcode?.trim())
+    .filter((b): b is string => !!b);
+
+  const nhiMap = new Map<string, string>();
+  if (barcodes.length > 0) {
+    try {
+      const uniqueBarcodes = [...new Set(barcodes)];
+      const { data: nhiData } = await getSupabaseAdmin()
+        .from('nhi_drug_lookup')
+        .select('drug_code, chinese_name')
+        .in('drug_code', uniqueBarcodes);
+
+      nhiData?.forEach(row => {
+        nhiMap.set(row.drug_code, row.chinese_name);
+      });
+    } catch {
+      // 查詢失敗時保留原名稱，不中斷流程
+    }
+  }
+
+  const items: ParsedItem[] = ocrResult.drugs.map((drug, idx) => {
+    const chineseName = drug.barcode ? nhiMap.get(drug.barcode.trim()) : undefined;
+    return {
+      line_number: idx + 1,
+      barcode: drug.barcode,
+      drug_name: chineseName || drug.name,
+      quantity: drug.expected_quantity,
+      bonus_quantity: drug.bonus_quantity,
+      storage_location: drug.storage_location || '',
+      category: drug.category || '',
+    };
+  });
+
+  const data: ParsedPdf = {
+    order_metadata: {
+      order_number: ocrResult.order_number || '未知單號',
+      delivery_date: ocrResult.delivery_date || '',
+      total_items: items.length,
+      source_type: 'images',
+      uploaded_image_count: urls.length,
+      ocr_page_count: ocrResult.total_pages,
+      ocr_request_count: 1,
+    },
+    items,
+  };
+
+  return { success: true, data };
 }
 
 // ---------------------------------------------------------------------------

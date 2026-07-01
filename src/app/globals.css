@@ -216,3 +216,14 @@ body {
 }
 
 
+
+.card:active {
+  transform: scale(0.97);
+  transition: transform 120ms ease-out;
+}
+
+/* Card active tap effect */
+.card-active:active {
+  transform: scale(0.97);
+  transition: transform 120ms ease-out;
+}

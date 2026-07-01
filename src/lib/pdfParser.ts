@@ -14,12 +14,22 @@ export interface ParsedItem {
   upload_index?: number;
 }
 
+export interface OrderMetadata {
+  order_number: string;
+  delivery_date: string;
+  total_items: number;
+  /** 資料來源類型 */
+  source_type?: 'pdf' | 'images';
+  /** 上傳照片張數（僅照片匯入） */
+  uploaded_image_count?: number;
+  /** OCR 辨識出的頁數 */
+  ocr_page_count?: number;
+  /** OCR API 請求次數 */
+  ocr_request_count?: number;
+}
+
 export interface ParsedPdf {
-  order_metadata: {
-    order_number: string;
-    delivery_date: string;
-    total_items: number;
-  };
+  order_metadata: OrderMetadata;
   items: ParsedItem[];
 }
 

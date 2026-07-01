@@ -477,20 +477,10 @@ export default function ScanContent() {
     }
   }, [currentPage]);
 
-  // 本頁全部完成時自動跳到下一頁，最後一頁提示完成
   const allPageCompleted = drugs.length > 0 && drugs.every((d) => d.counted_status !== 'pending');
   useEffect(() => {
-    if (allPageCompleted && !loading) {
-      if (currentPage < totalPages) {
-        const timer = setTimeout(() => {
-          navigateToPage(currentPage + 1);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }, 800);
-        return () => clearTimeout(timer);
-      } else if (currentPage === totalPages) {
-        // 使用 queueMicrotask 避免 effect 內同步 setState
-        queueMicrotask(() => showToast('所有分頁已全部清點完成'));
-      }
+    if (allPageCompleted && !loading && currentPage === totalPages) {
+      queueMicrotask(() => showToast('所有分頁已全部清點完成'));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allPageCompleted, currentPage, totalPages, loading]);

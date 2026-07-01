@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { importDrugs, processImagesWithGemini, ImportDrugItem, deleteImportImages } from '@/app/actions/import';
+import { importDrugs, processImagesWithGemini, processImagesWithGeminiAsPdf, ImportDrugItem, deleteImportImages } from '@/app/actions/import';
 import { clientUploadImportImages } from '@/lib/clientUpload';
 import { FileUp, Loader2, CheckCircle2, ArrowLeft, Image as ImageIcon, FileType, RotateCcw, Cpu, Upload, ScanLine, Database } from 'lucide-react';
 import Link from 'next/link';
@@ -209,66 +209,46 @@ export default function ImportPage() {
     }
   };
 
+  const handleOcrImages = async () => {
+    if (uploadedUrls.length === 0) return;
+    try {
+      setStatus('loading');
+      setMessage('正在執行 AI OCR 辨識中...');
+      const result = await processImagesWithGeminiAsPdf({ urls: uploadedUrls });
+      if (!result.success || !result.data) {
+        setStatus('error');
+        setMessage(`OCR 辨識失敗: ${result.error}`);
+        return;
+      }
+      setParsedData(result.data);
+      setManifestName(prev => prev.trim() || result.data!.order_metadata.order_number || '');
+      setStatus('idle');
+      setMessage('');
+    } catch {
+      setStatus('error');
+      setMessage('OCR 辨識過程中發生錯誤');
+    }
+  };
+
   const handleImport = async (items?: ParsedItem[]) => {
+    if (!parsedData) return;
     try {
       setStatus('loading');
       setIsImporting(true);
-      let drugs: ImportDrugItem[] = [];
-      let ocrOrderNumber: string | undefined;
-
-      if (parsedData) {
-        const sourceItems = items || parsedData.items;
-        drugs = sourceItems.map(item => ({
-          barcode: item.barcode,
-          name: item.drug_name,
-          expected_quantity: item.quantity,
-          bonus_quantity: 0,
-          storage_location: item.storage_location || '',
-          category: item.category || '',
-        }));
-        const pdfFinalName = manifestName.trim() || parsedData.order_metadata.order_number || `匯入清單 ${new Date().toLocaleDateString('zh-TW')}`;
-        const result = await importDrugs(pdfFinalName, drugs, user!.id, {
-          order_number: parsedData.order_metadata.order_number,
-          delivery_date: parsedData.order_metadata.delivery_date,
-          source_file: ''
-        });
-        if (result.success) {
-          setIsImporting(false);
-          setStatus('success');
-          setMessage(`匯入成功！共匯入 ${result.totalItems} 項藥品。正在跳轉至清點面板...`);
-          clearImportState();
-          setTimeout(() => router.push(`/scan?manifestId=${result.manifestId}`), 2000);
-        } else {
-          setIsImporting(false);
-          setStatus('error');
-          setMessage(`匯入失敗: ${result.error}`);
-        }
-        return;
-      } else if (uploadedUrls.length > 0) {
-        setMessage('正在執行 AI OCR 辨識中...');
-        const ocrResult = await processImagesWithGemini({ urls: uploadedUrls });
-        if (!ocrResult.success) {
-          setIsImporting(false);
-          setStatus('error');
-          setMessage(`OCR 辨識失敗: ${ocrResult.error}`);
-          return;
-        }
-        drugs = ocrResult.drugs || [];
-        ocrOrderNumber = ocrResult.order_number;
-      }
-      if (drugs.length === 0) {
-        setIsImporting(false);
-        setStatus('error');
-        setMessage('沒有可匯入的藥品數據');
-        return;
-      }
-      // 自動命名：使用者輸入 > OCR 出貨單號 > 日期 fallback
-      const finalName = manifestName.trim() || ocrOrderNumber || `匯入清單 ${new Date().toLocaleDateString('zh-TW')}`;
-      setMessage('正在匯入並進行分頁處理...');
+      const sourceItems = items || parsedData.items;
+      const drugs: ImportDrugItem[] = sourceItems.map(item => ({
+        barcode: item.barcode,
+        name: item.drug_name,
+        expected_quantity: item.quantity,
+        bonus_quantity: 0,
+        storage_location: item.storage_location || '',
+        category: item.category || '',
+      }));
+      const finalName = manifestName.trim() || parsedData.order_metadata.order_number || `匯入清單 ${new Date().toLocaleDateString('zh-TW')}`;
       const result = await importDrugs(finalName, drugs, user!.id, {
-        source_images: uploadedUrls,
-        order_number: ocrOrderNumber,
-        delivery_date: undefined,
+        order_number: parsedData.order_metadata.order_number,
+        delivery_date: parsedData.order_metadata.delivery_date,
+        source_file: ''
       });
       if (result.success) {
         setIsImporting(false);
@@ -352,8 +332,8 @@ export default function ImportPage() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto">
-        <div className={parsedData ? 'max-w-3xl mx-auto flex flex-col h-full' : 'max-w-3xl mx-auto space-y-5 lg:space-y-6 p-4 lg:p-6'}>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <div className={parsedData ? 'max-w-3xl mx-auto flex flex-col h-full' : 'max-w-3xl mx-auto space-y-5 lg:space-y-6 p-4 lg:p-6 overflow-y-auto'}>
           <div className="flex-shrink-0 flex items-center gap-3">
             <Link href="/" className="p-2 hover:bg-slate-800 rounded-full transition-colors">
               <ArrowLeft className="w-5 h-5 lg:w-6 lg:h-6 text-slate-400" />
@@ -517,23 +497,25 @@ export default function ImportPage() {
                   </>
                 )}
                 <div className="flex flex-col gap-3">
-                  <button
-                    onClick={() => handleImport()}
-                    disabled={status === 'loading'}
-                    className={`tech-button w-full py-3 ${status === 'loading' ? 'bg-slate-700 text-slate-400' : 'tech-button-primary'}`}
-                  >
-                    {status === 'loading' ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        處理中...
-                      </>
-                    ) : (
-                      <>
-                        <FileUp className="w-5 h-5" />
-                        立即匯入並分頁
-                      </>
-                    )}
-                  </button>
+                  {uploadedUrls.length > 0 && !parsedData && (
+                    <button
+                      onClick={handleOcrImages}
+                      disabled={status === 'loading'}
+                      className={`tech-button w-full py-3 ${status === 'loading' ? 'bg-slate-700 text-slate-400' : 'tech-button-primary'}`}
+                    >
+                      {status === 'loading' ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          OCR 辨識中...
+                        </>
+                      ) : (
+                        <>
+                          <Cpu className="w-5 h-5" />
+                          開始 OCR 辨識
+                        </>
+                      )}
+                    </button>
+                  )}
                   <button
                     onClick={handleReset}
                     disabled={status === 'loading'}

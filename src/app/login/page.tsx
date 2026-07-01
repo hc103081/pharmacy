@@ -52,8 +52,6 @@ function LoginForm() {
     }
   }, [user, router]);
 
-  if (user) return null;
-
   if (sent === 'true') {
     return (
       <div className="tech-card p-8 max-w-md w-full space-y-6 animate-in fade-in zoom-in duration-300 text-center">
