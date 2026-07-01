@@ -1,6 +1,6 @@
 'use server';
 
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { createClient } from '@/lib/supabase/server';
 
 export interface ResetDrugResponse {
@@ -17,14 +17,13 @@ export async function resetDrugStatus(drugId: string): Promise<ResetDrugResponse
     const { data: { user }, error: userError } = await supabaseServer.auth.getUser();
 
     if (userError) {
-      console.error('getUser error:', userError);
       return { success: false, error: `認證錯誤: ${userError.message}` };
     }
     if (!user) {
       return { success: false, error: '未登入或登入已過期，請重新登入' };
     }
 
-    const { data: drug, error: drugError } = await supabaseAdmin
+    const { data: drug, error: drugError } = await getSupabaseAdmin()
       .from('drug_items')
       .select('manifest_id')
       .eq('id', drugId)
@@ -34,7 +33,7 @@ export async function resetDrugStatus(drugId: string): Promise<ResetDrugResponse
       return { success: false, error: '找不到該藥品' };
     }
 
-    const { data: manifest, error: manifestError } = await supabaseAdmin
+    const { data: manifest, error: manifestError } = await getSupabaseAdmin()
       .from('manifests')
       .select('user_id')
       .eq('id', drug.manifest_id)
@@ -47,7 +46,7 @@ export async function resetDrugStatus(drugId: string): Promise<ResetDrugResponse
       return { success: false, error: '無權限操作此藥品' };
     }
 
-    const { error: updateError } = await supabaseAdmin
+    const { error: updateError } = await getSupabaseAdmin()
       .from('drug_items')
       .update({
         counted_status: 'pending',

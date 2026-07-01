@@ -1,6 +1,6 @@
 'use server';
 
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { ParsedItem, ParsedPdf } from '@/lib/pdfParser';
 
@@ -469,7 +469,7 @@ export async function uploadImportImages(formData: FormData): Promise<{ success:
       const filePath = fileName; // 修正：路徑不應包含儲存桶名稱
 
 
-      const { error } = await supabaseAdmin.storage
+      const { error } = await getSupabaseAdmin().storage
         .from('import_screenshots')
         .upload(filePath, file, {
           contentType: file.type,
@@ -478,7 +478,7 @@ export async function uploadImportImages(formData: FormData): Promise<{ success:
 
       if (error) throw error;
 
-      const { data: { publicUrl } } = supabaseAdmin.storage
+      const { data: { publicUrl } } = getSupabaseAdmin().storage
         .from('import_screenshots')
         .getPublicUrl(filePath);
 
@@ -500,7 +500,7 @@ export async function uploadImportImages(formData: FormData): Promise<{ success:
  */
 export async function deleteImportImages(urls: string[]): Promise<{ success: boolean; error?: string }> {
   try {
-    const { error } = await supabaseAdmin.storage
+    const { error } = await getSupabaseAdmin().storage
       .from('import_screenshots')
       .remove(urls.map(url => url.split('/').pop()!)); // 取得檔名進行刪除
 
@@ -559,8 +559,7 @@ export async function importDrugs(
           try {
             const trimmed = drug.barcode.trim();
             console.log(`[NHI] 查詢條碼: "${trimmed}"`);
-            const { data, error } = await supabaseAdmin
-              .from('nhi_drug_lookup')
+            const { data, error } = await getSupabaseAdmin().from('nhi_drug_lookup')
               .select('drug_code, chinese_name')
               .eq('drug_code', trimmed)
               .maybeSingle();
@@ -600,8 +599,7 @@ export async function importDrugs(
     });
 
     // 2. 原子化寫入：單一 RPC 交易同時建立 manifest + drug_items
-    const { data: manifestId, error: rpcError } = await supabaseAdmin.rpc(
-      'create_manifest_with_items',
+    const { data: manifestId, error: rpcError } = await getSupabaseAdmin().rpc( 'create_manifest_with_items',
       {
         p_manifest: {
           name: manifestName,

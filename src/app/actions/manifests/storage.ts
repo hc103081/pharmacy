@@ -1,6 +1,6 @@
 'use server';
 
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 
 /**
  * 照片上傳後遞增儲存大小
@@ -11,7 +11,7 @@ export async function incrementStorageSize(
   fileSizeBytes: number,
 ): Promise<void> {
   try {
-    const { error } = await supabaseAdmin.rpc('increment_manifest_storage_size', {
+    const { error } = await getSupabaseAdmin().rpc('increment_manifest_storage_size', {
       p_manifest_id: manifestId,
       p_delta: fileSizeBytes,
     });
@@ -58,7 +58,7 @@ export async function decrementStorageSize(
     if (!path) return;
 
     // 查詢 Storage 取得檔案大小
-    const { data, error: infoError } = await supabaseAdmin.storage
+    const { data, error: infoError } = await getSupabaseAdmin().storage
       .from('drug-photos')
       .info(path);
 
@@ -71,7 +71,7 @@ export async function decrementStorageSize(
       (data as any).contentLength ?? (data as any).metadata?.size ?? 0;
     if (contentLength <= 0) return;
 
-    const { error } = await supabaseAdmin.rpc('decrement_manifest_storage_size', {
+    const { error } = await getSupabaseAdmin().rpc('decrement_manifest_storage_size', {
       p_manifest_id: manifestId,
       p_delta: contentLength,
     });
@@ -92,7 +92,7 @@ export async function setManifestStorageSize(
   bytes: number,
 ): Promise<void> {
   try {
-    const { error } = await supabaseAdmin
+    const { error } = await getSupabaseAdmin()
       .from('manifests')
       .update({ storage_size_bytes: bytes, updated_at: new Date().toISOString() })
       .eq('id', manifestId);

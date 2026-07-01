@@ -1,6 +1,6 @@
 'use server';
 
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { createClient } from '@/lib/supabase/server';
 
 export interface UpdatePhotoResponse {
@@ -22,24 +22,21 @@ export async function updateDrugStatus(
     const { data: { user }, error: userError } = await supabaseServer.auth.getUser();
 
     if (userError) {
-      console.error('getUser error:', userError);
       return { success: false, error: `認證錯誤: ${userError.message}` };
     }
     if (!user) {
       return { success: false, error: '未登入或登入已過期，請重新登入' };
     }
-    const userId = user.id;
 
     // 2. 使用 RPC 原子化地完成：檢查權限 -> 計算狀態 -> 更新資料
-    const { error: rpcError } = await supabaseAdmin.rpc('update_drug_status_with_photo', {
+    const { error: rpcError } = await getSupabaseAdmin().rpc('update_drug_status_with_photo', {
       p_drug_id: drugId,
       p_photo_url: photoUrl,
       p_actual_quantity: actualQuantity,
-      p_user_id: userId,
+      p_user_id: user.id,
     });
 
     if (rpcError) {
-      console.error('RPC error:', rpcError);
       return { success: false, error: `更新失敗: ${rpcError.message}` };
     }
 
