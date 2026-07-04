@@ -11,7 +11,8 @@ export async function POST(request: Request) {
     const { manifestName, drugs } = await request.json();
 
     // 取得一個測試用的使用者（此處簡化為取第一個使用者）
-    const { data: users } = await getSupabaseAdmin().auth.admin.listUsers();
+    const { data } = await getSupabaseAdmin().auth.admin.listUsers();
+    const users = (data as { users: Array<{ id: string }> })?.users;
     const testUser = users?.[0];
     if (!testUser) {
       return NextResponse.json({ success: false, error: '測試使用者不存在' }, { status: 400 });
