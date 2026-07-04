@@ -1,4 +1,6 @@
 export interface ParsedItem {
+
+  product_code?: string;
   line_number: number;
   barcode: string;
   drug_name: string;
@@ -148,6 +150,7 @@ export async function parsePdf(
   const finalItems: ParsedItem[] = mergedItems.map((item, idx) => ({
     line_number: idx + 1,
     barcode: item.barcode,
+    product_code: item.product_code,
     drug_name: item.drug_name,
     quantity: item.quantity,
     bonus_quantity: item.bonus_quantity,
@@ -166,3 +169,4 @@ export async function parsePdf(
     items: finalItems,
   };
 }
+

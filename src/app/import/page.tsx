@@ -25,6 +25,7 @@ interface ImportState {
 
 /** 從 sessionStorage 讀取暫存的匯入狀態 */
 function loadImportState(): ImportState | null {
+  if (typeof window === 'undefined') return null;
   try {
     const raw = sessionStorage.getItem(IMPORT_STATE_KEY);
     if (!raw) return null;
@@ -40,6 +41,7 @@ function loadImportState(): ImportState | null {
 
 /** 將匯入狀態寫入 sessionStorage */
 function saveImportState(state: ImportState) {
+  if (typeof window === 'undefined') return;
   try {
     sessionStorage.setItem(IMPORT_STATE_KEY, JSON.stringify(state));
   } catch {
@@ -49,6 +51,7 @@ function saveImportState(state: ImportState) {
 
 /** 清除 sessionStorage 中的匯入狀態 */
 function clearImportState() {
+  if (typeof window === 'undefined') return;
   try {
     sessionStorage.removeItem(IMPORT_STATE_KEY);
   } catch {
@@ -215,9 +218,15 @@ export default function ImportPage() {
       setStatus('loading');
       setMessage('正在執行 AI OCR 辨識中...');
       const result = await processImagesWithGeminiAsPdf({ urls: uploadedUrls });
+      console.log('OCR result:', result);
       if (!result.success || !result.data) {
         setStatus('error');
         setMessage(`OCR 辨識失敗: ${result.error}`);
+        return;
+      }
+      if (!result.data.items || result.data.items.length === 0) {
+        setStatus('error');
+        setMessage('OCR 辨識成功但未取得任何藥品項目，請檢查圖片或重試');
         return;
       }
       setParsedData(result.data);
@@ -238,6 +247,7 @@ export default function ImportPage() {
       const sourceItems = items || parsedData.items;
       const drugs: ImportDrugItem[] = sourceItems.map(item => ({
         barcode: item.barcode,
+        product_code: item.product_code,
         name: item.drug_name,
         expected_quantity: item.quantity,
         bonus_quantity: 0,

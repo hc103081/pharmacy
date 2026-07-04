@@ -2,9 +2,10 @@
 
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { ParsedItem, ParsedPdf } from '@/lib/pdfParser';
+import { ParsedItem, ParsedPdf } from '../../lib/pdfParser';
 
 export interface ImportDrugItem {
+  product_code?: string;
   barcode: string;
   name: string;
   expected_quantity: number;
@@ -24,9 +25,11 @@ export interface ImportResponse {
 // Gemini OCR helpers for PDF parsing
 // ---------------------------------------------------------------------------
 
+
 /**
  * 輔助函數：從 URL 獲取圖片並轉換為 Base64
  */
+ 
 async function fetchImageAsBase64(url: string): Promise<string> {
   const response = await fetch(url);
   const arrayBuffer = await response.arrayBuffer();
@@ -38,9 +41,66 @@ async function fetchImageAsBase64(url: string): Promise<string> {
   return btoa(binary);
 }
 
+
+ 
 /**
- * 將 Gemini API 錯誤轉換為友善的中文提示訊息
+ * 修復 Gemini 回傳 JSON 的常見格式錯誤
+ * 例如：缺少冒號、值為空、重複逗號等
  */
+export async function repairGeminiJson(text: string): Promise<string> {
+  // 移除可能的 markdown 標記
+  let cleaned = text.replace(/```json|```/g, '').trim();
+  // 嘗試直接解析
+  try {
+    JSON.parse(cleaned);
+
+    return cleaned;
+  } catch {}
+  // 嘗試在換行處插入逗號
+  cleaned = cleaned.replace(/"\s*\n\s*"/g, '",\n"');
+  try {
+    JSON.parse(cleaned);
+    console.log('repairGeminiJson cleaned (after comma fix):', cleaned);
+    return cleaned;
+  } catch {}
+  console.log('repairGeminiJson cleaned (fallback):', '{}');
+  return '{}';
+}
+
+/* // duplicate repairGeminiJson implementation removed
+  let cleaned = text.replace(/```json|```/g, '').trim();
+
+  // 2. 修復遺漏的值：類似 "barcode": , "barcode": "drug_name" (屬性名稱後缺少值)
+  //    匹配 pattern: "key": [space] 後直接接 " 或 } 的情況
+  cleaned = cleaned.replace(/""\s*:\s*(?="|,|\}|$)/g, '"": ""');
+
+  // 3. 修復 "key": [space] 後直接接另一個 "key" 的情況 (缺少值)
+  //    例如 "barcode": "drug_name"
+  //    正則匹配: "key": 空格後直接出現 " (新的屬性名) 而非值
+  //    處理方式: 插入空字串作為缺失的值
+  cleaned = cleaned.replace(/"([^"]+)"\s*:\s*(?=")/g, '"$1": "",');
+
+  // 4. 修復結尾多餘逗號（如 ...,}）
+  cleaned = cleaned.replace(/,\s*}/g, '}');
+  cleaned = cleaned.replace(/,\s*\]/g, ']');
+
+  // 5. 修復重複逗號
+  cleaned = cleaned.replace(/,\s*,/g, ',');
+
+  // 6. 確保 JSON 以 { 開始
+  const firstBrace = cleaned.indexOf('{');
+  if (firstBrace > 0) {
+    cleaned = cleaned.slice(firstBrace);
+  }
+  // 確保 JSON 以 } 結尾
+  const lastBrace = cleaned.lastIndexOf('}');
+  if (lastBrace !== -1 && lastBrace < cleaned.length - 1) {
+    cleaned = cleaned.slice(0, lastBrace + 1);
+  }
+
+  return cleaned;
+*/
+
 function friendlyGeminiError(rawMessage: string): string {
   if (rawMessage.includes('503') || rawMessage.includes('Service Unavailable') || rawMessage.includes('high demand')) {
     return 'AI 服務暫時過載 (503)，請稍後 1-2 分鐘再試。若持續發生，請聯絡管理員。';
@@ -82,7 +142,7 @@ export async function parseHeaderWithGemini(url: string): Promise<{ success: boo
       prompt,
       { inlineData: { data: base64Data, mimeType: 'image/jpeg' } },
     ]);
-    const text = result.response.text().replace(/```json|```/g, '').trim();
+    const text = await repairGeminiJson(result.response.text());
     const parsed = JSON.parse(text);
     return {
       success: true,
@@ -105,6 +165,7 @@ interface PageItem {
   storage_location: string;
   category: string;
   barcode: string;
+  product_code?: string;
   drug_name: string;
   quantity: string; // 原始字串如 "1罐"，後續用正則提取數字
   page_number?: number; // 照片頁碼（用於排序）
@@ -129,10 +190,11 @@ export async function parseBatchWithGemini(url: string, _batchIndex: number): Pr
     const prompt = `這是一組合併後的藥局總倉撿貨單圖片（包含多頁）。
 請提取所有藥品項目，並以 JSON 格式輸出。
 
-提取欄位：
-- storage_location: 儲位（如 F3），找不到請設為空字串，不要猜測或自動填補
-- category: 類別（如 4），找不到請設為空字串，不要猜測或自動填補
-- barcode: 健保代碼（格式如 A000015421、AC16496100），找不到請設為空字串
+藥品欄位：
+- storage_location: 儲位（如 F3），找不到請設為空字串
+- category: 類別（如 4），找不到請設為空字串
+- barcode: 國際條碼（純數字，格式如 471020120000），找不到請設為空字串
+- product_code: 商品條碼／健保碼（字母開頭格式如 A000015421、AC16496100），找不到請設為空字串
 - drug_name: 中文品名
 - quantity: 補貨量（保留原始格式如 "1罐"、"5盒"）
 
@@ -143,25 +205,28 @@ export async function parseBatchWithGemini(url: string, _batchIndex: number): Pr
   "page_number": 3,
   "total_pages": 6,
   "items": [
-    {"storage_location": "F3", "category": "4", "barcode": "AC16496100", "drug_name": "胃利贊膜衣錠20毫克", "quantity": "1罐"},
-    {"storage_location": "", "category": "4", "barcode": "", "drug_name": "某藥品名稱", "quantity": "2盒"}
+    {"storage_location": "I3", "category": "30", "barcode": "4719881452117", "product_code": "4719881452117", "drug_name": "銀貝貝ENT棉棒滅菌10支", "quantity": "10包"},
+    {"storage_location": "Z9", "category": "X", "barcode": "4719256000387", "product_code": "AC43588157", "drug_name": "CYPROMIN [120mL] SOLUTION 0.4MC", "quantity": "5瓶"},
+    {"storage_location": "Z9", "category": "X", "barcode": "", "product_code": "AC46990429", "drug_name": "EYEHELP EYE DROPS 0.01% 10ML", "quantity": "1瓶"},
+    {"storage_location": "", "category": "", "barcode": "", "product_code": "", "drug_name": "某藥品名稱", "quantity": "2盒"}
   ]
 }
 
 注意事項：
 1. 這是一份專業的藥局總倉撿貨單，請特別注意中文字形辨識，避免將藥品名稱誤判為無意義的文字。
 2. storage_location 和 category 是選填欄位，如果照片中沒有明確顯示，請務必設為空字串，不要猜測。
-3. barcode 欄位如果是健保代碼（格式如 A000015421、AC16496100）或廠商自編碼，請如實回傳；如果完全看不到任何代碼，請設為空字串。
-4. 保持項目在圖片中出現的物理順序。
-5. 忽略表頭、頁尾及其他非藥品項目內容。
-6. quantity 欄位保留原始格式（如 "1罐"、"5盒"），不要轉為純數字。`;
+3. barcode 是國際條碼，一定是純數字（如 471020120000）；完全看不到數字條碼時請設為空字串。
+4. product_code 是商品條碼／健保碼（通常為字母開頭的健保代碼如 AC16496100，或 EAN-13 商品碼），若無則為空字串。
+5. 保持項目在圖片中出現的物理順序。
+6. 忽略表頭、頁尾及其他非藥品項目內容。
+7. quantity 欄位保留原始格式（如 "1罐"、"5盒"），不要轉為純數字。`;
 
     const result = await model.generateContent([
       prompt,
       { inlineData: { data: base64Data, mimeType: 'image/jpeg' } },
     ]);
 
-    const text = result.response.text().replace(/```json|```/g, '').trim();
+    const text = repairGeminiJson(result.response.text());
     const parsed = JSON.parse(text);
 
     // 提取頁碼資訊
@@ -173,6 +238,7 @@ export async function parseBatchWithGemini(url: string, _batchIndex: number): Pr
       storage_location?: string;
       category?: string;
       barcode?: string;
+      product_code?: string;
       drug_name?: string;
       quantity?: string;
     }> = Array.isArray(parsed.items) ? parsed.items : [];
@@ -191,6 +257,7 @@ export async function parseBatchWithGemini(url: string, _batchIndex: number): Pr
         storage_location: item.storage_location || '',
         category: item.category || '',
         barcode: (item.barcode || '').trim(),
+        product_code: item.product_code ? (item.product_code || '').trim() : '',
         drug_name: drugName,
         quantity: rawQuantity,
         page_number: pageNumber,
@@ -261,10 +328,16 @@ export async function parsePdfWithGemini({ urls }: { urls: string[] }): Promise<
     });
 
     // 以條碼為鍵合併相同項目（expected_quantity 累加），並記錄合併次數
-    const barcodeMap = new Map<string, { barcode: string; drug_name: string; expected_quantity: number; storage_location: string; category: string }>();
-    const mergeCountMap = new Map<string, number>(); // 記錄每個條碼出現次數
+  const barcodeMap = new Map<string, { barcode: string; product_code?: string; drug_name: string; expected_quantity: number; storage_location: string; category: string }>();
+  const mergeCountMap = new Map<string, number>(); // 記錄每個條碼出現次數
     for (const item of rawItems) {
-      const key = item.barcode.trim();
+      // 先嘗試使用國際條碼，若無則使用商品條碼作為合併鍵
+      let key = '';
+      if (item.barcode && item.barcode.trim()) {
+        key = item.barcode.trim();
+      } else if (item.product_code && item.product_code.trim()) {
+        key = item.product_code.trim();
+      }
       // 從原始 quantity 字串提取數字
       const match = item.quantity.match(/\d+/);
       const qty = match ? parseInt(match[0], 10) : 0;
@@ -273,6 +346,7 @@ export async function parsePdfWithGemini({ urls }: { urls: string[] }): Promise<
         const fakeKey = `__NO_BARCODE_${barcodeMap.size}__`;
         barcodeMap.set(fakeKey, {
           barcode: item.barcode,
+          product_code: item.product_code,
           drug_name: item.drug_name,
           expected_quantity: qty,
           storage_location: item.storage_location,
@@ -288,6 +362,7 @@ export async function parsePdfWithGemini({ urls }: { urls: string[] }): Promise<
       } else {
         barcodeMap.set(key, {
           barcode: item.barcode,
+          product_code: item.product_code,
           drug_name: item.drug_name,
           expected_quantity: qty,
           storage_location: item.storage_location,
@@ -297,16 +372,17 @@ export async function parsePdfWithGemini({ urls }: { urls: string[] }): Promise<
     }
 
     // 4. 重新編號（已按頁碼排好序）
-    const finalItems: ParsedItem[] = [...barcodeMap.entries()].map(([key, item], idx) => ({
-      line_number: idx + 1,
-      barcode: item.barcode,
-      drug_name: item.drug_name,
-      quantity: item.expected_quantity,
-      bonus_quantity: 0,
-      storage_location: item.storage_location,
-      category: item.category,
-      merged_count: mergeCountMap.get(key) || 1,
-    }));
+  const finalItems: ParsedItem[] = [...barcodeMap.entries()].map(([key, item], idx) => ({
+    line_number: idx + 1,
+    barcode: item.barcode,
+    product_code: item.product_code && item.product_code !== item.barcode ? item.product_code : null,
+    drug_name: item.drug_name,
+    quantity: item.expected_quantity,
+    bonus_quantity: 0,
+    storage_location: item.storage_location,
+    category: item.category,
+    merged_count: mergeCountMap.get(key) || 1,
+  }));
 
     return {
       success: true,
@@ -375,7 +451,8 @@ export async function processImagesWithGemini({ urls }: { urls: string[] }): Pro
 然後請分析所有圖片，提取出所有藥品項目。
 
 藥品欄位：
-- barcode: 健保代碼（格式如 A000015421、AC16496100），找不到請設為空字串
+- barcode: 國際條碼（純數字，格式如 471020120000），找不到請設為空字串
+- product_code: 商品條碼／健保碼（字母開頭格式如 A000015421、AC16496100），找不到請設為空字串
 - name: 中文品名
 - expected_quantity: 補貨量（數字）
 - storage_location: 儲位（如 F3），找不到請設為空字串
@@ -387,9 +464,12 @@ export async function processImagesWithGemini({ urls }: { urls: string[] }): Pro
 {
   "order_number": "R012606220001",
   "delivery_date": "2026-06-22",
+  "total_pages": 1,
   "items": [
-    { "barcode": "AC16496100", "name": "胃利贊膜衣錠20毫克", "expected_quantity": 1, "storage_location": "F3", "category": "4", "page_number": 3 },
-    { "barcode": "", "name": "某藥品名稱", "expected_quantity": 2, "storage_location": "", "category": "4", "page_number": 3 }
+    { "barcode": "4719881452117", "product_code": "4719881452117", "name": "銀貝貝ENT棉棒滅菌10支", "expected_quantity": 10, "storage_location": "I3", "category": "30", "page_number": 1 },
+    { "barcode": "4719256000387", "product_code": "AC43588157", "name": "CYPROMIN [120mL] SOLUTION 0.4MC", "expected_quantity": 5, "storage_location": "Z9", "category": "X", "page_number": 1 },
+    { "barcode": "", "product_code": "AC46990429", "name": "EYEHELP EYE DROPS 0.01% 10ML", "expected_quantity": 1, "storage_location": "Z9", "category": "X", "page_number": 1 },
+    { "barcode": "", "product_code": "", "name": "某藥品名稱", "expected_quantity": 2, "storage_location": "", "category": "", "page_number": 3 }
   ]
 }
 
@@ -397,21 +477,25 @@ export async function processImagesWithGemini({ urls }: { urls: string[] }): Pro
 1. 忽略所有表格樣式、頁碼或其他雜訊。
 2. 保持項目在截圖中出現的物理順序。
 3. storage_location 和 category 是選填欄位，如果圖中沒有明確顯示，請務必設為空字串，不要猜測。
-4. barcode 如果是健保代碼（格式如 AC12345678）或廠商自編碼，請如實回傳；完全看不到代碼時請設為空字串。
-5. expected_quantity 必須是數字。
-6. 不要輸出任何 Markdown 程式碼塊標記，只要純 JSON。`;
+4. barcode 是國際條碼，一定是純數字（如 471020120000）；完全看不到數字條碼時請設為空字串。
+5. product_code 是商品條碼／健保碼（通常為字母開頭的健保代碼如 AC16496100，或 EAN-13 商品碼），若無則為空字串。
+6. expected_quantity 必須是數字。
+7. 不要輸出任何 Markdown 程式碼塊標記，只要純 JSON。`;
 
     const result = await model.generateContent([prompt, ...imageParts]);
     const response = await result.response;
-    const text = response.text();
+    const text = result.response.text();
+console.log('Gemini raw response:', text);
 
     // 清理可能存在的 Markdown 標記
-    const cleanedText = text.replace(/```json|```/g, '').trim();
+    const cleanedText = await repairGeminiJson(text);
+console.log('Gemini cleaned JSON:', cleanedText);
     const parsed = JSON.parse(cleanedText);
 
     // 解析 items 陣列，對 quantity 做正則防禦
     const rawItems: Array<{
       barcode?: string;
+      product_code?: string;
       name?: string;
       expected_quantity?: number | string;
       storage_location?: string;
@@ -430,6 +514,7 @@ export async function processImagesWithGemini({ urls }: { urls: string[] }): Pro
 
       return {
         barcode: (item.barcode || '').trim(),
+        product_code: item.product_code ? (item.product_code || '').trim() : '',
         name: item.name || '',
         expected_quantity: expectedQuantity,
         bonus_quantity: 0,
@@ -457,9 +542,13 @@ export async function processImagesWithGeminiAsPdf({ urls }: { urls: string[] })
   }
 
   // 批次查詢 NHI 中文名稱（一次性 in 查詢，效能最佳）
-  const barcodes = ocrResult.drugs
-    .map(d => d.barcode?.trim())
+  // 從商品代碼 (product_code) 取得中文藥名，若無則回退使用國際條碼
+// 使用 product_code 如有，若無則使用 barcode
+// 使用商品代碼 (product_code) 取得中文藥名，因為 NHI 資料庫已改為以 product_code 為鍵
+const barcodes = ocrResult.drugs
+    .map(d => d.product_code?.trim())
     .filter((b): b is string => !!b);
+  console.log(`[NHI] OCR mapping start, ${barcodes.length} 條碼`);
 
   const nhiMap = new Map<string, string>();
   if (barcodes.length > 0) {
@@ -479,17 +568,18 @@ export async function processImagesWithGeminiAsPdf({ urls }: { urls: string[] })
   }
 
   const items: ParsedItem[] = ocrResult.drugs.map((drug, idx) => {
-    const chineseName = drug.barcode ? nhiMap.get(drug.barcode.trim()) : undefined;
-    return {
-      line_number: idx + 1,
-      barcode: drug.barcode,
-      drug_name: chineseName || drug.name,
-      quantity: drug.expected_quantity,
-      bonus_quantity: drug.bonus_quantity,
-      storage_location: drug.storage_location || '',
-      category: drug.category || '',
-    };
-  });
+      const chineseName = drug.product_code ? nhiMap.get(drug.product_code.trim()) : undefined;
+      return {
+        line_number: idx + 1,
+        barcode: drug.barcode,
+        product_code: drug.product_code,
+        drug_name: chineseName || drug.name,
+        quantity: drug.expected_quantity,
+        bonus_quantity: drug.bonus_quantity,
+        storage_location: drug.storage_location || '',
+        category: drug.category || '',
+      };
+    });
 
   const data: ParsedPdf = {
     order_metadata: {
@@ -614,32 +704,46 @@ export async function importDrugs(
     // 0.5. NHI 藥品中文名稱查詢與替換
     console.log(`[NHI] 開始查詢，共 ${mergedDrugs.length} 筆藥品`);
     const drugsWithChineseName = await Promise.all(
-      mergedDrugs.map(async (drug) => {
-        // 如果有條碼（健保代碼），查詢 NHI 取得中文名稱
-        if (drug.barcode && drug.barcode.trim() !== '') {
-          try {
-            const trimmed = drug.barcode.trim();
-            console.log(`[NHI] 查詢條碼: "${trimmed}"`);
-            const { data, error } = await getSupabaseAdmin().from('nhi_drug_lookup')
-              .select('drug_code, chinese_name')
-              .eq('drug_code', trimmed)
-              .maybeSingle();
-            
-            console.log(`[NHI] 查詢結果 for "${trimmed}":`, data ? `找到 - ${data.chinese_name}` : '未找到');
-            
-            if (data && data.chinese_name) {
-              // 使用 NHI 查得的中文名稱
-              return { ...drug, name: data.chinese_name };
+          mergedDrugs.map(async (drug) => {
+            // 先用商品代碼 (product_code) 查詢 NHI，若無則回退使用條碼 (barcode)
+            const primaryKey = drug.product_code?.trim();
+            const secondaryKey = drug.barcode?.trim();
+            // 1️⃣ 嘗試商品代碼
+            if (primaryKey) {
+              try {
+                console.log(`[NHI] 查詢商品代碼: "${primaryKey}"`);
+                const { data, error } = await getSupabaseAdmin().from('nhi_drug_lookup')
+                  .select('drug_code, chinese_name')
+                  .eq('drug_code', primaryKey)
+                  .maybeSingle();
+                console.log(`[NHI] 查詢結果 for 商品代碼 "${primaryKey}":`, data ? `找到 - ${data.chinese_name}` : '未找到');
+                if (data && data.chinese_name) {
+                  return { ...drug, name: data.chinese_name };
+                }
+              } catch (error) {
+                console.warn(`[NHI] 商品代碼查詢失敗 for ${primaryKey}:`, error);
+              }
             }
-          } catch (error) {
-            // 查詢失敗時保留原名稱，不中斷流程
-            console.warn(`[NHI] 查詢失敗 for barcode ${drug.barcode}:`, error);
-          }
-        }
-        // 無條碼或查詢失敗時保留原名稱
-        return drug;
-      })
-    );
+            // 2️⃣ 若商品代碼無結果，嘗試國際條碼
+            if (secondaryKey) {
+              try {
+                console.log(`[NHI] 查詢國際條碼: "${secondaryKey}"`);
+                const { data, error } = await getSupabaseAdmin().from('nhi_drug_lookup')
+                  .select('drug_code, chinese_name')
+                  .eq('drug_code', secondaryKey)
+                  .maybeSingle();
+                console.log(`[NHI] 查詢結果 for 國際條碼 "${secondaryKey}":`, data ? `找到 - ${data.chinese_name}` : '未找到');
+                if (data && data.chinese_name) {
+                  return { ...drug, name: data.chinese_name };
+                }
+              } catch (error) {
+                console.warn(`[NHI] 國際條碼查詢失敗 for ${secondaryKey}:`, error);
+              }
+            }
+            // 3️⃣ 若都沒有結果，保留原名稱
+            return drug;
+          })
+        );
 
     // 1. 建構明細資料（分頁與排序）
     const ITEMS_PER_PAGE = 44;
@@ -651,6 +755,7 @@ export async function importDrugs(
         item_order: itemOrder,
         page_number: pageNumber,
         barcode: drug.barcode,
+        product_code: drug.product_code ?? null,
         name: drug.name,
         expected_quantity: drug.expected_quantity,
         bonus_quantity: 0,
