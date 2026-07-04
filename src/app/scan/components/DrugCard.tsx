@@ -47,7 +47,10 @@ export default function DrugCard({
     isRealtimeError = parseInt(actualQuantity) !== drug.expected_quantity;
   }
 
-  const isNoBarcode = !drug.barcode || drug.barcode.trim() === '';
+  // 判斷是否缺少任一條碼（國際條碼或商品代碼）
+// 判斷是否缺少所有條碼（國際條碼與商品代碼同時缺失）
+// 判斷是否缺少條碼：僅在 barcode 與 product_code 皆缺失時視為缺失
+const isNoBarcode = !drug.barcode?.trim() && !drug.product_code?.trim();
   const isEmptyStorage = !drug.storage_location || drug.storage_location.trim() === '';
 
   // 手動選取的無條碼卡片，操作區顯示優先於篩選隱藏邏輯
@@ -123,28 +126,52 @@ export default function DrugCard({
               {isNoBarcode ? (
                 <span className="text-xs font-mono text-slate-600">無條碼</span>
               ) : (
-                <span className="text-lg font-semibold text-[#00f2fe] drop-shadow-[0_0_8px_rgba(0,242,254,0.4)]">
-                  {drug.barcode}
-                </span>
+                <div className="flex flex-col gap-0.5 min-h-[3.5rem]">
+                  {drug.product_code?.trim() && (
+                    <div className="flex items-center gap-1">
+                      <span className="text-lg font-semibold text-[#00f2fe] drop-shadow-[0_0_8px_rgba(0,242,254,0.4)] leading-tight">
+                        {drug.product_code}
+                      </span>
+                      {onFilterByBarcode && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onFilterByBarcode(drug.product_code!);
+                          }}
+                          className="p-1 rounded-full hover:bg-slate-700/50 transition-colors"
+                          title="以商品代碼篩選"
+                        >
+                          <Search className="w-3.5 h-3.5 text-slate-400 hover:text-[#00f2fe]" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {drug.barcode?.trim() && drug.barcode !== drug.product_code && (
+                    <div className="flex items-center gap-1">
+                      <span className="text-lg font-semibold text-[#00f2fe]/70 leading-tight">
+                        {drug.barcode}
+                      </span>
+                      {onFilterByBarcode && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onFilterByBarcode(drug.barcode);
+                          }}
+                          className="p-1 rounded-full hover:bg-slate-700/50 transition-colors"
+                          title="以條碼篩選"
+                        >
+                          <Search className="w-3.5 h-3.5 text-slate-400 hover:text-[#00f2fe]" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
               <span className="text-slate-600 text-sm">·</span>
               <span className="text-xs font-medium text-slate-500">預期:</span>
               <span className="text-xl font-bold text-[#00f2fe] drop-shadow-[0_0_8px_rgba(0,242,254,0.4)]">
                 {drug.expected_quantity}
               </span>
-              {/* 放大鏡：點擊以條碼篩選 */}
-              {!isNoBarcode && onFilterByBarcode && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onFilterByBarcode(drug.barcode);
-                  }}
-                  className="p-1 rounded-full hover:bg-slate-700/50 transition-colors"
-                  title="以條碼篩選"
-                >
-                  <Search className="w-3.5 h-3.5 text-slate-400 hover:text-[#00f2fe]" />
-                </button>
-              )}
             </div>
 
             {isError && drug.actual_quantity !== undefined && (

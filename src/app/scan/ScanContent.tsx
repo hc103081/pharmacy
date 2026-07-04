@@ -64,7 +64,7 @@ export default function ScanContent() {
   }, []);
 
   const fetchPageData = useCallback(async () => {
-    if (!manifestId) return;
+    if (!manifestId || manifestId === 'dummy') return;
 
     // Mark this as the current request
     requestRef.current = { manifestId, currentPage };
@@ -96,7 +96,7 @@ export default function ScanContent() {
           .eq('counted_status', 'completed'),
         supabase
           .from('drug_items')
-          .select('id, manifest_id, page_number, name, barcode, actual_quantity, expected_quantity, storage_location, category, bonus_quantity, counted_status, item_order, photo_url')
+          .select('id, manifest_id, page_number, name, barcode, product_code, actual_quantity, expected_quantity, storage_location, category, bonus_quantity, counted_status, item_order, photo_url')
           .eq('manifest_id', manifestId)
           .eq('page_number', currentPage)
           .order('item_order', { ascending: true }),
@@ -160,7 +160,7 @@ export default function ScanContent() {
       ) {
         return;
       }
-      console.error('Error fetching page data:', error);
+      console.error('Error fetching page data:', (error as Error)?.message || error);
       alert('載入數據失敗，請刷新頁面');
     } finally {
       // Only set loading to false if this is still the current request
@@ -197,7 +197,7 @@ export default function ScanContent() {
 
   // 取得清單名稱
   useEffect(() => {
-    if (!manifestId) {
+    if (!manifestId || manifestId === 'dummy') {
       Promise.resolve().then(() => setManifestName(''));
       return;
     }
@@ -213,7 +213,7 @@ export default function ScanContent() {
         if (error) throw error;
         if (data) setManifestName(data.name);
       } catch (err) {
-        console.error('Error fetching manifest name:', err);
+        console.error('Error fetching manifest name:', (err as Error)?.message || err);
         setManifestName('未知清單');
       }
     };
@@ -420,7 +420,7 @@ export default function ScanContent() {
           .from('drug_items')
           .select('id, page_number, name, barcode')
           .eq('manifest_id', manifestId)
-          .or(`barcode.ilike.%${barcodeInput}%,name.ilike.%${barcodeInput}%`)
+          .or(`barcode.ilike.%${barcodeInput}%,product_code.ilike.%${barcodeInput}%,name.ilike.%${barcodeInput}%`)
           .order('item_order', { ascending: true })
           .limit(1)
           .single();
@@ -477,20 +477,10 @@ export default function ScanContent() {
     }
   }, [currentPage]);
 
-  // 本頁全部完成時自動跳到下一頁，最後一頁提示完成
   const allPageCompleted = drugs.length > 0 && drugs.every((d) => d.counted_status !== 'pending');
   useEffect(() => {
-    if (allPageCompleted && !loading) {
-      if (currentPage < totalPages) {
-        const timer = setTimeout(() => {
-          navigateToPage(currentPage + 1);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }, 800);
-        return () => clearTimeout(timer);
-      } else if (currentPage === totalPages) {
-        // 使用 queueMicrotask 避免 effect 內同步 setState
-        queueMicrotask(() => showToast('所有分頁已全部清點完成'));
-      }
+    if (allPageCompleted && !loading && currentPage === totalPages) {
+      queueMicrotask(() => showToast('所有分頁已全部清點完成'));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allPageCompleted, currentPage, totalPages, loading]);

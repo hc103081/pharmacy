@@ -92,7 +92,7 @@ export default function PreviewPanel({
   }, [editedItems, validation]);
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* 表頭資訊 - 固定在頂部 */}
       <div className="flex-shrink-0 tech-card p-4 lg:p-6 rounded-b-none space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
@@ -176,7 +176,8 @@ export default function PreviewPanel({
                   <th className="py-3 px-2 font-medium">序號</th>
                   <th className="py-3 px-2 font-medium">儲位</th>
                   <th className="py-3 px-2 font-medium">類別</th>
-                  <th className="py-3 px-2 font-medium">條碼</th>
+                  <th className="py-3 px-2 font-medium">商品代碼（product_code）</th>
+<th className="py-3 px-2 font-medium">國際條碼（barcode）</th>
                   <th className="py-3 px-2 font-medium">品名</th>
                   <th className="py-3 px-2 font-medium text-right">補貨量</th>
                   <th className="py-3 px-2 font-medium text-center">同碼合併</th>
@@ -209,10 +210,15 @@ export default function PreviewPanel({
                       </td>
                       <td className="py-3 px-2">
                         <input 
-                          value={item.barcode} 
-                          onChange={(e) => handleInputChange(idx, 'barcode', e.target.value)}
+                          value={item.product_code || ''} 
+                          onChange={(e) => handleInputChange(idx, 'product_code', e.target.value)}
                           className="bg-transparent text-slate-200 border border-transparent hover:border-slate-700 focus:border-[#00f2fe] focus:bg-slate-950 outline-none px-1 rounded transition-all font-mono w-full"
                         />
+                      </td>
+                      <td className="py-3 px-2">
+                        {item.barcode && item.barcode !== item.product_code ? (
+                          <span className="text-sm text-[#00f2fe]/70">{item.barcode}</span>
+                        ) : null}
                       </td>
                       <td className="py-3 px-2">
                         <div className="relative">
@@ -277,7 +283,10 @@ export default function PreviewPanel({
                   <div className="flex w-full min-w-0">
                     <div className="flex flex-col w-1/3 shrink-0">
                       <div className="text-sm text-[#00f2fe] text-left">{item.line_number}</div>
-                      <div className="text-xs text-slate-400 mt-1">{item.barcode}</div>
+                      <div className="text-xs text-slate-400 mt-1">國際條碼：{item.barcode || ''}</div>
+                  {item.product_code && item.product_code !== item.barcode && (
+                    <div className="text-xs text-[#00f2fe]/70 mt-1">商品代碼：{item.product_code}</div>
+                  )}
                       {(item.merged_count && item.merged_count > 1) && (
                         <div className="mt-1">
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/10 text-[#00f2fe] border border-cyan-500/30">
@@ -364,3 +373,11 @@ export default function PreviewPanel({
 function Loader2({ className }: { className?: string }) {
   return <div className={`w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin ${className}`} />;
 }
+
+
+
+
+
+
+
+

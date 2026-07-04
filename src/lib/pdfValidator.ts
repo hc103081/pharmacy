@@ -30,8 +30,8 @@ export function validateParsedPdf(data: ParsedPdf): PdfValidationResult {
     const messages: string[] = [];
     let status: ValidationStatus = 'pass';
 
-    // 1. 條碼格式校驗
-    if (!item.barcode || item.barcode.trim() === '') {
+    // 1. 條碼格式校驗：barcode 或 product_code 任一有值即不算缺失
+    if ((!item.barcode || item.barcode.trim() === '') && (!item.product_code || item.product_code.trim() === '')) {
       status = 'error';
       messages.push('條碼缺失');
     } 

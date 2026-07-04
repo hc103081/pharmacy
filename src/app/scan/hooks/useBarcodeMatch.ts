@@ -4,8 +4,11 @@ import type { DrugItem } from '@/types';
 export function useBarcodeMatch(drugs: DrugItem[], barcodeInput: string) {
   const getMatchScore = useCallback((drug: DrugItem, input: string) => {
     if (!input) return 0;
-    if (drug.barcode === input) return 3;
-    if (drug.barcode.includes(input)) return 2;
+    // 完全匹配 barcode 或 product_code
+    if (drug.barcode === input || (drug as any).product_code === input) return 3;
+    // 包含匹配
+    if (drug.barcode.includes(input) || ((drug as any).product_code && (drug as any).product_code.includes(input))) return 2;
+    // 品名模糊匹配
     if (drug.name.toLowerCase().includes(input.toLowerCase())) return 1;
     return 0;
   }, []);

@@ -1,4 +1,5 @@
 export interface DrugItem {
+  product_code: string | null;
   id: string;
   manifest_id: string;
   page_number: number;

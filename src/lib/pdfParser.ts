@@ -1,4 +1,6 @@
 export interface ParsedItem {
+
+  product_code?: string;
   line_number: number;
   barcode: string;
   drug_name: string;
@@ -14,12 +16,22 @@ export interface ParsedItem {
   upload_index?: number;
 }
 
+export interface OrderMetadata {
+  order_number: string;
+  delivery_date: string;
+  total_items: number;
+  /** 資料來源類型 */
+  source_type?: 'pdf' | 'images';
+  /** 上傳照片張數（僅照片匯入） */
+  uploaded_image_count?: number;
+  /** OCR 辨識出的頁數 */
+  ocr_page_count?: number;
+  /** OCR API 請求次數 */
+  ocr_request_count?: number;
+}
+
 export interface ParsedPdf {
-  order_metadata: {
-    order_number: string;
-    delivery_date: string;
-    total_items: number;
-  };
+  order_metadata: OrderMetadata;
   items: ParsedItem[];
 }
 
@@ -138,6 +150,7 @@ export async function parsePdf(
   const finalItems: ParsedItem[] = mergedItems.map((item, idx) => ({
     line_number: idx + 1,
     barcode: item.barcode,
+    product_code: item.product_code,
     drug_name: item.drug_name,
     quantity: item.quantity,
     bonus_quantity: item.bonus_quantity,
@@ -156,3 +169,4 @@ export async function parsePdf(
     items: finalItems,
   };
 }
+
