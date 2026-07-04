@@ -160,7 +160,7 @@ export default function ScanContent() {
       ) {
         return;
       }
-      console.error('Error fetching page data:', error?.message || error);
+      console.error('Error fetching page data:', (error as Error)?.message || error);
       alert('載入數據失敗，請刷新頁面');
     } finally {
       // Only set loading to false if this is still the current request
@@ -213,7 +213,7 @@ export default function ScanContent() {
         if (error) throw error;
         if (data) setManifestName(data.name);
       } catch (err) {
-        console.error('Error fetching manifest name:', err?.message || err);
+        console.error('Error fetching manifest name:', (err as Error)?.message || err);
         setManifestName('未知清單');
       }
     };
