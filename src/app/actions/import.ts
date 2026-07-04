@@ -375,7 +375,7 @@ export async function parsePdfWithGemini({ urls }: { urls: string[] }): Promise<
   const finalItems: ParsedItem[] = [...barcodeMap.entries()].map(([key, item], idx) => ({
     line_number: idx + 1,
     barcode: item.barcode,
-    product_code: item.product_code && item.product_code !== item.barcode ? item.product_code : null,
+    product_code: item.product_code && item.product_code !== item.barcode ? item.product_code : undefined,
     drug_name: item.drug_name,
     quantity: item.expected_quantity,
     bonus_quantity: 0,
