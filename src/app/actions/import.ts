@@ -226,7 +226,7 @@ export async function parseBatchWithGemini(url: string, _batchIndex: number): Pr
       { inlineData: { data: base64Data, mimeType: 'image/jpeg' } },
     ]);
 
-    const text = repairGeminiJson(result.response.text());
+    const text = await repairGeminiJson(result.response.text());
     const parsed = JSON.parse(text);
 
     // 提取頁碼資訊
