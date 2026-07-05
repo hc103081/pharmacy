@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { importDrugs } from '@/app/actions/import';
+import { importDrugs } from '@/app/actions/import/importDrugs';
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 
 /**

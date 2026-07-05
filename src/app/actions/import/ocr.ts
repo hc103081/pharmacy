@@ -1,30 +1,10 @@
-
-
 'use server';
 
-import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { ParsedItem, ParsedPdf } from '../../lib/pdfParser';
-import { mergeByBarcode } from '@/lib/barcodeMerge';
-import { fetchImageAsBase64, repairGeminiJson, friendlyGeminiError, getGeminiKey, createGeminiModel } from '@/lib/gemini';
-import { batchLookupNhi, lookupNhiName } from '@/lib/nhi';
-
-export interface ImportDrugItem {
-  barcode: string;
-  product_code: string;
-  name: string;
-  expected_quantity: number;
-  bonus_quantity: number;
-  storage_location: string;
-  category: string;
-}
-
-export interface ImportResponse {
-  success: boolean;
-  manifestId?: string;
-  totalItems?: number;
-  error?: string;
-}
+import { fetchImageAsBase64, repairGeminiJson, friendlyGeminiError, createGeminiModel } from '@/lib/gemini';
+import { batchLookupNhi } from '@/lib/nhi';
+import type { ParsedItem, ParsedPdf } from '@/lib/pdfParser';
+import { PageItem, ImportDrugItem } from './types';
 
 /**
  * 從總倉撿貨單第一頁提取表頭資訊（出貨單號、交貨日期、頁碼）
@@ -65,17 +45,6 @@ export async function parseHeaderWithGemini(url: string): Promise<{ success: boo
       error: await friendlyGeminiError(rawMessage),
     };
   }
-}
-
-interface PageItem {
-  storage_location: string;
-  category: string;
-  barcode: string;
-  product_code?: string;
-  drug_name: string;
-  quantity: string; // 原始字串如 "1罐"，後續用正則提取數字
-  page_number?: number; // 照片頁碼（用於排序）
-  upload_index?: number; // 原始上傳順序（fallback 排序）
 }
 
 /**
@@ -180,7 +149,20 @@ export async function parseBatchWithGemini(url: string, _batchIndex: number): Pr
  * 主入口 Server Action：使用 Gemini OCR 解析整份 PDF
  * 供 pdfParser.ts 呼叫
  */
-export async function parsePdfWithGemini({ urls }: { urls: string[] }): Promise<{ success: boolean; data?: ParsedPdf; error?: string }> {
+export async function parsePdfWithGemini({ urls }: { urls: string[] }): Promise<{ success: boolean; data?: {
+  order_metadata: { order_number: string; delivery_date: string; total_items: number };
+  items: Array<{
+    line_number: number;
+    barcode: string;
+    product_code: string | undefined;
+    drug_name: string;
+    quantity: number;
+    bonus_quantity: number;
+    storage_location: string;
+    category: string;
+    merged_count: number;
+  }>;
+}; error?: string }> {
   try {
     // 1. 第一張合併圖提取表頭（通常第一頁在第一張圖頂部）
     const headerResult = await parseHeaderWithGemini(urls[0]);
@@ -189,10 +171,9 @@ export async function parsePdfWithGemini({ urls }: { urls: string[] }): Promise<
     }
     
     // 2. 並行提取每批合併圖 (CSV 模式)
-    const BATCH_SIZE = 3; // 這裡的 urls 已經是合併後的結果
-    const allBatchResults: { batchIndex: number; items: PageItem[] }[] = [];
+    const BATCH_SIZE = 3; // 限制並發數
+    const allBatchResults: Array<{ batchIndex: number; items: PageItem[] }> = [];
 
-    // 由於客戶端已經合併，這裡的 urls.length = ceil(總頁數 / 3)
     for (let i = 0; i < urls.length; i += BATCH_SIZE) {
       const batch = urls.slice(i, i + BATCH_SIZE);
       const batchResults = await Promise.all(
@@ -205,7 +186,11 @@ export async function parsePdfWithGemini({ urls }: { urls: string[] }): Promise<
             await new Promise(resolve => setTimeout(resolve, 1000));
             result = await parseBatchWithGemini(url, globalBatchIdx);
           }
-          return { batchIndex: globalBatchIdx, items: result.items || [] };
+          if (!result.success || !result.items) {
+            const errorMsg = result.error || '未知錯誤';
+            throw new Error(`批次 ${globalBatchIdx + 1} OCR 辨識失敗: ${errorMsg}`);
+          }
+          return { batchIndex: globalBatchIdx, items: result.items };
         })
       );
       allBatchResults.push(...batchResults);
@@ -247,7 +232,7 @@ export async function parsePdfWithGemini({ urls }: { urls: string[] }): Promise<
     }
 
     // 4. 重新編號（已按頁碼排好序）
-  const finalItems: ParsedItem[] = [...barcodeMap.entries()].map(([key, item], idx) => ({
+  const finalItems = [...barcodeMap.entries()].map(([key, item], idx) => ({
     line_number: idx + 1,
     barcode: item.barcode,
     product_code: item.product_code && item.product_code !== item.barcode ? item.product_code : undefined,
@@ -281,7 +266,7 @@ export async function parsePdfWithGemini({ urls }: { urls: string[] }): Promise<
 }
 
 // ---------------------------------------------------------------------------
-// 截圖 OCR（保留）
+// 截圖 OCR
 // ---------------------------------------------------------------------------
 
 /**
@@ -439,163 +424,4 @@ export async function processImagesWithGeminiAsPdf({ urls }: { urls: string[] })
   };
 
   return { success: true, data };
-}
-
-// ---------------------------------------------------------------------------
-// 圖片上傳 / 刪除（保留）
-// ---------------------------------------------------------------------------
-
-/**
- * 上傳匯入截圖至 Supabase Storage
- * 返回上傳後的檔案路徑清單
- */
-export async function uploadImportImages(formData: FormData): Promise<{ success: boolean; urls?: string[]; error?: string }> {
-  try {
-    const files = formData.getAll('files') as File[];
-    if (files.length === 0) {
-      return { success: false, error: '沒有選擇任何檔案' };
-    }
-
-    const uploadedUrls: string[] = [];
-
-    for (const file of files) {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
-      const filePath = fileName; // 修正：路徑不應包含儲存桶名稱
-
-
-      const { error } = await getSupabaseAdmin().storage
-        .from('import_screenshots')
-        .upload(filePath, file, {
-          contentType: file.type,
-          upsert: true,
-        });
-
-      if (error) throw error;
-
-      const { data: { publicUrl } } = getSupabaseAdmin().storage
-        .from('import_screenshots')
-        .getPublicUrl(filePath);
-
-      uploadedUrls.push(publicUrl);
-    }
-
-    return { success: true, urls: uploadedUrls };
-  } catch (error: unknown) {
-    console.error('Upload Error:', error);
-    if (error instanceof Error) {
-    return { success: false, error: error.message };
-  }
-  return { success: false, error: '圖片上傳失敗' };
-  }
-}
-
-/**
- * 從 Supabase Storage 中刪除匯入的圖片
- */
-export async function deleteImportImages(urls: string[]): Promise<{ success: boolean; error?: string }> {
-  try {
-    const { error } = await getSupabaseAdmin().storage
-      .from('import_screenshots')
-      .remove(urls.map(url => url.split('/').pop()!)); // 取得檔名進行刪除
-
-    if (error) throw error;
-
-    return { success: true };
-  } catch (error: unknown) {
-    console.error('Delete Images Error:', error);
-    if (error instanceof Error) {
-    return { success: false, error: error.message };
-  }
-  return { success: false, error: '刪除圖片失敗' };
-  }
-}
-
-// ---------------------------------------------------------------------------
-// 匯入藥品（保留）
-// ---------------------------------------------------------------------------
-
-export async function importDrugs(
-  manifestName: string,
-  drugs: ImportDrugItem[],
-  userId: string,
-  options: { order_number?: string, delivery_date?: string, source_file?: string, source_images?: string[] } = {}
-): Promise<ImportResponse> {
-  try {
-    if (!drugs || drugs.length === 0) {
-      return { success: false, error: '藥品清單不能為空' };
-    }
-
-    // 0. 合併相同條碼的項目（數量疊加，保留 storage_location 和 category）
-    // 使用共用的 mergeByBarcode 工具
-    const mergedDrugs = mergeByBarcode(drugs);
-
-    // 0.5. NHI 藥品中文名稱查詢與替換
-    console.log(`[NHI] 開始查詢，共 ${mergedDrugs.length} 筆藥品`);
-    const barcodes = mergedDrugs
-      .map(d => d.product_code?.trim() || d.barcode?.trim())
-      .filter((b): b is string => !!b);
-    const nhiMap = await batchLookupNhi(barcodes);
-
-    const drugsWithChineseName = mergedDrugs.map(drug => {
-      const chineseName = drug.product_code?.trim() 
-        ? nhiMap.get(drug.product_code.trim()) 
-        : drug.barcode?.trim() ? nhiMap.get(drug.barcode.trim()) : undefined;
-      return chineseName ? { ...drug, name: chineseName } : drug;
-    });
-
-    // 1. 建構明細資料（分頁與排序）
-    const ITEMS_PER_PAGE = 44;
-    const drugItemsToInsert = drugsWithChineseName.map((drug, index) => {
-      const itemOrder = index + 1;
-      const pageNumber = Math.ceil(itemOrder / ITEMS_PER_PAGE);
-
-      return {
-        item_order: itemOrder,
-        page_number: pageNumber,
-        barcode: drug.barcode,
-        product_code: drug.product_code ?? null,
-        name: drug.name,
-        expected_quantity: drug.expected_quantity,
-        bonus_quantity: 0,
-        storage_location: drug.storage_location || '',
-        category: drug.category || '',
-      };
-    });
-
-    // 2. 原子化寫入：單一 RPC 交易同時建立 manifest + drug_items
-    const { data: manifestId, error: rpcError } = await getSupabaseAdmin().rpc('create_manifest_with_items', {
-      p_manifest: {
-        name: manifestName,
-        order_number: options.order_number ?? '',
-        delivery_date: options.delivery_date ?? '',
-        source_file: options.source_file ?? '',
-        total_items: drugItemsToInsert.length,
-        user_id: userId,
-        source_images: options.source_images ?? [],
-      },
-      p_items: drugItemsToInsert,
-    });
-
-    if (rpcError || !manifestId) {
-      throw new Error(`匯入清單失敗: ${rpcError?.message ?? 'RPC 未回傳 manifestId'}`);
-    }
-
-    return {
-      success: true,
-      manifestId: manifestId as string,
-      totalItems: drugsWithChineseName.length,
-    };
-
-  } catch (error: unknown) {
-      console.error('Import Error:', error);
-      let errorMessage = '發生未知錯誤';
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    }
 }
