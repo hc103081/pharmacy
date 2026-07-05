@@ -14,6 +14,8 @@ import {
   Save,
   HardDrive,
   CheckCircle2,
+  Cloud,
+  AlertTriangle,
 } from 'lucide-react';
 import { deleteManifest } from '@/app/actions/manifests/archive';
 import type { Manifest } from '@/types';
@@ -38,13 +40,26 @@ export default function ManifestsPage() {
   const [tab, setTab] = useState<'active' | 'archived'>('active');
   const [operationProgress, setOperationProgress] = useState<{
     manifestId: string;
-    status: 'archiving' | 'restoring' | 'completed' | 'error';
+    status: 'archiving' | 'restoring' | 'gdrive_pull' | 'completed' | 'error';
     message: string;
     progress?: number;
   } | null>(null);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [archiveAllLoading, setArchiveAllLoading] = useState(false);
   const [batchActionMode, setBatchActionMode] = useState<'archive' | 'delete'>('archive');
+
+  // Calculate storage usage for active + local archived manifests
+  const localStorageUsage = manifests
+    .filter(m => m.status === 'active' || (m.status === 'archived' && !m.cloud_backup))
+    .reduce((sum, m) => sum + (m.storage_size_bytes || 0), 0);
+
+  const STORAGE_WARNING_THRESHOLD_MB = 800;
+  const STORAGE_CRITICAL_THRESHOLD_MB = 950;
+  const storageWarningLevel = localStorageUsage >= STORAGE_CRITICAL_THRESHOLD_MB * 1024 * 1024
+    ? 'critical'
+    : localStorageUsage >= STORAGE_WARNING_THRESHOLD_MB * 1024 * 1024
+      ? 'warning'
+      : 'none';
 
   const fetchManifests = useCallback(async () => {
     setLoading(true);
@@ -117,6 +132,34 @@ export default function ManifestsPage() {
               archived ({manifests.filter(m => m.status === 'archived').length})
             </button>
           </div>
+
+          {/* Storage Warning Banner */}
+          {storageWarningLevel !== 'none' && (
+            <div className={`flex items-center gap-3 p-4 rounded-xl border ${
+              storageWarningLevel === 'critical'
+                ? 'bg-[#ff4b5c]/10 border-[#ff4b5c]/30 text-[#ff4b5c]'
+                : 'bg-[#fbbf24]/10 border-[#fbbf24]/30 text-[#fbbf24]'
+            } animate-in slide-in-from-top-2 duration-300`}>
+              <div className="flex-shrink-0">
+                {storageWarningLevel === 'critical' ? (
+                  <AlertTriangle className="w-5 h-5" />
+                ) : (
+                  <AlertTriangle className="w-5 h-5" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm">
+                  {storageWarningLevel === 'critical'
+                    ? '儲存空間接近上限'
+                    : '儲存空間即將滿載'}
+                </p>
+                <p className="text-xs opacity-80 mt-0.5">
+                  本地佔用 {formatStorageSize(localStorageUsage)} / 1024 MB
+                  {storageWarningLevel === 'critical' ? '，請盡快封存其他清單釋放空間' : ''}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Batch action toggle (active tab) */}
           {tab === 'active' && (
@@ -253,30 +296,41 @@ export default function ManifestsPage() {
                       >
                         <div className="p-3 bg-blue-500/10 rounded-lg group-hover:bg-[#00f2fe]/20 transition-all duration-300 shadow-[0_0_15px_rgba(0,242,254,0.2)]">
                           {m.status === 'archived' ? (
-                            <Package className="w-6 h-6 text-[#ff4b5c]" />
+                            m.cloud_backup ? (
+                              <Cloud className="w-6 h-6 text-[#00f2fe]" />
+                            ) : (
+                              <Package className="w-6 h-6 text-[#ff4b5c]" />
+                            )
                           ) : (
                             <Package className="w-6 h-6 text-[#00f2fe]" />
                           )}
                         </div>
                         <div className="space-y-1">
                           <h3 className="font-semibold text-white">{m.name}</h3>
-                          <div className="flex items-center gap-3 text-xs text-slate-400">
-                            <span className="flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
-                              {m.created_at &&
-                                new Date(m.created_at).toLocaleDateString('zh-TW', {
-                                  timeZone: 'Asia/Taipei',
-                                })}
-                            </span>
-                            <span>•</span>
-                            <span>共 {m.total_items} 項藥品</span>
-                            {m.status === 'archived' && (
-                              <>
-                                <span>•</span>
-                                <span className="text-[#ff4b5c]">已封存</span>
-                              </>
-                            )}
-                          </div>
+                        <div className="flex items-center gap-3 text-xs text-slate-400">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {m.created_at &&
+                              new Date(m.created_at).toLocaleDateString('zh-TW', {
+                                timeZone: 'Asia/Taipei',
+                              })}
+                          </span>
+                          <span>•</span>
+                          <span>共 {m.total_items} 項藥品</span>
+                          {m.status === 'archived' && (
+                            <>
+                              <span>•</span>
+                              {m.cloud_backup ? (
+                                <span className="flex items-center gap-1 text-[#00f2fe]">
+                                  <Cloud className="w-3 h-3" />
+                                  已封存（雲端）
+                                </span>
+                              ) : (
+                                <span className="text-[#ff4b5c]">已封存（本地）</span>
+                              )}
+                            </>
+                          )}
+                        </div>
                         </div>
                       </Link>
                       <div className="flex items-center gap-2">

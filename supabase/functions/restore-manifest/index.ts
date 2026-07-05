@@ -148,6 +148,7 @@ serve(async (req: Request) => {
             page_number: item.page_number,
             item_order: item.item_order,
             barcode: item.barcode,
+            product_code: item.product_code ?? null,
             name: item.name,
             expected_quantity: item.expected_quantity,
             bonus_quantity: item.bonus_quantity ?? 0,

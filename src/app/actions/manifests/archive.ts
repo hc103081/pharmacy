@@ -14,7 +14,7 @@ export async function archiveManifest(manifestId: string): Promise<ArchiveRespon
   try {
     const { error } = await getSupabaseAdmin()
       .from('manifests')
-      .update({ status: 'completed' })
+      .update({ status: 'completed', archived_at: new Date().toISOString() })
       .eq('id', manifestId);
 
     if (error) {

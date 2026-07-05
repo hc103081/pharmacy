@@ -1,0 +1,15 @@
+# gdrive-queue-worker: Runs every 5 minutes
+# Processes pending migration jobs from the queue
+
+cron:
+  - schedule: "*/5 * * * *"
+    command: |
+      SELECT
+        net.http_post(
+          url := 'https://<PROJECT_REF>.supabase.co/functions/v1/gdrive-queue-worker',
+          headers := jsonb_build_object(
+            'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key'),
+            'Content-Type', 'application/json'
+          ),
+          body := '{}'::jsonb
+        );
