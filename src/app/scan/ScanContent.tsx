@@ -19,6 +19,7 @@ import Link from 'next/link';
 import { TeachingButton } from '@/components/teaching';
 import { DrugCard, ErrorDrawer, JumpDialog, PhotoPreview, BarcodeSearchBar, CameraModal } from './components';
 import { useBarcodeMatch, usePhotoCapture, usePagePersistence } from './hooks';
+import { useScanKeyboard } from './hooks/useScanKeyboard';
 import type { DrugItem, ErrorDrugItem, JumpTarget } from '@/types';
 import { resetDrugStatus } from '@/app/actions/scan/resetDrug';
 import { updateDrugStatus } from '@/app/actions/scan/updatePhoto';
@@ -52,7 +53,7 @@ export default function ScanContent() {
   const [pageInputValue, setPageInputValue] = useState<string>('');
   const pageInputRef = useRef<HTMLInputElement>(null);
   const [isStatsExpanded, setIsStatsExpanded] = useState(false);
-  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const { isKeyboardOpen } = useScanKeyboard();
   const shouldJumpToNextRef = useRef(false);
   const pendingBarcodeRef = useRef<string | null>(null);
   const requestRef = useRef<{ manifestId: string | null; currentPage: number } | null>(null);
@@ -384,27 +385,6 @@ export default function ScanContent() {
     shouldJumpToNextRef.current = true;
     fetchPageData();
   }, [currentPage, manifestId]);
-
-  // 行動裝置鍵盤彈出時自動將輸入框滾動到可視區域，並隱藏底部導覽列
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.visualViewport) return;
-
-    const handleResize = () => {
-      const inputEl = document.getElementById('search-barcode');
-      const viewportHeight = window.visualViewport!.height;
-      const windowHeight = window.innerHeight;
-      // 鍵盤彈出時 viewport 高度會顯著小於 window 高度
-      setIsKeyboardOpen(viewportHeight < windowHeight * 0.85);
-
-      if (!inputEl || document.activeElement !== inputEl) return;
-      setTimeout(() => {
-        inputEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 100);
-    };
-
-    window.visualViewport?.addEventListener('resize', handleResize);
-    return () => window.visualViewport?.removeEventListener('resize', handleResize);
-  }, []);
 
   // 全域搜尋 Debounce
   useEffect(() => {

@@ -1,7 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { importDrugs, processImagesWithGemini, processImagesWithGeminiAsPdf, ImportDrugItem, deleteImportImages } from '@/app/actions/import';
+import { importDrugs } from '@/app/actions/import/importDrugs';
+import type { ImportDrugItem } from '@/app/actions/import/types';
+import { processImagesWithGemini, processImagesWithGeminiAsPdf } from '@/app/actions/import/ocr';
+import { deleteImportImages } from '@/app/actions/import/storage';
 import { clientUploadImportImages } from '@/lib/clientUpload';
 import { FileUp, Loader2, CheckCircle2, ArrowLeft, Image as ImageIcon, FileType, RotateCcw, Cpu, Upload, ScanLine, Database } from 'lucide-react';
 import Link from 'next/link';
@@ -12,6 +15,8 @@ import { validateParsedPdf } from '@/lib/pdfValidator';
 import PreviewPanel from './components/PreviewPanel';
 import { TeachingButton } from '@/components/teaching';
 import DrugListUploader from './components/DrugListUploader';
+import { ImportOverlay } from './components/ImportOverlay';
+import { ImportProgressBar } from './components/ImportProgressBar';
 
 /* sessionStorage 鍵名 */
 const IMPORT_STATE_KEY = 'pharmacy_import_state';
@@ -247,7 +252,7 @@ export default function ImportPage() {
       const sourceItems = items || parsedData.items;
       const drugs: ImportDrugItem[] = sourceItems.map(item => ({
         barcode: item.barcode,
-        product_code: item.product_code,
+        product_code: item.product_code || '',
         name: item.drug_name,
         expected_quantity: item.quantity,
         bonus_quantity: 0,

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import {
@@ -10,7 +10,6 @@ import {
   ArrowLeft,
   Loader2,
   Trash2,
-  AlertTriangle,
   RefreshCw,
   Save,
   HardDrive,
@@ -19,6 +18,9 @@ import {
 import { deleteManifest } from '@/app/actions/manifests/archive';
 import type { Manifest } from '@/types';
 import { TeachingButton } from '@/components/teaching';
+import { useManifestOperations } from './hooks/useManifestOperations';
+import { DeleteConfirmDialog } from './components/DeleteConfirmDialog';
+import { OperationProgressModal } from './components/OperationProgressModal';
 
 /** 格式化儲存容量大小 */
 function formatStorageSize(bytes: number): string {
@@ -32,7 +34,6 @@ export default function ManifestsPage() {
   const supabase = createClient();
   const [manifests, setManifests] = useState<Manifest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [tab, setTab] = useState<'active' | 'archived'>('active');
   const [operationProgress, setOperationProgress] = useState<{
@@ -45,11 +46,7 @@ export default function ManifestsPage() {
   const [archiveAllLoading, setArchiveAllLoading] = useState(false);
   const [batchActionMode, setBatchActionMode] = useState<'archive' | 'delete'>('archive');
 
-  useEffect(() => {
-    fetchManifests();
-  }, []);
-
-  const fetchManifests = async () => {
+  const fetchManifests = useCallback(async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -63,149 +60,27 @@ export default function ManifestsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [supabase]);
 
-  const handleDelete = async (id: string) => {
-    setDeletingId(id);
-    try {
-      const result = await deleteManifest(id);
-      if (result.success) {
-        setManifests(prev => prev.filter(m => m.id !== id));
-        setConfirmDeleteId(null);
-      } else {
-        alert(`刪除失敗: ${result.error}`);
-      }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : '未知錯誤';
-      alert(`刪除過程中發生錯誤: ${message}`);
-    } finally {
-      setDeletingId(null);
-    }
-  };
+  const {
+    startOperation,
+    handleArchive,
+    handleRestore,
+    handleArchiveAll,
+    handleDeleteAll,
+    handleDelete,
+  } = useManifestOperations({
+    manifests,
+    fetchManifests,
+    setOperationProgress,
+    setShowProgressModal,
+    setArchiveAllLoading,
+    setConfirmDeleteId,
+  });
 
-  const startOperation = async (manifestId: string, operation: 'archive' | 'restore') => {
-    setOperationProgress({
-      manifestId,
-      status: operation === 'archive' ? 'archiving' : 'restoring',
-      message: operation === 'archive' ? '封存中...' : '還原中...',
-    });
-    setShowProgressModal(true);
-
-    try {
-      const res = await fetch(`/api/manifest-operation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operation, manifestId }),
-      });
-
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(errorText || '操作請求失敗');
-      }
-
-      const result = await res.json();
-      if (result.status === 'error') {
-        throw new Error(result.message || '操作失敗');
-      }
-
-      setOperationProgress({
-        manifestId,
-        status: 'completed',
-        message: result.message || (operation === 'archive' ? '封存完成' : '還原完成'),
-      });
-      setShowProgressModal(false);
-
-      setTimeout(() => {
-        fetchManifests();
-        setOperationProgress(null);
-      }, 1500);
-    } catch (err) {
-      console.error('Failed to start operation:', err);
-      setOperationProgress({
-        manifestId,
-        status: 'error',
-        message: err instanceof Error ? err.message : '未知錯誤',
-      });
-      setShowProgressModal(false);
-
-      setTimeout(() => {
-        fetchManifests();
-        setOperationProgress(null);
-      }, 3000);
-    }
-  };
-
-  const handleArchive = async (manifestId: string) => {
-    await startOperation(manifestId, 'archive');
-  };
-
-  const handleRestore = async (manifestId: string) => {
-    await startOperation(manifestId, 'restore');
-  };
-
-  const handleBatchAction = async () => {
-    if (batchActionMode === 'archive') {
-      await handleArchiveAll();
-    } else {
-      await handleDeleteAll();
-    }
-  };
-
-  const handleArchiveAll = async () => {
-    setArchiveAllLoading(true);
-    try {
-      const response = await fetch(
-        `${window.location.origin}/api/archive-cron`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        },
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Archive all failed: ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log('Archive all result:', result);
-    } catch (error) {
-      console.error('Archive all error:', error);
-      const message = error instanceof Error ? error.message : '未知錯誤';
-      alert(`封存失敗: ${message}`);
-    } finally {
-      setArchiveAllLoading(false);
-      await fetchManifests();
-    }
-  };
-
-  const handleDeleteAll = async () => {
-    const activeManifests = manifests.filter(m => m.status === 'active');
-    if (activeManifests.length === 0) {
-      alert('目前沒有可刪除的 active 清單');
-      return;
-    }
-
-    const confirmed = confirm(
-      `確定要永久刪除所有 ${activeManifests.length} 個 active 清單嗎？\n此操作不可恢復！`,
-    );
-    if (!confirmed) return;
-
-    setArchiveAllLoading(true);
-    try {
-      for (const m of activeManifests) {
-        await deleteManifest(m.id);
-      }
-      await fetchManifests();
-    } catch (error) {
-      console.error('Delete all error:', error);
-      const message = error instanceof Error ? error.message : '未知錯誤';
-      alert(`刪除失敗: ${message}`);
-    } finally {
-      setArchiveAllLoading(false);
-    }
-  };
+  useEffect(() => {
+    fetchManifests();
+  }, [fetchManifests]);
 
   return (
     <>
@@ -466,91 +341,21 @@ export default function ManifestsPage() {
           )}
 
           {/* 刪除確認 Dialog */}
-          {confirmDeleteId && manifests.some(m => m.id === confirmDeleteId) && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-              <div className="tech-card p-6 max-w-sm w-full space-y-4 animate-in zoom-in duration-200">
-                <div className="flex items-center gap-3 text-red-400">
-                  <AlertTriangle className="w-6 w-6" />
-                  <h3 className="font-bold text-lg">確認刪除清單</h3>
-                </div>
-                <p className="text-slate-400 text-sm leading-relaxed">
-                  刪除後將永久移除此清單及其所有清點記錄與照片，此操作不可恢復。
-                </p>
-                <div className="flex gap-3 pt-2">
-                  <button
-                    onClick={() => setConfirmDeleteId(null)}
-                    className="flex-1 py-2 bg-slate-800 text-slate-400 rounded-xl font-medium hover:bg-slate-700 transition-colors"
-                  >
-                    取消
-                  </button>
-                  <button
-                    onClick={() => handleDelete(confirmDeleteId)}
-                    disabled={deletingId !== null}
-                    className="flex-1 py-2 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-all disabled:opacity-50"
-                  >
-                    {deletingId ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" /> 刪除中...
-                      </div>
-                    ) : (
-                      '確定刪除'
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          <DeleteConfirmDialog
+            isOpen={!!confirmDeleteId}
+            onClose={() => setConfirmDeleteId(null)}
+            onConfirm={() => confirmDeleteId && handleDelete(confirmDeleteId)}
+            loading={false}
+          />
 
           {/* Operation Progress Modal */}
-            {showProgressModal && operationProgress && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                <div className="tech-card p-6 max-w-md w-full space-y-4 animate-in zoom-in duration-200 border-[#00f2fe]/50">
-                  <div className="flex items-center gap-3 text-[#00f2fe]">
-                    {operationProgress.status === 'completed' ? (
-                      <CheckCircle2 className="w-6 h-6 animate-check-pop" />
-                    ) : (
-                      <Loader2 className="w-7 h-7 text-[#00f2fe] animate-spin drop-shadow-[0_0_8px_rgba(0,242,254,0.6)]" />
-                    )}
-                    <h3 className="font-bold text-lg">
-                      {operationProgress.status === 'completed'
-                        ? '操作成功'
-                        : operationProgress.status === 'error'
-                          ? '操作失敗'
-                          : operationProgress.status === 'archiving'
-                            ? '封存中'
-                            : '還原中'}
-                    </h3>
-                  </div>
-                  <p className={`text-sm leading-relaxed ${operationProgress.status === 'completed' ? 'text-white' : operationProgress.status === 'error' ? 'text-red-400' : 'text-slate-400'}`}>
-                    {operationProgress.message}
-                  </p>
-                  {operationProgress.progress !== undefined && operationProgress.status !== 'completed' && operationProgress.status !== 'error' && (
-                    <div className="mt-4">
-                      <div className="w-full bg-slate-700/30 rounded-full h-2.5 overflow-hidden relative">
-                        <div
-                          className="bg-gradient-to-r from-[#00f2fe] to-blue-500 h-2.5 rounded-full transition-all duration-500 relative shadow-[0_0_10px_rgba(0,242,254,0.5)]"
-                          style={{ width: `${operationProgress.progress}%` }}
-                        >
-                          <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-                        </div>
-                      </div>
-                      <p className="text-xs text-slate-400 mt-1 flex justify-between">
-                        <span>處理進度</span>
-                        <span>{operationProgress.progress}% 完成</span>
-                      </p>
-                    </div>
-                  )}
-                  <div className="mt-4 flex justify-end">
-                    <button
-                      onClick={() => setShowProgressModal(false)}
-                      className="px-4 py-2 bg-slate-800 text-slate-400 rounded-xl hover:bg-slate-700 transition-colors"
-                    >
-                      關閉
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+          <OperationProgressModal
+            isOpen={showProgressModal}
+            onClose={() => setShowProgressModal(false)}
+            status={operationProgress?.status ?? 'archiving'}
+            message={operationProgress?.message ?? ''}
+            progress={operationProgress?.progress}
+          />
         </div>
       </div>
     </>
