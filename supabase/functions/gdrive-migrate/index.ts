@@ -360,7 +360,7 @@ serve(async (req: Request) => {
       }
 
       // Update DB: mark cloud_backup = true
-      await supabase
+      const { error: manifestUpdateError, count } = await supabase
         .from('manifests')
         .update({
           cloud_backup: true,
@@ -368,16 +368,26 @@ serve(async (req: Request) => {
           archive_status: null,
           archive_locked_at: null,
         })
-        .eq('id', manifestId);
+        .eq('id', manifestId)
+        .select('count');
 
-      // Delete from Supabase Storage
-      await supabase.storage.from(ARCHIVED_BUCKET).remove([`${manifestId}/archive.zip`]);
+      if (manifestUpdateError) throw manifestUpdateError;
+      if (!count || count === 0) {
+        throw new Error('Manifest update failed: no rows affected (possible RLS issue)');
+      }
+
+      // Delete from Supabase Storage (ONLY after successful DB update)
+      const { error: storageDeleteError } = await supabase.storage
+        .from(ARCHIVED_BUCKET)
+        .remove([`${manifestId}/archive.zip`]);
+      if (storageDeleteError) throw storageDeleteError;
 
       // Update job
-      await supabase
+      const { error: jobUpdateError } = await supabase
         .from('gdrive_migration_jobs')
         .update({ storage_deleted: true })
         .eq('manifest_id', manifestId);
+      if (jobUpdateError) throw jobUpdateError;
 
       await logAction(manifestId, 'gdrive_migrate', 'success', `Migrated to Google Drive: ${fileId}`);
 

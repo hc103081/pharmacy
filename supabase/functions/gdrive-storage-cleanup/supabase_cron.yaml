@@ -6,7 +6,7 @@ cron:
     command: |
       SELECT
         net.http_post(
-          url := 'https://<PROJECT_REF>.supabase.co/functions/v1/gdrive-storage-cleanup',
+          url := 'https://epjyodyjdssgjqrzgtnc.supabase.co/functions/v1/gdrive-storage-cleanup',
           headers := jsonb_build_object(
             'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key'),
             'Content-Type', 'application/json'

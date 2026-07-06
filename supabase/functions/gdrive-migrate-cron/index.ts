@@ -21,6 +21,7 @@ serve(async (_req: Request) => {
 
     // Step 1: Find manifests eligible for migration
     // Criteria: archived > 30 days, cloud_backup = false, has valid gdrive connection
+    // archive_status: 'archived' (ready for migration), NULL (legacy), but NOT 'migrating'/'completed'
     const { data: manifests, error: queryError } = await supabase
       .from('manifests')
       .select('id, user_id')
@@ -28,7 +29,7 @@ serve(async (_req: Request) => {
       .eq('cloud_backup', false)
       .not('archived_at', 'is', null)
       .lt('archived_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-      .is('archive_status', null);
+      .in('archive_status', ['archived', null]);
 
     if (queryError) throw queryError;
 
@@ -55,7 +56,7 @@ serve(async (_req: Request) => {
       return jsonResponse({ message: 'No eligible manifests', count: 0 });
     }
 
-    // Step 2: Batch insert into queue (idempotent)
+    // Step 2: Batch insert into queue (idempotent - upsert on conflict)
     const jobs = eligibleManifests.map(m => ({
       manifest_id: m.id,
       user_id: m.user_id,
@@ -65,12 +66,9 @@ serve(async (_req: Request) => {
 
     const { error: insertError } = await supabase
       .from('gdrive_migration_jobs')
-      .insert(jobs)
-      .select('id')
-      .onConflict('manifest_id,trigger');
+      .upsert(jobs, { onConflict: 'manifest_id,trigger' });
 
     if (insertError) {
-      // Ignore unique constraint violations (already queued)
       if (insertError.code !== '23505') throw insertError;
     }
 
