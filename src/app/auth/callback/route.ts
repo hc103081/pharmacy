@@ -4,8 +4,6 @@ import { createClient } from '@/lib/supabase/server';
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
-  const token_hash = searchParams.get('token_hash');
-  const type = searchParams.get('type');
   const error_param = searchParams.get('error');
   const error_description = searchParams.get('error_description');
 
@@ -20,23 +18,6 @@ export async function GET(request: NextRequest) {
 
   const supabase = await createClient();
 
-  if (token_hash && type === 'magiclink') {
-    const { data, error } = await supabase.auth.verifyOtp({
-      type: 'email',
-      token_hash,
-    });
-
-    if (error) {
-      return NextResponse.redirect(
-        new URL(`/login?error=${encodeURIComponent(error.message)}`, origin)
-      );
-    }
-
-    return NextResponse.redirect(
-      new URL(`/?email_verified=true&timestamp=${Date.now()}`, origin)
-    );
-  }
-
   if (code) {
     try {
       await supabase.auth.exchangeCodeForSession(code);
@@ -47,9 +28,34 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.redirect(
-      new URL(`/?logged_in=true&timestamp=${Date.now()}`, origin)
-    );
+    // 取得用戶資訊
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.redirect(
+        new URL(`/login?error=${encodeURIComponent('無法取得用戶資訊')}`, origin)
+      );
+    }
+
+    // 檢查 Google Drive 連線
+    const { data: gdriveConn } = await supabase
+      .from('user_gdrive_connections')
+      .select('id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!gdriveConn) {
+      // 無連線 → 導向 Drive 授權，帶入 login_hint 與 prompt=consent
+      const connectUrl = new URL('/auth/gdrive/connect', origin);
+      if (user.email) {
+        connectUrl.searchParams.set('login_hint', user.email);
+      }
+      connectUrl.searchParams.set('prompt', 'consent');
+      return NextResponse.redirect(connectUrl);
+    }
+
+    // 有連線 → 直接進入系統
+    return NextResponse.redirect(new URL(`/?logged_in=true&timestamp=${Date.now()}`, origin));
   }
 
   return NextResponse.redirect(new URL('/', origin));

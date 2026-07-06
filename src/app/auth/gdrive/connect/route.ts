@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const redirectUri = process.env.GOOGLE_REDIRECT_URI;
+  const loginHint = searchParams.get('login_hint') ?? '';
+  const prompt = searchParams.get('prompt') ?? 'consent';
 
   if (!clientId || !redirectUri) {
     return NextResponse.json(
@@ -20,8 +23,11 @@ export async function GET() {
   authUrl.searchParams.set('response_type', 'code');
   authUrl.searchParams.set('scope', scope);
   authUrl.searchParams.set('access_type', 'offline');
-  authUrl.searchParams.set('prompt', 'consent');
+  authUrl.searchParams.set('prompt', prompt);
   authUrl.searchParams.set('state', state);
+  if (loginHint) {
+    authUrl.searchParams.set('login_hint', loginHint);
+  }
 
   // Store state in cookie for CSRF protection (optional but recommended)
   const response = NextResponse.redirect(authUrl.toString());

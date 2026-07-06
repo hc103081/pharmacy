@@ -15,6 +15,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/auth/gdrive') ||
     pathname.startsWith('/api/gdrive') ||
     pathname.startsWith('/api/') ||
+    pathname === '/auth/callback' ||
     pathname.startsWith('/_next') ||
     pathname === '/favicon.ico' ||
     pathname === '/login' ||
