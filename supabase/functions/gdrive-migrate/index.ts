@@ -360,7 +360,7 @@ serve(async (req: Request) => {
     // Get user_id from manifest
     const { data: manifest, error: mErr } = await supabase
       .from('manifests')
-      .select('user_id, archived_zip_path, storage_size_bytes')
+      .select('user_id, archived_zip_path, storage_size_bytes, gdrive_file_id')
       .eq('id', manifestId)
       .single();
     if (mErr || !manifest) throw mErr || new Error('Manifest not found');
@@ -394,14 +394,47 @@ serve(async (req: Request) => {
         .createSignedUrl(`${manifestId}/archive.zip`, 86400);
       if (signError || !signedData) throw signError || new Error('Failed to create signed URL');
 
-      // Upload to Google Drive
-      const fileId = await uploadToDriveStream(
-        accessToken,
-        signedData.signedUrl,
-        subfolderId,
-        'archive.zip',
-        zipSize
-      );
+      // Download ZIP stream from Supabase Storage
+      const downloadRes = await fetch(signedData.signedUrl);
+      if (!downloadRes.ok || !downloadRes.body) throw new Error('Download failed');
+      const zipStream = downloadRes.body;
+
+      let fileId: string;
+      let mode: 'created' | 'overwritten';
+
+      if (manifest.gdrive_file_id) {
+        // === 覆蓋模式：使用 files.update (uploadType=media) 直接覆蓋既有檔案內容 ===
+        const uploadRes = await fetch(
+          `${GOOGLE_DRIVE_API.replace('/drive/', '/upload/drive/')}/files/${manifest.gdrive_file_id}?uploadType=media`,
+          {
+            method: 'PATCH',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/zip',
+              'Content-Length': zipSize.toString(),
+            },
+            body: zipStream,
+          }
+        );
+        if (!uploadRes.ok) {
+          const errorText = await uploadRes.text();
+          throw new Error(`Overwrite upload failed: ${uploadRes.status} ${errorText}`);
+        }
+        fileId = manifest.gdrive_file_id; // fileId 保持不變
+        mode = 'overwritten';
+        console.log('[gdrive-migrate] Overwrite upload completed, fileId:', fileId);
+      } else {
+        // === 首次建立模式：現有 resumable upload 邏輯 ===
+        fileId = await uploadToDriveStream(
+          accessToken,
+          signedData.signedUrl,
+          subfolderId,
+          'archive.zip',
+          zipSize
+        );
+        mode = 'created';
+        console.log('[gdrive-migrate] Create upload completed, fileId:', fileId);
+      }
 
       // Verify upload size
       const verifyRes = await fetch(`${GOOGLE_DRIVE_API}/files/${fileId}?fields=size`, {
@@ -439,7 +472,7 @@ serve(async (req: Request) => {
         .from('manifests')
         .update({
           cloud_backup: true,
-          gdrive_file_id: fileId,
+          gdrive_file_id: mode === 'created' ? fileId : manifest.gdrive_file_id,
           archive_status: null,
           archive_locked_at: null,
         })
@@ -468,9 +501,9 @@ serve(async (req: Request) => {
         .eq('manifest_id', manifestId);
       if (jobUpdateError) throw jobUpdateError;
 
-      await logAction(manifestId, 'gdrive_migrate', 'success', `Migrated to Google Drive: ${fileId}`);
+      await logAction(manifestId, 'gdrive_migrate', 'success', `Migrated to Google Drive: ${fileId} (${mode})`);
 
-      return jsonResponse({ success: true, fileId });
+      return jsonResponse({ success: true, fileId, mode });
     } catch (err: any) {
       await releaseLock(manifestId, userId, 'archived');
       await logAction(manifestId, 'gdrive_migrate', 'failed', err.message);

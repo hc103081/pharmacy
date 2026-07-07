@@ -95,6 +95,47 @@ async function logAction(manifestId: string, status: string, message: string) {
   } catch {}
 }
 
+async function ensureRootFolder(accessToken: string, userId: string): Promise<string> {
+  // Check cached folder ID
+  const { data: conn } = await supabase
+    .from('user_gdrive_connections')
+    .select('gdrive_root_folder_id')
+    .eq('user_id', userId)
+    .single();
+
+  if (conn?.gdrive_root_folder_id) return conn.gdrive_root_folder_id;
+
+  // Query existing folder
+  const listRes = await fetch(
+    `${GOOGLE_DRIVE_API}/files?q=name='PhamaCount' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id,name,createdTime)`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  const listData = await listRes.json();
+
+  let folderId: string;
+  if (listData.files && listData.files.length > 0) {
+    listData.files.sort((a: any, b: any) => b.createdTime.localeCompare(a.createdTime));
+    folderId = listData.files[0].id;
+  } else {
+    // Create new folder
+    const createRes = await fetch(`${GOOGLE_DRIVE_API}/files`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'PhamaCount', mimeType: 'application/vnd.google-apps.folder' }),
+    });
+    const createData = await createRes.json();
+    folderId = createData.id;
+  }
+
+  // Cache in DB
+  await supabase
+    .from('user_gdrive_connections')
+    .update({ gdrive_root_folder_id: folderId })
+    .eq('user_id', userId);
+
+  return folderId;
+}
+
 serve(async (req: Request) => {
   console.log('[gdrive-pull] Request received, method:', req.method);
   
@@ -206,10 +247,15 @@ serve(async (req: Request) => {
     if (uploadError) throw uploadError;
 
     // Update DB: restore local state
+    const gdriveFileId = manifest.gdrive_file_id; // Save before update
+    const pullUserId = userId;
+    const pullAccessToken = accessToken;
+    
     await supabase
       .from('manifests')
       .update({
         cloud_backup: false,
+        gdrive_file_id: null,
         archive_status: 'archived',
         archived_zip_path: zipPath,
         storage_size_bytes: zipArrayBuffer.byteLength,
@@ -218,7 +264,54 @@ serve(async (req: Request) => {
 
     await logAction(manifestId, 'gdrive_pull', 'success', 'Pulled from Google Drive to Supabase');
 
-    return jsonResponse({ success: true, zipSize: zipArrayBuffer.byteLength });
+    // === 新增：還原後清理 Drive 上的 archive.zip 及父資料夾 ===
+    let zipDeleted = false;
+    let folderDeleted = false;
+
+    try {
+      // 1. 刪除 archive.zip
+      const delFileRes = await fetch(`${GOOGLE_DRIVE_API}/files/${gdriveFileId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${pullAccessToken}` },
+      });
+      if (delFileRes.ok || delFileRes.status === 404) zipDeleted = true;
+
+      // 2. 找父資料夾 PhamaCount/archived/{manifestId}/
+      const rootFolderId = await ensureRootFolder(pullAccessToken, pullUserId);
+      const listFolderRes = await fetch(
+        `${GOOGLE_DRIVE_API}/files?q=name='${manifestId}' and '${rootFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id)`,
+        { headers: { Authorization: `Bearer ${pullAccessToken}` } }
+      );
+      const folderData = await listFolderRes.json();
+      const subfolderId = folderData.files?.[0]?.id;
+
+      if (subfolderId) {
+        // 3. 確認資料夾為空
+        const listContentRes = await fetch(
+          `${GOOGLE_DRIVE_API}/files?q='${subfolderId}' in parents and trashed=false&fields=files(id)`,
+          { headers: { Authorization: `Bearer ${pullAccessToken}` } }
+        );
+        const contentData = await listContentRes.json();
+        
+        if (!contentData.files?.length) {
+          // 4. 刪除空資料夾
+          const delFolderRes = await fetch(`${GOOGLE_DRIVE_API}/files/${subfolderId}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${pullAccessToken}` },
+          });
+          if (delFolderRes.ok || delFolderRes.status === 404) folderDeleted = true;
+        }
+      }
+    } catch (err) {
+      // 清理失敗只記 log，不阻斷主流程
+      await logAction(manifestId, 'gdrive_cleanup', 'failed', err.message);
+    }
+
+    return jsonResponse({ 
+      success: true, 
+      zipSize: zipArrayBuffer.byteLength, 
+      cleanup: { zipDeleted, folderDeleted } 
+    });
   } catch (err: any) {
     console.error('[gdrive-pull] Error:', err);
     return jsonResponse({ error: err.message || 'Internal server error' }, 500);
