@@ -124,10 +124,11 @@ export async function GET(request: NextRequest) {
 
     // Clear state cookie and redirect to home
     const response = NextResponse.redirect(new URL('/', request.url));
-    response.cookies.delete('gdrive_oauth_state', {
+    response.cookies.set('gdrive_oauth_state', '', {
       path: '/',
       secure: true,
       sameSite: 'none',
+      maxAge: 0,
     });
     return response;
   } catch (err) {
