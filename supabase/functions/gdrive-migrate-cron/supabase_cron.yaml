@@ -1,0 +1,15 @@
+# gdrive-migrate-cron: Runs daily at 04:00 UTC
+# Dispatches migration jobs for manifests archived > 30 days
+
+cron:
+  - schedule: "0 4 * * *"
+    command: |
+      SELECT
+        net.http_post(
+          url := 'https://epjyodyjdssgjqrzgtnc.supabase.co/functions/v1/gdrive-migrate-cron',
+          headers := jsonb_build_object(
+            'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key'),
+            'Content-Type', 'application/json'
+          ),
+          body := '{}'::jsonb
+        );

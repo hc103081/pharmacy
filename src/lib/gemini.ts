@@ -16,7 +16,7 @@ export async function getGeminiKey(): Promise<string> {
 /**
  * 建立 Gemini model 實例
  */
-export async function createGeminiModel(): Promise<any> {
+export async function createGeminiModel(): Promise<ReturnType<GoogleGenerativeAI['getGenerativeModel']>> {
   const apiKey = await getGeminiKey();
   const genAI = new GoogleGenerativeAI(apiKey);
   return genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite' });

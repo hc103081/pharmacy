@@ -14,6 +14,14 @@ import {
   Save,
   HardDrive,
   CheckCircle2,
+  Cloud,
+  AlertTriangle,
+  ChevronDown,
+  Mail,
+  HardDrive as HardDriveIcon,
+  Folder,
+  LogOut,
+  X,
 } from 'lucide-react';
 import { deleteManifest } from '@/app/actions/manifests/archive';
 import type { Manifest } from '@/types';
@@ -38,13 +46,155 @@ export default function ManifestsPage() {
   const [tab, setTab] = useState<'active' | 'archived'>('active');
   const [operationProgress, setOperationProgress] = useState<{
     manifestId: string;
-    status: 'archiving' | 'restoring' | 'completed' | 'error';
+    status: 'archiving' | 'restoring' | 'gdrive_pull' | 'completed' | 'error';
     message: string;
     progress?: number;
   } | null>(null);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [archiveAllLoading, setArchiveAllLoading] = useState(false);
   const [batchActionMode, setBatchActionMode] = useState<'archive' | 'delete'>('archive');
+  const [gdriveConnected, setGdriveConnected] = useState<boolean | null>(null);
+  const [gdriveDropdownOpen, setGdriveDropdownOpen] = useState(false);
+  const [gdriveDetails, setGdriveDetails] = useState<{
+    email: string;
+    storageQuota: { limit: string; usage: string } | null;
+    rootFolderId: string | null;
+  } | null>(null);
+
+  // 檢查 Google Drive 連線狀態
+  useEffect(() => {
+    const checkGdriveConnection = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        
+        const { data } = await supabase
+          .from('user_gdrive_connections')
+          .select('refresh_token, google_email, access_token, token_expires_at, gdrive_root_folder_id')
+          .eq('user_id', user.id)
+          .single();
+        
+        const isConnected = !!data?.refresh_token && !data.refresh_token.startsWith('fake_');
+        setGdriveConnected(isConnected);
+        
+        if (isConnected && data) {
+          // Fetch storage quota
+          let storageQuota = null;
+          if (data.access_token) {
+            try {
+              const expiresAt = data.token_expires_at
+                ? new Date(data.token_expires_at).getTime()
+                : 0;
+              const isTokenValid = expiresAt > Date.now() + 5 * 60 * 1000;
+              
+              let accessToken = data.access_token;
+              if (!isTokenValid) {
+                try {
+                  const refreshResponse = await fetch(
+                    `${window.location.origin}/api/gdrive/token-refresh`,
+                    { method: 'POST' }
+                  );
+                  if (refreshResponse.ok) {
+                    const refreshData = await refreshResponse.json();
+                    accessToken = refreshData.access_token;
+                  }
+                } catch {
+                  // Ignore refresh error
+                }
+              }
+              
+              if (accessToken) {
+                const quotaResponse = await fetch(
+                  'https://www.googleapis.com/drive/v3/about?fields=storageQuota',
+                  { headers: { Authorization: `Bearer ${accessToken}` } }
+                );
+                if (quotaResponse.ok) {
+                  const quotaData = await quotaResponse.json();
+                  storageQuota = quotaData.storageQuota;
+                }
+              }
+            } catch {
+              // Ignore quota fetch error
+            }
+          }
+          
+          setGdriveDetails({
+            email: data.google_email,
+            storageQuota,
+            rootFolderId: data.gdrive_root_folder_id,
+          });
+        } else {
+          setGdriveDetails(null);
+        }
+      } catch {
+        setGdriveConnected(false);
+        setGdriveDetails(null);
+      }
+    };
+    checkGdriveConnection();
+  }, []);
+
+  // 手動觸發 Google Drive 授權
+  const handleGdriveConnect = () => {
+    window.location.href = '/auth/gdrive/connect?prompt=consent';
+  };
+
+  // 斷開 Google Drive 連線
+  const handleGdriveDisconnect = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      await supabase
+        .from('user_gdrive_connections')
+        .delete()
+        .eq('user_id', user.id);
+      
+      setGdriveConnected(false);
+      setGdriveDetails(null);
+      setGdriveDropdownOpen(false);
+    } catch (error) {
+      console.error('Disconnect error:', error);
+    }
+  };
+
+  // 關閉下拉選單（點擊外部時）
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (gdriveDropdownOpen) {
+        const target = event.target as HTMLElement;
+        if (!target.closest('[data-gdrive-dropdown]')) {
+          setGdriveDropdownOpen(false);
+        }
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [gdriveDropdownOpen]);
+
+  // 格式化儲存容量
+  function formatBytes(bytes: string | number): string {
+    const num = typeof bytes === 'string' ? parseInt(bytes, 10) : bytes;
+    if (num === 0) return '0 B';
+    if (num < 1024) return `${num} B`;
+    if (num < 1024 * 1024) return `${(num / 1024).toFixed(1)} KB`;
+    if (num < 1024 * 1024 * 1024) return `${(num / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(num / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  }
+
+  // Calculate storage usage for active + local archived manifests
+  const localStorageUsage = manifests
+    .filter(m => m.status === 'active' || (m.status === 'archived' && !m.cloud_backup))
+    .reduce((sum, m) => sum + (m.storage_size_bytes || 0), 0);
+
+  const STORAGE_WARNING_THRESHOLD_MB = 800;
+  const STORAGE_CRITICAL_THRESHOLD_MB = 950;
+  const storageWarningLevel = localStorageUsage >= STORAGE_CRITICAL_THRESHOLD_MB * 1024 * 1024
+    ? 'critical'
+    : localStorageUsage >= STORAGE_WARNING_THRESHOLD_MB * 1024 * 1024
+      ? 'warning'
+      : 'none';
 
   const fetchManifests = useCallback(async () => {
     setLoading(true);
@@ -92,6 +242,90 @@ export default function ManifestsPage() {
             </Link>
             <h1 className="text-xl lg:text-2xl font-bold text-white">選擇清點清單</h1>
             <TeachingButton module="manifest-management" variant="inline" className="ml-3" />
+            {/* Google Drive 狀態圓形按鈕 */}
+            {gdriveConnected !== null && (
+              <div className="relative ml-auto" data-gdrive-dropdown>
+                <button
+                  onClick={gdriveConnected
+                    ? (e) => { e.stopPropagation(); setGdriveDropdownOpen(!gdriveDropdownOpen); }
+                    : handleGdriveConnect}
+                  disabled={!gdriveConnected}
+                  aria-label={gdriveConnected
+                    ? `Google Drive 已連線（${gdriveDetails?.email}），點擊查看詳情`
+                    : 'Google Drive 未連線，點擊授權'}
+                  aria-expanded={gdriveDropdownOpen}
+                  aria-haspopup="true"
+                  className={`
+                    flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center
+                    transition-all duration-200 ease-out
+                    active:scale-95
+                    ${gdriveConnected
+                      ? 'bg-[#00f2fe] text-[#07142b] hover:scale-105 hover:shadow-[0_0_12px_rgba(0,242,254,0.6)] cursor-pointer'
+                      : 'bg-[#ff4b5c] text-white hover:scale-105 hover:shadow-[0_0_12px_rgba(255,75,92,0.6)] cursor-pointer'
+                    }
+                  `}
+                >
+                  <Cloud className="w-4 h-4" />
+                  {gdriveConnected && gdriveDropdownOpen && <ChevronDown className="w-3 h-3 ml-1" />}
+                </button>
+                
+                {/* 下拉選單 - 已連線時顯示 */}
+                {gdriveConnected && gdriveDropdownOpen && gdriveDetails && (
+                  <div className="absolute right-0 top-full mt-2 w-72 tech-card border border-[#00f2fe]/30 rounded-xl shadow-[0_0_20px_rgba(0,242,254,0.2)] overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150 z-50">
+                    <div className="p-3 border-b border-[#00f2fe]/20">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Cloud className="w-4 h-4 text-[#00f2fe]" />
+                        <span className="font-medium text-white">Google Drive 已連線</span>
+                      </div>
+                    </div>
+                    <div className="p-3 space-y-3 text-sm">
+                      <div className="flex items-center gap-2 text-slate-300">
+                        <Mail className="w-4 h-4 text-[#00f2fe] flex-shrink-0" />
+                        <span className="truncate">{gdriveDetails.email}</span>
+                      </div>
+                      {gdriveDetails.storageQuota && (
+                        <div className="flex items-center gap-2 text-slate-300">
+                          <HardDriveIcon className="w-4 h-4 text-[#00f2fe] flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs text-slate-400">儲存空間用量</div>
+                            <div className="font-mono text-white">
+                              {formatBytes(gdriveDetails.storageQuota.usage)} / {formatBytes(gdriveDetails.storageQuota.limit)}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {gdriveDetails.rootFolderId && (
+                        <div className="flex items-center gap-2 text-slate-300">
+                          <Folder className="w-4 h-4 text-[#00f2fe] flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs text-slate-400">根資料夾 ID</div>
+                            <div className="font-mono text-xs text-slate-300 truncate">{gdriveDetails.rootFolderId}</div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-3 border-t border-[#00f2fe]/20">
+                      <button
+                        onClick={handleGdriveDisconnect}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-[#ff4b5c] bg-[#ff4b5c]/10 border border-[#ff4b5c]/20 hover:bg-[#ff4b5c]/20 hover:shadow-[0_0_8px_rgba(255,75,92,0.3)] transition-all"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        斷開連線
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            {gdriveConnected === null && (
+              <button
+                disabled
+                aria-label="Google Drive 連線狀態檢查中"
+                className="ml-auto flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-slate-600 text-slate-400 cursor-wait"
+              >
+                <Loader2 className="w-4 h-4 animate-spin" />
+              </button>
+            )}
           </div>
 
           {/* Tabs */}
@@ -117,6 +351,34 @@ export default function ManifestsPage() {
               archived ({manifests.filter(m => m.status === 'archived').length})
             </button>
           </div>
+
+          {/* Storage Warning Banner */}
+          {storageWarningLevel !== 'none' && (
+            <div className={`flex items-center gap-3 p-4 rounded-xl border ${
+              storageWarningLevel === 'critical'
+                ? 'bg-[#ff4b5c]/10 border-[#ff4b5c]/30 text-[#ff4b5c]'
+                : 'bg-[#fbbf24]/10 border-[#fbbf24]/30 text-[#fbbf24]'
+            } animate-in slide-in-from-top-2 duration-300`}>
+              <div className="flex-shrink-0">
+                {storageWarningLevel === 'critical' ? (
+                  <AlertTriangle className="w-5 h-5" />
+                ) : (
+                  <AlertTriangle className="w-5 h-5" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm">
+                  {storageWarningLevel === 'critical'
+                    ? '儲存空間接近上限'
+                    : '儲存空間即將滿載'}
+                </p>
+                <p className="text-xs opacity-80 mt-0.5">
+                  本地佔用 {formatStorageSize(localStorageUsage)} / 1024 MB
+                  {storageWarningLevel === 'critical' ? '，請盡快封存其他清單釋放空間' : ''}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Batch action toggle (active tab) */}
           {tab === 'active' && (
@@ -205,7 +467,8 @@ export default function ManifestsPage() {
                   const isOperationInProgress =
                     operationProgress?.manifestId === m.id &&
                     (operationProgress.status === 'archiving' ||
-                      operationProgress.status === 'restoring');
+                      operationProgress.status === 'restoring' ||
+                      operationProgress.status === 'gdrive_pull');
                   const isOperationCompleted =
                     operationProgress?.manifestId === m.id &&
                     operationProgress.status === 'completed';
@@ -253,30 +516,41 @@ export default function ManifestsPage() {
                       >
                         <div className="p-3 bg-blue-500/10 rounded-lg group-hover:bg-[#00f2fe]/20 transition-all duration-300 shadow-[0_0_15px_rgba(0,242,254,0.2)]">
                           {m.status === 'archived' ? (
-                            <Package className="w-6 h-6 text-[#ff4b5c]" />
+                            m.cloud_backup ? (
+                              <Cloud className="w-6 h-6 text-[#00f2fe]" />
+                            ) : (
+                              <Package className="w-6 h-6 text-[#ff4b5c]" />
+                            )
                           ) : (
                             <Package className="w-6 h-6 text-[#00f2fe]" />
                           )}
                         </div>
                         <div className="space-y-1">
                           <h3 className="font-semibold text-white">{m.name}</h3>
-                          <div className="flex items-center gap-3 text-xs text-slate-400">
-                            <span className="flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
-                              {m.created_at &&
-                                new Date(m.created_at).toLocaleDateString('zh-TW', {
-                                  timeZone: 'Asia/Taipei',
-                                })}
-                            </span>
-                            <span>•</span>
-                            <span>共 {m.total_items} 項藥品</span>
-                            {m.status === 'archived' && (
-                              <>
-                                <span>•</span>
-                                <span className="text-[#ff4b5c]">已封存</span>
-                              </>
-                            )}
-                          </div>
+                        <div className="flex items-center gap-3 text-xs text-slate-400">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {m.created_at &&
+                              new Date(m.created_at).toLocaleDateString('zh-TW', {
+                                timeZone: 'Asia/Taipei',
+                              })}
+                          </span>
+                          <span>•</span>
+                          <span>共 {m.total_items} 項藥品</span>
+                          {m.status === 'archived' && (
+                            <>
+                              <span>•</span>
+                              {m.cloud_backup ? (
+                                <span className="flex items-center gap-1 text-[#00f2fe]">
+                                  <Cloud className="w-3 h-3" />
+                                  已封存（雲端）
+                                </span>
+                              ) : (
+                                <span className="text-[#ff4b5c]">已封存（本地）</span>
+                              )}
+                            </>
+                          )}
+                        </div>
                         </div>
                       </Link>
                       <div className="flex items-center gap-2">

@@ -1,8 +1,65 @@
 import { updateSession } from '@/lib/supabase/middleware';
 import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 export async function middleware(request: NextRequest) {
-  return await updateSession(request);
+  // First run session update - 取得 response 與 user
+  const { response: supabaseResponse, user } = await updateSession(request);
+
+  // GDrive connection check
+  const { pathname } = request.nextUrl;
+
+  // Whitelist: OAuth/API/_next/static/login - must NOT be intercepted
+  if (
+    pathname.startsWith('/auth/gdrive') ||
+    pathname.startsWith('/api/gdrive') ||
+    pathname.startsWith('/api/') ||
+    pathname === '/auth/callback' ||
+    pathname.startsWith('/_next') ||
+    pathname === '/favicon.ico' ||
+    pathname === '/login' ||
+    pathname.match(/\.(svg|png|jpg|jpeg|gif|webp)$/)
+  ) {
+    return supabaseResponse;
+  }
+
+  // Not logged in - updateSession already handled redirect to /login
+  if (!user) {
+    console.log('[middleware] No user, letting updateSession handle');
+    return supabaseResponse;
+  }
+
+  // Logged in but no GDrive connection - force OAuth
+  // 直接用 updateSession 回傳的 user，建立新 client 查 GDrive (避免 cookie 冲突)
+  const { createServerClient } = await import('@supabase/ssr');
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+      },
+    }
+  );
+
+  const { data: gdriveConn, error: connError } = await supabase
+    .from('user_gdrive_connections')
+    .select('id')
+    .eq('user_id', user.id)
+    .single();
+
+  console.log('[middleware] pathname:', pathname, 'user:', user.id, 'gdriveConn:', !!gdriveConn, 'error:', connError?.message);
+
+  if (!gdriveConn) {
+    console.log('[middleware] No GDrive connection, redirecting to /auth/gdrive/connect');
+    return NextResponse.redirect(
+      new URL('/auth/gdrive/connect', request.url)
+    );
+  }
+
+  return supabaseResponse;
 }
 
 export const config = {

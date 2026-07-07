@@ -6,7 +6,7 @@ import { CheckCircle2, Loader2 } from 'lucide-react';
 interface OperationProgressModalProps {
   isOpen: boolean;
   onClose: () => void;
-  status: 'archiving' | 'restoring' | 'completed' | 'error';
+  status: 'archiving' | 'restoring' | 'gdrive_pull' | 'completed' | 'error';
   message: string;
   progress?: number;
 }
@@ -40,6 +40,8 @@ export function OperationProgressModal({
               ? '操作失敗'
               : status === 'archiving'
               ? '封存中'
+              : status === 'gdrive_pull'
+              ? '從 Google Drive 下載備份中'
               : '還原中'}
           </h3>
         </div>

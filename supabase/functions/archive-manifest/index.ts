@@ -123,7 +123,7 @@ serve(async (req: Request) => {
       await send({ status: 'fetching_items', message: '讀取藥品資料...' });
       const { data: drugItems, error: itemsError } = await supabase
         .from('drug_items')
-        .select('id, manifest_id, page_number, item_order, barcode, name, expected_quantity, bonus_quantity, actual_quantity, counted_status, photo_url, storage_location, category')
+        .select('id, manifest_id, page_number, item_order, barcode, product_code, name, expected_quantity, bonus_quantity, actual_quantity, counted_status, photo_url, storage_location, category')
       .eq('manifest_id', manifestId);
 
       if (itemsError) throw itemsError;
@@ -131,7 +131,7 @@ serve(async (req: Request) => {
       if (!drugItems || drugItems.length === 0) {
         await supabase
           .from('manifests')
-          .update({ status: 'archived', archive_status: 'archived', archive_locked_at: null })
+          .update({ status: 'archived', archive_status: 'archived', archive_locked_at: null, archived_at: new Date().toISOString() })
           .eq('id', manifestId);
         await send({ status: 'completed', message: '沒有藥品項目，已直接標記為封存' });
         writer.close();
@@ -163,6 +163,7 @@ serve(async (req: Request) => {
           page_number: item.page_number,
           item_order: item.item_order,
           barcode: item.barcode,
+          product_code: item.product_code ?? null,
           name: item.name,
           expected_quantity: item.expected_quantity,
           bonus_quantity: item.bonus_quantity,
@@ -251,6 +252,7 @@ serve(async (req: Request) => {
           page_number: item.page_number,
           item_order: item.item_order,
           barcode: item.barcode,
+          product_code: item.product_code ?? null,
           name: item.name,
           expected_quantity: item.expected_quantity,
           bonus_quantity: item.bonus_quantity,
@@ -296,6 +298,7 @@ serve(async (req: Request) => {
           archived_zip_path: zipPath,
           archive_locked_at: null,
           storage_size_bytes: zipArrayBuffer.length,
+          archived_at: new Date().toISOString(),
         })
         .eq('id', manifestId);
 

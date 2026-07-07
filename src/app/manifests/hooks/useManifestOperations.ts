@@ -6,7 +6,7 @@ import type { Manifest } from '@/types';
 
 interface OperationProgress {
   manifestId: string;
-  status: 'archiving' | 'restoring' | 'completed' | 'error';
+  status: 'archiving' | 'restoring' | 'completed' | 'error' | 'gdrive_pull';
   message: string;
   progress?: number;
 }
@@ -94,9 +94,87 @@ export function useManifestOperations({
 
   const handleRestore = useCallback(
     async (manifestId: string) => {
-      await startOperation(manifestId, 'restore');
+      const manifest = manifests.find(m => m.id === manifestId);
+      const isCloudBackup = manifest?.cloud_backup === true;
+
+      if (isCloudBackup) {
+        // Two-stage restore for cloud-backed manifests
+        setOperationProgress({
+          manifestId,
+          status: 'gdrive_pull',
+          message: '正在從 Google Drive 下載備份...',
+        });
+        setShowProgressModal(true);
+
+        try {
+          // Stage 1: Pull from Google Drive
+          const pullRes = await fetch(`/api/gdrive/pull`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ manifestId }),
+          });
+
+          if (!pullRes.ok) {
+            const errorData = await pullRes.json().catch(() => ({ message: '下載失敗' }));
+            console.error('[handleRestore] Pull failed:', pullRes.status, errorData);
+            throw new Error(errorData.message || errorData.error || `從 Google Drive 下載失敗 (${pullRes.status})`);
+          }
+
+          // Stage 2: Restore from local storage
+          setOperationProgress({
+            manifestId,
+            status: 'restoring',
+            message: '正在還原資料...',
+          });
+
+          const restoreRes = await fetch(`/api/manifest-operation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ operation: 'restore', manifestId }),
+          });
+
+          if (!restoreRes.ok) {
+            const errorText = await restoreRes.text();
+            console.error('[handleRestore] Restore failed:', restoreRes.status, errorText);
+            throw new Error(errorText || `還原請求失敗 (${restoreRes.status})`);
+          }
+
+          const result = await restoreRes.json();
+          if (result.status === 'error') {
+            throw new Error(result.message || '還原失敗');
+          }
+
+          setOperationProgress({
+            manifestId,
+            status: 'completed',
+            message: result.message || '還原完成',
+          });
+          setShowProgressModal(false);
+
+          setTimeout(() => {
+            fetchManifests();
+            setOperationProgress(null);
+          }, 1500);
+        } catch (err) {
+          console.error('Failed to restore from cloud:', err);
+          setOperationProgress({
+            manifestId,
+            status: 'error',
+            message: err instanceof Error ? err.message : '未知錯誤',
+          });
+          setShowProgressModal(false);
+
+          setTimeout(() => {
+            fetchManifests();
+            setOperationProgress(null);
+          }, 3000);
+        }
+      } else {
+        // Regular restore for local manifests
+        await startOperation(manifestId, 'restore');
+      }
     },
-    [startOperation]
+    [manifests, startOperation, fetchManifests, setOperationProgress, setShowProgressModal]
   );
 
   const handleArchiveAll = useCallback(async () => {

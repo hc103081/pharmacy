@@ -55,4 +55,8 @@ export interface Manifest {
   total_discrepancy?: number;
   conclusion_type?: string;
   storage_size_bytes?: number;
+  // v2: Google Drive 雲端備份相關欄位
+  cloud_backup?: boolean;
+  gdrive_file_id?: string;
+  archived_at?: string;
 }

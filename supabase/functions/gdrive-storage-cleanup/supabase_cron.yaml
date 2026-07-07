@@ -1,0 +1,15 @@
+# gdrive-storage-cleanup: Runs weekly on Sunday at 02:00 UTC
+# Cleans up Supabase Storage ZIP files that failed to delete during migration
+
+cron:
+  - schedule: "0 2 * * 0"
+    command: |
+      SELECT
+        net.http_post(
+          url := 'https://epjyodyjdssgjqrzgtnc.supabase.co/functions/v1/gdrive-storage-cleanup',
+          headers := jsonb_build_object(
+            'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key'),
+            'Content-Type', 'application/json'
+          ),
+          body := '{}'::jsonb
+        );
