@@ -122,6 +122,15 @@ export async function GET(request: NextRequest) {
 
     console.log('[gdrive-callback] DB insert success for user:', user.id);
 
+    // Auto-create/cache Google Drive root folder (fire-and-forget, non-blocking)
+    try {
+      await fetch(`${request.nextUrl.origin}/api/gdrive/ensure-root-folder`, {
+        method: 'POST',
+      });
+    } catch (e) {
+      console.warn('[gdrive-callback] Root folder ensure failed (non-blocking):', e);
+    }
+
     // Clear state cookie and redirect to home
     const response = NextResponse.redirect(new URL('/', request.url));
     response.cookies.set('gdrive_oauth_state', '', {

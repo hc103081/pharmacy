@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import {
@@ -22,6 +22,7 @@ import {
   Folder,
   LogOut,
   X,
+  RotateCcw,
 } from 'lucide-react';
 import { deleteManifest } from '@/app/actions/manifests/archive';
 import type { Manifest } from '@/types';
@@ -29,6 +30,7 @@ import { TeachingButton } from '@/components/teaching';
 import { useManifestOperations } from './hooks/useManifestOperations';
 import { DeleteConfirmDialog } from './components/DeleteConfirmDialog';
 import { OperationProgressModal } from './components/OperationProgressModal';
+import { Toaster, toast } from 'sonner';
 
 /** 格式化儲存容量大小 */
 function formatStorageSize(bytes: number): string {
@@ -43,6 +45,7 @@ export default function ManifestsPage() {
   const [manifests, setManifests] = useState<Manifest[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [tab, setTab] = useState<'active' | 'archived'>('active');
   const [operationProgress, setOperationProgress] = useState<{
     manifestId: string;
@@ -59,51 +62,60 @@ export default function ManifestsPage() {
     email: string;
     storageQuota: { limit: string; usage: string } | null;
     rootFolderId: string | null;
+    storageQuotaError: string | null;
   } | null>(null);
+  const [gdriveLoading, setGdriveLoading] = useState(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 檢查 Google Drive 連線狀態
-  useEffect(() => {
-    const checkGdriveConnection = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+  // 檢查 Google Drive 連線狀態 - 可重用的函式
+  const checkGdriveConnection = useCallback(async (showToast = false) => {
+    setGdriveLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      const { data } = await supabase
+        .from('user_gdrive_connections')
+        .select('refresh_token, google_email, access_token, token_expires_at, gdrive_root_folder_id')
+        .eq('user_id', user.id)
+        .single();
+      
+      const isConnected = !!data?.refresh_token && !data.refresh_token.startsWith('fake_');
+      const wasConnected = gdriveConnected;
+      setGdriveConnected(isConnected);
+      
+      if (isConnected && data) {
+        // Fetch storage quota
+        let storageQuota = null;
+        let storageQuotaError = null;
+        let rootFolderId = data.gdrive_root_folder_id;
         
-        const { data } = await supabase
-          .from('user_gdrive_connections')
-          .select('refresh_token, google_email, access_token, token_expires_at, gdrive_root_folder_id')
-          .eq('user_id', user.id)
-          .single();
-        
-        const isConnected = !!data?.refresh_token && !data.refresh_token.startsWith('fake_');
-        setGdriveConnected(isConnected);
-        
-        if (isConnected && data) {
-          // Fetch storage quota
-          let storageQuota = null;
-          if (data.access_token) {
-            try {
-              const expiresAt = data.token_expires_at
-                ? new Date(data.token_expires_at).getTime()
-                : 0;
-              const isTokenValid = expiresAt > Date.now() + 5 * 60 * 1000;
-              
-              let accessToken = data.access_token;
-              if (!isTokenValid) {
-                try {
-                  const refreshResponse = await fetch(
-                    `${window.location.origin}/api/gdrive/token-refresh`,
-                    { method: 'POST' }
-                  );
-                  if (refreshResponse.ok) {
-                    const refreshData = await refreshResponse.json();
-                    accessToken = refreshData.access_token;
-                  }
-                } catch {
-                  // Ignore refresh error
+        if (data.access_token) {
+          try {
+            const expiresAt = data.token_expires_at
+              ? new Date(data.token_expires_at).getTime()
+              : 0;
+            const isTokenValid = expiresAt > Date.now() + 5 * 60 * 1000;
+            
+            let accessToken = data.access_token;
+            if (!isTokenValid) {
+              try {
+                const refreshResponse = await fetch(
+                  `${window.location.origin}/api/gdrive/token-refresh`,
+                  { method: 'POST' }
+                );
+                if (refreshResponse.ok) {
+                  const refreshData = await refreshResponse.json();
+                  accessToken = refreshData.access_token;
                 }
+              } catch {
+                // Ignore refresh error
               }
-              
-              if (accessToken) {
+            }
+            
+            if (accessToken) {
+              // Fetch storage quota
+              try {
                 const quotaResponse = await fetch(
                   'https://www.googleapis.com/drive/v3/about?fields=storageQuota',
                   { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -111,50 +123,118 @@ export default function ManifestsPage() {
                 if (quotaResponse.ok) {
                   const quotaData = await quotaResponse.json();
                   storageQuota = quotaData.storageQuota;
+                } else {
+                  storageQuotaError = '無法取得儲存空間用量';
+                }
+              } catch {
+                storageQuotaError = '儲存空間用量載入失敗';
+              }
+              
+              // If root folder ID is missing, try to ensure/create it
+              if (!rootFolderId) {
+                try {
+                  const rootFolderRes = await fetch(
+                    `${window.location.origin}/api/gdrive/ensure-root-folder`,
+                    { method: 'POST' }
+                  );
+                  if (rootFolderRes.ok) {
+                    const rootFolderData = await rootFolderRes.json();
+                    rootFolderId = rootFolderData.root_folder_id;
+                  }
+                } catch {
+                  // Ignore root folder fetch error
                 }
               }
-            } catch {
-              // Ignore quota fetch error
             }
+          } catch {
+            storageQuotaError = '儲存空間用量載入失敗';
           }
-          
-          setGdriveDetails({
-            email: data.google_email,
-            storageQuota,
-            rootFolderId: data.gdrive_root_folder_id,
-          });
-        } else {
-          setGdriveDetails(null);
         }
-      } catch {
-        setGdriveConnected(false);
+        
+        setGdriveDetails({
+          email: data.google_email,
+          storageQuota,
+          rootFolderId,
+          storageQuotaError,
+        });
+        
+        if (showToast && wasConnected !== isConnected) {
+          toast.success('Google Drive 連線已建立');
+        }
+      } else {
         setGdriveDetails(null);
+        if (showToast && wasConnected !== isConnected) {
+          toast.info('Google Drive 已斷開連線');
+        }
       }
-    };
+    } catch {
+      setGdriveConnected(false);
+      setGdriveDetails(null);
+      if (showToast) {
+        toast.error('Google Drive 連線狀態檢查失敗');
+      }
+    } finally {
+      setGdriveLoading(false);
+    }
+  }, [supabase, gdriveConnected]);
+
+  // 初始檢查
+  useEffect(() => {
     checkGdriveConnection();
-  }, []);
+  }, [checkGdriveConnection]);
+
+  // 定期自動重新整理用量（每 5 分鐘）
+  useEffect(() => {
+    if (!gdriveConnected) return;
+    intervalRef.current = setInterval(() => {
+      checkGdriveConnection();
+    }, 5 * 60 * 1000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [gdriveConnected, checkGdriveConnection]);
 
   // 手動觸發 Google Drive 授權
   const handleGdriveConnect = () => {
+    toast.info('正在導向 Google 授權頁面...');
     window.location.href = '/auth/gdrive/connect?prompt=consent';
   };
 
-  // 斷開 Google Drive 連線
-  const handleGdriveDisconnect = async () => {
+  // 斷開 Google Drive 連線 - 開啟確認對話框
+  const handleGdriveDisconnect = () => {
+    setConfirmDisconnect(true);
+  };
+
+  // 執行斷開連線
+  const executeDisconnect = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setConfirmDisconnect(false);
+        return;
+      }
       
-      await supabase
+      const { error } = await supabase
         .from('user_gdrive_connections')
         .delete()
         .eq('user_id', user.id);
       
+      if (error) {
+        console.error('Disconnect error:', error);
+        toast.error('斷開連線失敗');
+        setConfirmDisconnect(false);
+        return;
+      }
+      
       setGdriveConnected(false);
       setGdriveDetails(null);
       setGdriveDropdownOpen(false);
+      setConfirmDisconnect(false); // 關閉確認對話框
+      toast.success('已斷開 Google Drive 連線');
     } catch (error) {
       console.error('Disconnect error:', error);
+      toast.error('斷開連線失敗');
+      setConfirmDisconnect(false);
     }
   };
 
@@ -249,7 +329,7 @@ export default function ManifestsPage() {
                   onClick={gdriveConnected
                     ? (e) => { e.stopPropagation(); setGdriveDropdownOpen(!gdriveDropdownOpen); }
                     : handleGdriveConnect}
-                  disabled={!gdriveConnected}
+                  disabled={gdriveConnected === null}
                   aria-label={gdriveConnected
                     ? `Google Drive 已連線（${gdriveDetails?.email}），點擊查看詳情`
                     : 'Google Drive 未連線，點擊授權'}
@@ -270,7 +350,7 @@ export default function ManifestsPage() {
                 </button>
                 
                 {/* 下拉選單 - 已連線時顯示 */}
-                {gdriveConnected && gdriveDropdownOpen && gdriveDetails && (
+                {gdriveConnected && gdriveDropdownOpen && (
                   <div className="absolute right-0 top-full mt-2 w-72 tech-card border border-[#00f2fe]/30 rounded-xl shadow-[0_0_20px_rgba(0,242,254,0.2)] overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150 z-50">
                     <div className="p-3 border-b border-[#00f2fe]/20">
                       <div className="flex items-center gap-2 text-sm">
@@ -278,32 +358,98 @@ export default function ManifestsPage() {
                         <span className="font-medium text-white">Google Drive 已連線</span>
                       </div>
                     </div>
-                    <div className="p-3 space-y-3 text-sm">
-                      <div className="flex items-center gap-2 text-slate-300">
-                        <Mail className="w-4 h-4 text-[#00f2fe] flex-shrink-0" />
-                        <span className="truncate">{gdriveDetails.email}</span>
-                      </div>
-                      {gdriveDetails.storageQuota && (
+                    {gdriveDetails ? (
+                      <div className="p-3 space-y-3 text-sm">
                         <div className="flex items-center gap-2 text-slate-300">
-                          <HardDriveIcon className="w-4 h-4 text-[#00f2fe] flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <div className="text-xs text-slate-400">儲存空間用量</div>
-                            <div className="font-mono text-white">
-                              {formatBytes(gdriveDetails.storageQuota.usage)} / {formatBytes(gdriveDetails.storageQuota.limit)}
+                          <Mail className="w-4 h-4 text-[#00f2fe] flex-shrink-0" />
+                          <span className="truncate">{gdriveDetails.email}</span>
+                        </div>
+                        {gdriveDetails.storageQuota && (
+                          <div className="flex items-center gap-2 text-slate-300">
+                            <HardDriveIcon className="w-4 h-4 text-[#00f2fe] flex-shrink-0" />
+                            <div className="flex-1 min-w-0 flex items-center gap-2">
+                              <div>
+                                <div className="text-xs text-slate-400">儲存空間用量</div>
+                                <div className="font-mono text-white">
+                                  {formatBytes(gdriveDetails.storageQuota.usage)} / {formatBytes(gdriveDetails.storageQuota.limit)}
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => checkGdriveConnection(true)}
+                                disabled={gdriveLoading}
+                                className="text-xs text-[#00f2fe] hover:underline disabled:opacity-50 disabled:cursor-wait flex items-center gap-1"
+                                title="重新整理用量"
+                              >
+                                <RotateCcw className={`w-3 h-3 ${gdriveLoading ? 'animate-spin' : ''}`} />
+                                更新
+                              </button>
                             </div>
                           </div>
-                        </div>
-                      )}
-                      {gdriveDetails.rootFolderId && (
+                        )}
+                        {gdriveDetails.storageQuotaError && !gdriveDetails.storageQuota && (
+                          <div className="flex items-center gap-2 text-slate-300">
+                            <AlertTriangle className="w-4 h-4 text-[#fbbf24] flex-shrink-0" />
+                            <div className="flex-1 min-w-0 flex items-center gap-2">
+                              <div className="font-mono text-[#fbbf24] text-xs">{gdriveDetails.storageQuotaError}</div>
+                              <button
+                                onClick={async () => {
+                                  const res = await fetch(`${window.location.origin}/api/gdrive/status`);
+                                  if (res.ok) {
+                                    const data = await res.json();
+                                    setGdriveDetails(prev => prev ? { ...prev, storageQuota: data.storage_quota, storageQuotaError: null } : null);
+                                    toast.success('儲存空間用量已更新');
+                                  } else {
+                                    toast.error('重試失敗');
+                                  }
+                                }}
+                                className="text-xs text-[#00f2fe] hover:underline"
+                              >
+                                重試
+                              </button>
+                            </div>
+                          </div>
+                        )}
                         <div className="flex items-center gap-2 text-slate-300">
                           <Folder className="w-4 h-4 text-[#00f2fe] flex-shrink-0" />
                           <div className="flex-1 min-w-0">
                             <div className="text-xs text-slate-400">根資料夾 ID</div>
-                            <div className="font-mono text-xs text-slate-300 truncate">{gdriveDetails.rootFolderId}</div>
+                            {gdriveDetails.rootFolderId ? (
+                              <div className="font-mono text-xs text-slate-300 truncate">{gdriveDetails.rootFolderId}</div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-xs text-slate-500">尚未建立</span>
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      const res = await fetch(`${window.location.origin}/api/gdrive/ensure-root-folder`, { method: 'POST' });
+                                      if (res.ok) {
+                                        const data = await res.json();
+                                        setGdriveDetails(prev => prev ? { ...prev, rootFolderId: data.root_folder_id } : null);
+                                        toast.success('根資料夾已建立');
+                                      } else {
+                                        toast.error('建立根資料夾失敗');
+                                      }
+                                    } catch {
+                                      toast.error('建立根資料夾失敗');
+                                    }
+                                  }}
+                                  className="text-xs text-[#00f2fe] hover:underline"
+                                >
+                                  重試
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    ) : (
+                      // 載入骨架屏
+                      <div className="p-3 space-y-3">
+                        <div className="h-4 bg-slate-700/50 rounded w-3/4 animate-pulse" />
+                        <div className="h-4 bg-slate-700/50 rounded w-1/2 animate-pulse" />
+                        <div className="h-4 bg-slate-700/50 rounded w-1/3 animate-pulse" />
+                      </div>
+                    )}
                     <div className="p-3 border-t border-[#00f2fe]/20">
                       <button
                         onClick={handleGdriveDisconnect}
@@ -622,6 +768,18 @@ export default function ManifestsPage() {
             loading={false}
           />
 
+          {/* 斷開 Google Drive 確認 Dialog */}
+          <DeleteConfirmDialog
+            isOpen={confirmDisconnect}
+            onClose={() => setConfirmDisconnect(false)}
+            onConfirm={executeDisconnect}
+            loading={false}
+            title="確定斷開 Google Drive？"
+            message="斷開後將無法自動備份清單到雲端，本地資料不受影響。"
+            confirmText="斷開連線"
+            variant="danger"
+          />
+
           {/* Operation Progress Modal */}
           <OperationProgressModal
             isOpen={showProgressModal}
@@ -630,6 +788,9 @@ export default function ManifestsPage() {
             message={operationProgress?.message ?? ''}
             progress={operationProgress?.progress}
           />
+
+          {/* Toast 通知 */}
+          <Toaster position="bottom-right" theme="dark" />
         </div>
       </div>
     </>
