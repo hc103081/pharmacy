@@ -10,9 +10,18 @@ test.describe('GDrive OAuth Flow', () => {
     // 清除 cookies/localStorage 模擬新用戶
     await page.context().clearCookies();
     await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    
+    // 檢查是否被導向登入頁
+    if (page.url().includes('/login')) {
+      // 此專案使用 Google OAuth 登入，E2E 測試需手動處理或使用測試帳號
+      test.skip(true, '需要 Google OAuth 登入，E2E 測試環境需配置測試帳號');
+    }
   });
 
   test('首次登入無 GDrive 連線 → 強制導向 OAuth', async ({ page }) => {
+    test.skip(!process.env.TEST_USER_EMAIL || !process.env.TEST_USER_PASSWORD, '缺少測試帳號環境變數');
+
     // 登入流程（假設已有測試用戶）
     await page.goto('/login');
     await page.fill('input[type="email"]', process.env.TEST_USER_EMAIL!);
@@ -25,7 +34,7 @@ test.describe('GDrive OAuth Flow', () => {
   });
 
   test('OAuth 授權完成 → 回到系統 → DB 有記錄', async ({ page }) => {
-    test.skip(!process.env.TEST_USER_EMAIL, '需要測試帳號');
+    test.skip(!process.env.TEST_USER_EMAIL || !process.env.TEST_USER_PASSWORD, '需要測試帳號');
 
     // 登入
     await page.goto('/login');
@@ -43,6 +52,8 @@ test.describe('GDrive OAuth Flow', () => {
   });
 
   test('已有連線用戶直接進入系統', async ({ page }) => {
+    test.skip(!process.env.TEST_AUTHORIZED_EMAIL || !process.env.TEST_AUTHORIZED_PASSWORD, '需要已授權的測試帳號');
+
     // 假設用戶已授權
     await page.goto('/login');
     await page.fill('input[type="email"]', process.env.TEST_AUTHORIZED_EMAIL!);

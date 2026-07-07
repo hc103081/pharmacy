@@ -96,27 +96,35 @@ async function logAction(manifestId: string, status: string, message: string) {
 }
 
 serve(async (req: Request) => {
+  console.log('[gdrive-pull] Request received, method:', req.method);
+  
   if (req.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
 
   let manifestId: string;
   try {
     const body = await req.json();
+    console.log('[gdrive-pull] Request body:', body);
     manifestId = body.manifestId;
     if (!manifestId) throw new Error('manifestId required');
-  } catch {
+  } catch (e) {
+    console.error('[gdrive-pull] JSON parse error:', e);
     return jsonResponse({ error: 'manifestId required' }, 400);
   }
 
   try {
     // Get manifest info
+    console.log('[gdrive-pull] Querying manifest:', manifestId);
     const { data: manifest, error: mErr } = await supabase
       .from('manifests')
       .select('id, user_id, cloud_backup, gdrive_file_id, storage_size_bytes')
       .eq('id', manifestId)
       .single();
 
+    console.log('[gdrive-pull] Manifest query result:', { manifest: !!manifest, error: mErr?.message });
+
     if (mErr || !manifest) return jsonResponse({ error: 'Manifest not found' }, 404);
     if (!manifest.cloud_backup || !manifest.gdrive_file_id) {
+      console.log('[gdrive-pull] Not cloud backed:', { cloud_backup: manifest.cloud_backup, gdrive_file_id: manifest.gdrive_file_id });
       return jsonResponse({ error: 'Not a cloud-backed manifest' }, 400);
     }
 
@@ -137,7 +145,9 @@ serve(async (req: Request) => {
     let accessToken: string;
     try {
       accessToken = await getValidAccessToken(userId);
+      console.log('[gdrive-pull] Got access token, length:', accessToken.length);
     } catch (err: any) {
+      console.error('[gdrive-pull] Token error:', err);
       return jsonResponse({
         error: 'gdrive_auth_expired',
         message: 'Google Drive 授權已過期，請重新連結',
@@ -145,10 +155,13 @@ serve(async (req: Request) => {
     }
 
     // Download ZIP from Google Drive
+    console.log('[gdrive-pull] Starting download for file:', manifest.gdrive_file_id);
     const downloadRes = await fetch(
       `${GOOGLE_DRIVE_API}/files/${manifest.gdrive_file_id}?alt=media`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
+
+    console.log('[gdrive-pull] Download response status:', downloadRes.status);
 
     if (downloadRes.status === 404) {
       // File deleted from Drive - mark as corrupted
@@ -172,11 +185,15 @@ serve(async (req: Request) => {
       if (downloadRes.status === 401) {
         return jsonResponse({ error: 'gdrive_auth_expired', message: 'Google Drive 授權已過期' }, 401);
       }
-      throw new Error(`Download failed: ${downloadRes.status}`);
+      const errorText = await downloadRes.text();
+      console.error('[gdrive-pull] Download failed:', downloadRes.status, errorText);
+      throw new Error(`Download failed: ${downloadRes.status} ${errorText}`);
     }
 
     const zipBlob = await downloadRes.blob();
+    console.log('[gdrive-pull] Blob size:', zipBlob.size);
     const zipArrayBuffer = await zipBlob.arrayBuffer();
+    console.log('[gdrive-pull] ArrayBuffer byteLength:', zipArrayBuffer.byteLength);
 
     // Upload back to Supabase Storage
     const zipPath = `${manifestId}/archive.zip`;
@@ -193,6 +210,7 @@ serve(async (req: Request) => {
       .from('manifests')
       .update({
         cloud_backup: false,
+        archive_status: 'archived',
         archived_zip_path: zipPath,
         storage_size_bytes: zipArrayBuffer.byteLength,
       })

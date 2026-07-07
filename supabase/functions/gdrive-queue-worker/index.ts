@@ -32,7 +32,7 @@ function chunk<T>(arr: T[], size: number): T[][] {
 }
 
 async function invokeGdriveMigrate(manifestId: string): Promise<void> {
-  const functionsUrl = Deno.env.get('SUPABASE_FUNCTIONS_URL')!;
+  const functionsUrl = Deno.env.get('FUNCTIONS_URL')!;
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
   const response = await fetch(`${functionsUrl}/gdrive-migrate`, {
@@ -46,7 +46,10 @@ async function invokeGdriveMigrate(manifestId: string): Promise<void> {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`gdrive-migrate failed: ${response.status} ${errorText}`);
+    const error = new Error(`gdrive-migrate failed: ${response.status} ${errorText}`);
+    // Attach status code for better error classification
+    (error as any).statusCode = response.status;
+    throw error;
   }
 }
 
@@ -103,7 +106,25 @@ serve(async (_req: Request) => {
                 .update({ status: 'completed', updated_at: new Date().toISOString() })
                 .eq('id', job.id);
             } catch (err: any) {
-              const isRateLimit = err.message?.includes('429') || err.message?.includes('Too Many Requests');
+              // Classify error for retry decision
+              const statusCode = err?.statusCode;
+              const message = err?.message || '';
+              
+              // Transient errors that should be retried:
+              // - Rate limit (429)
+              // - Server errors (5xx)
+              // - Network/timeout errors
+              // - Auth/token errors (401, 403) - may be temporary token refresh issues
+              // - Gateway errors (502, 503, 504)
+              const isRateLimit = statusCode === 429 || message.includes('429') || message.includes('Too Many Requests');
+              const isServerError = statusCode >= 500 && statusCode < 600;
+              const isAuthError = statusCode === 401 || statusCode === 403 || message.includes('invalid_grant') || message.includes('unauthorized') || message.includes('token');
+              const isNetworkError = message.includes('timeout') || message.includes('network') || message.includes('connection') || message.includes('fetch failed');
+              const isGatewayError = [502, 503, 504].includes(statusCode);
+              
+              const isTransientError = isRateLimit || isServerError || isAuthError || isNetworkError || isGatewayError;
+              
+              console.log(`[gdrive-queue-worker] Error classified: statusCode=${statusCode}, isTransient=${isTransientError}, message=${message.substring(0, 200)}`);
 
               const { data: jobData } = await supabase
                 .from('gdrive_migration_jobs')
@@ -112,20 +133,22 @@ serve(async (_req: Request) => {
                 .single();
 
               const newRetryCount = (jobData?.retry_count || 0) + 1;
-              const shouldRetry = newRetryCount < 3 && !isRateLimit;
+              // Retry on transient errors up to 3 times
+              // For rate limit, still retry but don't continue batch (to avoid hammering)
+              const shouldRetry = newRetryCount < 3 && isTransientError;
 
               if (isRateLimit) {
-                // Rate limit hit - mark failed, stop this batch
+                // Rate limit hit - mark for retry, stop this batch to back off
                 await supabase
                   .from('gdrive_migration_jobs')
                   .update({
-                    status: 'failed',
+                    status: shouldRetry ? 'pending' : 'failed',
                     retry_count: newRetryCount,
                     updated_at: new Date().toISOString(),
                   })
                   .eq('id', job.id);
 
-                console.warn(`[gdrive-queue-worker] Rate limit hit, stopping batch for user ${userId}`);
+                console.warn(`[gdrive-queue-worker] Rate limit hit (attempt ${newRetryCount}/3), stopping batch for user ${userId}`);
                 break;
               }
 
@@ -137,6 +160,10 @@ serve(async (_req: Request) => {
                   updated_at: new Date().toISOString(),
                 })
                 .eq('id', job.id);
+              
+              if (!shouldRetry) {
+                console.error(`[gdrive-queue-worker] Job ${job.id} failed permanently after ${newRetryCount} attempts: ${message}`);
+              }
             }
             await sleep(JOB_DELAY_MS);
           }

@@ -40,12 +40,14 @@ export async function GET(request: NextRequest) {
     // 檢查 Google Drive 連線
     const { data: gdriveConn } = await supabase
       .from('user_gdrive_connections')
-      .select('id')
+      .select('id, refresh_token')
       .eq('user_id', user.id)
       .single();
 
-    if (!gdriveConn) {
-      // 無連線 → 導向 Drive 授權，帶入 login_hint 與 prompt=consent
+    const isFakeToken = gdriveConn?.refresh_token?.startsWith('fake_');
+    
+    if (!gdriveConn || isFakeToken) {
+      // 無連線 或 是 fake token → 導向 Drive 授權
       const connectUrl = new URL('/auth/gdrive/connect', origin);
       if (user.email) {
         connectUrl.searchParams.set('login_hint', user.email);

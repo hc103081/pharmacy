@@ -57,11 +57,13 @@ serve(async (_req: Request) => {
     }
 
     // Step 2: Batch insert into queue (idempotent - upsert on conflict)
+    // Include retry_count: 0 to reset retry counter on re-queue (fixes retry_count accumulation bug)
     const jobs = eligibleManifests.map(m => ({
       manifest_id: m.id,
       user_id: m.user_id,
       trigger: 'cron',
       status: 'pending',
+      retry_count: 0,
     }));
 
     const { error: insertError } = await supabase

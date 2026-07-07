@@ -16,6 +16,8 @@ import {
   CheckCircle2,
   Cloud,
   AlertTriangle,
+  Link as LinkIcon,
+  Unlink,
 } from 'lucide-react';
 import { deleteManifest } from '@/app/actions/manifests/archive';
 import type { Manifest } from '@/types';
@@ -47,6 +49,34 @@ export default function ManifestsPage() {
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [archiveAllLoading, setArchiveAllLoading] = useState(false);
   const [batchActionMode, setBatchActionMode] = useState<'archive' | 'delete'>('archive');
+  const [gdriveConnected, setGdriveConnected] = useState<boolean | null>(null);
+
+  // 檢查 Google Drive 連線狀態
+  useEffect(() => {
+    const checkGdriveConnection = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        
+        const { data } = await supabase
+          .from('user_gdrive_connections')
+          .select('refresh_token')
+          .eq('user_id', user.id)
+          .single();
+        
+        const isConnected = !!data?.refresh_token && !data.refresh_token.startsWith('fake_');
+        setGdriveConnected(isConnected);
+      } catch {
+        setGdriveConnected(false);
+      }
+    };
+    checkGdriveConnection();
+  }, []);
+
+  // 手動觸發 Google Drive 授權
+  const handleGdriveConnect = () => {
+    window.location.href = '/auth/gdrive/connect?prompt=consent';
+  };
 
   // Calculate storage usage for active + local archived manifests
   const localStorageUsage = manifests
@@ -132,6 +162,41 @@ export default function ManifestsPage() {
               archived ({manifests.filter(m => m.status === 'archived').length})
             </button>
           </div>
+
+          {/* Google Drive Connection Status Banner */}
+          {gdriveConnected !== null && (
+            <div className={`flex items-center gap-3 p-3 rounded-xl animate-in slide-in-from-top-2 duration-300 ${
+              gdriveConnected
+                ? 'bg-[#00f2fe]/10 border-[#00f2fe]/30 text-[#00f2fe]'
+                : 'bg-[#ff4b5c]/10 border-[#ff4b5c]/30 text-[#ff4b5c]'
+            } border`}>
+              <div className="flex-shrink-0">
+                {gdriveConnected ? (
+                  <LinkIcon className="w-5 h-5" />
+                ) : (
+                  <Unlink className="w-5 h-5" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm">
+                  {gdriveConnected ? 'Google Drive 已連線' : 'Google Drive 未連線'}
+                </p>
+                <p className="text-xs opacity-80 mt-0.5">
+                  {gdriveConnected
+                    ? '封存清單可自動移轉至雲端備份'
+                    : '需授權才能使用雲端備份/還原功能'}
+                </p>
+              </div>
+              {!gdriveConnected && (
+                <button
+                  onClick={handleGdriveConnect}
+                  className="flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium bg-[#00f2fe]/20 text-[#00f2fe] border border-[#00f2fe]/40 hover:bg-[#00f2fe]/30 hover:shadow-[0_0_10px_rgba(0,242,254,0.3)] transition-all"
+                >
+                  連結 Google Drive
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Storage Warning Banner */}
           {storageWarningLevel !== 'none' && (
@@ -248,7 +313,8 @@ export default function ManifestsPage() {
                   const isOperationInProgress =
                     operationProgress?.manifestId === m.id &&
                     (operationProgress.status === 'archiving' ||
-                      operationProgress.status === 'restoring');
+                      operationProgress.status === 'restoring' ||
+                      operationProgress.status === 'gdrive_pull');
                   const isOperationCompleted =
                     operationProgress?.manifestId === m.id &&
                     operationProgress.status === 'completed';

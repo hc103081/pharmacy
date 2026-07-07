@@ -115,8 +115,9 @@ export function useManifestOperations({
           });
 
           if (!pullRes.ok) {
-            const errorData = await pullRes.json();
-            throw new Error(errorData.message || '從 Google Drive 下載失敗');
+            const errorData = await pullRes.json().catch(() => ({ message: '下載失敗' }));
+            console.error('[handleRestore] Pull failed:', pullRes.status, errorData);
+            throw new Error(errorData.message || errorData.error || `從 Google Drive 下載失敗 (${pullRes.status})`);
           }
 
           // Stage 2: Restore from local storage
@@ -134,7 +135,8 @@ export function useManifestOperations({
 
           if (!restoreRes.ok) {
             const errorText = await restoreRes.text();
-            throw new Error(errorText || '還原請求失敗');
+            console.error('[handleRestore] Restore failed:', restoreRes.status, errorText);
+            throw new Error(errorText || `還原請求失敗 (${restoreRes.status})`);
           }
 
           const result = await restoreRes.json();

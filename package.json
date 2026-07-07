@@ -7,7 +7,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed:test": "node scripts/seed-test-data.js",
+    "cleanup:test": "node scripts/cleanup-test-data.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
