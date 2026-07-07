@@ -77,7 +77,7 @@ export async function parsePdf(
 
   // ── Step 3: 從客戶端直接上傳圖片至 Supabase Storage（繞過 Vercel 4.5MB 限制）──
   onProgress?.({ step: 'uploading', label: `正在上傳 ${totalBatches} 張批次圖片...`, percent: 25 });
-  const urls = await uploadMergedImages(mergedImages);
+  const { urls } = await uploadMergedImages(mergedImages);
 
   // ── Step 4: 解析表頭（單獨呼叫） ──
   onProgress?.({ step: 'header', label: '正在 AI 辨識出貨單表頭...', percent: 35 });
