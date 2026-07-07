@@ -2,7 +2,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // @ts-expect-error: Deno std module not typed
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 
-declare const Deno: any;
+declare const Deno: {
+  env: {
+    get(key: string): string | undefined;
+  };
+};
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -79,7 +83,7 @@ serve(async (_req: Request) => {
       message: 'Migration jobs queued',
       queued: eligibleManifests.length,
     });
-  } catch (error: any) {
+  } catch (error: Error) {
     console.error('[gdrive-migrate-cron] Error:', error);
     return jsonResponse({ error: error.message || 'Internal server error' }, 500);
   }

@@ -12,6 +12,11 @@ ALTER TABLE manifests ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
 COMMENT ON COLUMN manifests.archived_at
   IS '清單被封存的時間，用於判斷何時移轉到 Google Drive';
 
+-- 新增 archive_status 欄位（追蹤移轉狀態：null=legacy, archived=待移轉, migrating=移轉中, completed=已完成）
+ALTER TABLE manifests ADD COLUMN IF NOT EXISTS archive_status TEXT;
+COMMENT ON COLUMN manifests.archive_status
+  IS '移轉狀態: null=legacy, archived=待移轉, migrating=移轉中, completed=已完成';
+
 -- 2. 建立用戶 Google Drive 連線表
 CREATE TABLE IF NOT EXISTS user_gdrive_connections (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -39,10 +44,10 @@ CREATE TABLE IF NOT EXISTS gdrive_migration_jobs (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. 索引：加速 Cron 查詢
+-- 4. 索引：加速 Cron 查詢（找出待移轉的封存清單：cloud_backup=false, archive_status IN ('archived', null), archived_at > 30天）
 CREATE INDEX IF NOT EXISTS idx_manifests_cloud_backup_lookup
 ON manifests (cloud_backup, archived_at)
-WHERE cloud_backup = false AND archive_status IS NULL;
+WHERE cloud_backup = false AND archive_status IN ('archived', null);
 
 -- 5. 索引：用戶 gdrive 連線查詢
 CREATE INDEX IF NOT EXISTS idx_user_gdrive_user_id
@@ -87,3 +92,16 @@ UPDATE manifests
 SET archived_at = updated_at
 WHERE status = 'archived'
   AND archived_at IS NULL;
+
+-- 10. 回填 archive_status：已封存且未移轉的設為 'archived'
+UPDATE manifests
+SET archive_status = 'archived'
+WHERE status = 'archived'
+  AND cloud_backup = false
+  AND archive_status IS NULL;
+
+-- 11. 已移轉到 Google Drive 的設為 'completed'
+UPDATE manifests
+SET archive_status = 'completed'
+WHERE cloud_backup = true
+  AND archive_status IS NULL;

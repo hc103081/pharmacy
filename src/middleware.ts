@@ -1,11 +1,10 @@
 import { updateSession } from '@/lib/supabase/middleware';
-import { createServerClient } from '@supabase/ssr';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 export async function middleware(request: NextRequest) {
-  // First run session update
-  let supabaseResponse = await updateSession(request);
+  // First run session update - 取得 response 與 user
+  const { response: supabaseResponse, user } = await updateSession(request);
 
   // GDrive connection check
   const { pathname } = request.nextUrl;
@@ -24,7 +23,15 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // Check if user is logged in (updateSession already handled redirect for unauthenticated)
+  // Not logged in - updateSession already handled redirect to /login
+  if (!user) {
+    console.log('[middleware] No user, letting updateSession handle');
+    return supabaseResponse;
+  }
+
+  // Logged in but no GDrive connection - force OAuth
+  // 直接用 updateSession 回傳的 user，建立新 client 查 GDrive (避免 cookie 冲突)
+  const { createServerClient } = await import('@supabase/ssr');
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -37,26 +44,13 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  console.log('[middleware] pathname:', pathname, 'user:', user?.id || 'NULL');
-
-  // Not logged in - let updateSession handle redirect to /login
-  if (!user) {
-    console.log('[middleware] No user, letting updateSession handle');
-    return supabaseResponse;
-  }
-
-  // Logged in but no GDrive connection - force OAuth
   const { data: gdriveConn, error: connError } = await supabase
     .from('user_gdrive_connections')
     .select('id')
     .eq('user_id', user.id)
     .single();
 
-  console.log('[middleware] gdriveConn:', !!gdriveConn, 'error:', connError?.message);
+  console.log('[middleware] pathname:', pathname, 'user:', user.id, 'gdriveConn:', !!gdriveConn, 'error:', connError?.message);
 
   if (!gdriveConn) {
     console.log('[middleware] No GDrive connection, redirecting to /auth/gdrive/connect');

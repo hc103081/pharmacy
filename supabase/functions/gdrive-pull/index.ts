@@ -2,7 +2,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // @ts-expect-error: Deno std module not typed
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 
-declare const Deno: any;
+declare const Deno: {
+  env: {
+    get(key: string): string | undefined;
+  };
+};
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -114,7 +118,7 @@ async function ensureRootFolder(accessToken: string, userId: string): Promise<st
 
   let folderId: string;
   if (listData.files && listData.files.length > 0) {
-    listData.files.sort((a: any, b: any) => b.createdTime.localeCompare(a.createdTime));
+    listData.files.sort((a: { createdTime: string }, b: { createdTime: string }) => b.createdTime.localeCompare(a.createdTime));
     folderId = listData.files[0].id;
   } else {
     // Create new folder
@@ -187,7 +191,7 @@ serve(async (req: Request) => {
     try {
       accessToken = await getValidAccessToken(userId);
       console.log('[gdrive-pull] Got access token, length:', accessToken.length);
-    } catch (err: any) {
+    } catch (err: Error) {
       console.error('[gdrive-pull] Token error:', err);
       return jsonResponse({
         error: 'gdrive_auth_expired',
@@ -312,7 +316,7 @@ serve(async (req: Request) => {
       zipSize: zipArrayBuffer.byteLength, 
       cleanup: { zipDeleted, folderDeleted } 
     });
-  } catch (err: any) {
+  } catch (err: Error) {
     console.error('[gdrive-pull] Error:', err);
     return jsonResponse({ error: err.message || 'Internal server error' }, 500);
   }

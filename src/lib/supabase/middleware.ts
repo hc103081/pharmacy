@@ -40,5 +40,6 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  return supabaseResponse;
+  // 回傳 response 與 user，讓 middleware 可直接使用
+  return { response: supabaseResponse, user };
 }

@@ -40,7 +40,12 @@ export async function POST(request: NextRequest) {
         .eq('user_id', user.id)
         .single();
 
-      return NextResponse.json({ access_token: currentConn?.access_token });
+      // Guard: if access_token is null/empty despite valid expiresAt, force refresh
+      if (!currentConn?.access_token) {
+        console.warn('[token-refresh] Token expired but access_token missing, forcing refresh');
+      } else {
+        return NextResponse.json({ access_token: currentConn.access_token });
+      }
     }
 
     // Refresh token

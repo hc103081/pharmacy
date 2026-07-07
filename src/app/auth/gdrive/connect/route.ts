@@ -33,8 +33,8 @@ export async function GET(request: Request) {
   const response = NextResponse.redirect(authUrl.toString());
   response.cookies.set('gdrive_oauth_state', state, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    secure: true, // Must be true for sameSite: 'none'
+    sameSite: 'none', // Required for cross-site OAuth redirect
     maxAge: 60 * 10, // 10 minutes
     path: '/',
   });

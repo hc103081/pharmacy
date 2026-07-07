@@ -2,7 +2,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // @ts-expect-error: Deno std module not typed
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 
-declare const Deno: any;
+declare const Deno: {
+  env: {
+    get(key: string): string | undefined;
+  };
+};
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -51,6 +55,11 @@ async function invokeGdriveMigrate(manifestId: string): Promise<void> {
     (error as any).statusCode = response.status;
     throw error;
   }
+}
+
+// Define error type with statusCode for error classification
+interface MigrationError extends Error {
+  statusCode?: number;
 }
 
 serve(async (_req: Request) => {
@@ -105,7 +114,7 @@ serve(async (_req: Request) => {
                 .from('gdrive_migration_jobs')
                 .update({ status: 'completed', updated_at: new Date().toISOString() })
                 .eq('id', job.id);
-            } catch (err: any) {
+            } catch (err: MigrationError) {
               // Classify error for retry decision
               const statusCode = err?.statusCode;
               const message = err?.message || '';
@@ -173,7 +182,7 @@ serve(async (_req: Request) => {
     }
 
     return jsonResponse({ message: 'Queue worker completed', processed: jobs.length });
-  } catch (error: any) {
+  } catch (error: Error) {
     console.error('[gdrive-queue-worker] Error:', error);
     return jsonResponse({ error: error.message || 'Internal server error' }, 500);
   }

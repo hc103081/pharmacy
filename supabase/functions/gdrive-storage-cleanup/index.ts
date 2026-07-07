@@ -2,7 +2,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // @ts-expect-error: Deno std module not typed
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 
-declare const Deno: any;
+declare const Deno: {
+  env: {
+    get(key: string): string | undefined;
+  };
+};
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -54,7 +58,7 @@ serve(async (_req: Request) => {
           .eq('id', job.id);
 
         successCount++;
-      } catch (err: any) {
+      } catch (err: Error) {
         console.error(`[gdrive-storage-cleanup] Failed to delete ${job.manifest_id}:`, err);
 
         // Increment retry count

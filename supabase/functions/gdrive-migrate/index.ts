@@ -2,7 +2,19 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // @ts-expect-error: Deno std module not typed
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 
-declare const Deno: any;
+declare const Deno: {
+  env: {
+    get(key: string): string | undefined;
+  };
+};
+
+interface UploadResponse {
+  success?: boolean;
+  fileId?: string;
+  mode?: 'created' | 'overwritten';
+  error?: string;
+  skipped?: string;
+}
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -135,7 +147,7 @@ async function ensureRootFolder(accessToken: string, userId: string): Promise<st
 
   let folderId: string;
   if (listData.files && listData.files.length > 0) {
-    listData.files.sort((a: any, b: any) => b.createdTime.localeCompare(a.createdTime));
+    listData.files.sort((a: { createdTime: string }, b: { createdTime: string }) => b.createdTime.localeCompare(a.createdTime));
     folderId = listData.files[0].id;
   } else {
     // Create new folder
@@ -356,161 +368,170 @@ serve(async (req: Request) => {
     return jsonResponse({ error: 'manifestId required' }, 400);
   }
 
+  // Get user_id from manifest (outside lock to avoid holding lock during parsing)
+  const { data: manifest, error: mErr } = await supabase
+    .from('manifests')
+    .select('user_id, archived_zip_path, storage_size_bytes, gdrive_file_id')
+    .eq('id', manifestId)
+    .single();
+  if (mErr || !manifest) return jsonResponse({ error: 'Manifest not found' }, 404);
+  userId = manifest.user_id;
+
+  // Acquire lock
+  const locked = await acquireLock(manifestId, userId);
+  if (!locked) return jsonResponse({ skipped: 'Already locked or processing' });
+
+  // Use try/finally to guarantee lock release even on timeout/OOM
   try {
-    // Get user_id from manifest
-    const { data: manifest, error: mErr } = await supabase
-      .from('manifests')
-      .select('user_id, archived_zip_path, storage_size_bytes, gdrive_file_id')
-      .eq('id', manifestId)
-      .single();
-    if (mErr || !manifest) throw mErr || new Error('Manifest not found');
-    userId = manifest.user_id;
+    // Get valid access token
+    const accessToken = await getValidAccessToken(userId);
 
-    // Acquire lock
-    const locked = await acquireLock(manifestId, userId);
-    if (!locked) return jsonResponse({ skipped: 'Already locked or processing' });
+    // Check Drive space
+    const zipSize = manifest.storage_size_bytes || 0;
+    if (zipSize === 0) throw new Error('ZIP size unknown');
+    const hasSpace = await checkDriveSpace(accessToken, zipSize);
+    if (!hasSpace) {
+      await releaseLock(manifestId, userId, 'archived');
+      await logAction(manifestId, 'gdrive_migrate', 'failed', 'Insufficient Google Drive space');
+      return jsonResponse({ error: 'Insufficient Google Drive space' }, 400);
+    }
 
-    try {
-      // Get valid access token
-      const accessToken = await getValidAccessToken(userId);
+    // Ensure folders
+    const rootFolderId = await ensureRootFolder(accessToken, userId);
+    const subfolderId = await ensureSubfolder(accessToken, rootFolderId, manifestId);
 
-      // Check Drive space
-      const zipSize = manifest.storage_size_bytes || 0;
-      if (zipSize === 0) throw new Error('ZIP size unknown');
-      const hasSpace = await checkDriveSpace(accessToken, zipSize);
-      if (!hasSpace) {
-        await releaseLock(manifestId, userId, 'archived');
-        await logAction(manifestId, 'gdrive_migrate', 'failed', 'Insufficient Google Drive space');
-        return jsonResponse({ error: 'Insufficient Google Drive space' }, 400);
-      }
+    // Get signed download URL
+    const { data: signedData, error: signError } = await supabase.storage
+      .from(ARCHIVED_BUCKET)
+      .createSignedUrl(`${manifestId}/archive.zip`, 86400);
+    if (signError || !signedData) throw signError || new Error('Failed to create signed URL');
 
-      // Ensure folders
-      const rootFolderId = await ensureRootFolder(accessToken, userId);
-      const subfolderId = await ensureSubfolder(accessToken, rootFolderId, manifestId);
+    // Download ZIP stream from Supabase Storage
+    const downloadRes = await fetch(signedData.signedUrl);
+    if (!downloadRes.ok || !downloadRes.body) throw new Error('Download failed');
+    const zipStream = downloadRes.body;
 
-      // Get signed download URL
-      const { data: signedData, error: signError } = await supabase.storage
-        .from(ARCHIVED_BUCKET)
-        .createSignedUrl(`${manifestId}/archive.zip`, 86400);
-      if (signError || !signedData) throw signError || new Error('Failed to create signed URL');
+    let fileId: string;
+    let mode: 'created' | 'overwritten';
 
-      // Download ZIP stream from Supabase Storage
-      const downloadRes = await fetch(signedData.signedUrl);
-      if (!downloadRes.ok || !downloadRes.body) throw new Error('Download failed');
-      const zipStream = downloadRes.body;
-
-      let fileId: string;
-      let mode: 'created' | 'overwritten';
-
-      if (manifest.gdrive_file_id) {
-        // === 覆蓋模式：使用 files.update (uploadType=media) 直接覆蓋既有檔案內容 ===
-        const uploadRes = await fetch(
-          `${GOOGLE_DRIVE_API.replace('/drive/', '/upload/drive/')}/files/${manifest.gdrive_file_id}?uploadType=media`,
-          {
-            method: 'PATCH',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/zip',
-              'Content-Length': zipSize.toString(),
-            },
-            body: zipStream,
-          }
-        );
-        if (!uploadRes.ok) {
-          const errorText = await uploadRes.text();
-          throw new Error(`Overwrite upload failed: ${uploadRes.status} ${errorText}`);
+    if (manifest.gdrive_file_id) {
+      // === 覆蓋模式：使用 files.update (uploadType=media) 直接覆蓋既有檔案內容 ===
+      const uploadRes = await fetch(
+        `${GOOGLE_DRIVE_API.replace('/drive/', '/upload/drive/')}/files/${manifest.gdrive_file_id}?uploadType=media`,
+        {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/zip',
+            'Content-Length': zipSize.toString(),
+          },
+          body: zipStream,
         }
-        fileId = manifest.gdrive_file_id; // fileId 保持不變
-        mode = 'overwritten';
-        console.log('[gdrive-migrate] Overwrite upload completed, fileId:', fileId);
-      } else {
-        // === 首次建立模式：現有 resumable upload 邏輯 ===
-        fileId = await uploadToDriveStream(
-          accessToken,
-          signedData.signedUrl,
-          subfolderId,
-          'archive.zip',
-          zipSize
-        );
-        mode = 'created';
-        console.log('[gdrive-migrate] Create upload completed, fileId:', fileId);
+      );
+      if (!uploadRes.ok) {
+        const errorText = await uploadRes.text();
+        throw new Error(`Overwrite upload failed: ${uploadRes.status} ${errorText}`);
       }
+      fileId = manifest.gdrive_file_id; // fileId 保持不變
+      mode = 'overwritten';
+      console.log('[gdrive-migrate] Overwrite upload completed, fileId:', fileId);
+    } else {
+      // === 首次建立模式：現有 resumable upload 邏輯 ===
+      fileId = await uploadToDriveStream(
+        accessToken,
+        signedData.signedUrl,
+        subfolderId,
+        'archive.zip',
+        zipSize
+      );
+      mode = 'created';
+      console.log('[gdrive-migrate] Create upload completed, fileId:', fileId);
+    }
 
-      // Verify upload size
-      const verifyRes = await fetch(`${GOOGLE_DRIVE_API}/files/${fileId}?fields=size`, {
+    // Verify upload size
+    const verifyRes = await fetch(`${GOOGLE_DRIVE_API}/files/${fileId}?fields=size`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const verifyData = await verifyRes.json();
+    console.log('[gdrive-migrate] verifyData:', JSON.stringify(verifyData), 'expected zipSize:', zipSize);
+    const uploadedSize = parseInt(verifyData.size);
+    
+    // If size is 0, it might be a transient issue with Drive API for small direct uploads
+    // Retry once after a short delay
+    if (uploadedSize === 0) {
+      console.log('[gdrive-migrate] Size returned 0, retrying verification...');
+      await new Promise(r => setTimeout(r, 1000));
+      const retryRes = await fetch(`${GOOGLE_DRIVE_API}/files/${fileId}?fields=size`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
-      const verifyData = await verifyRes.json();
-      console.log('[gdrive-migrate] verifyData:', JSON.stringify(verifyData), 'expected zipSize:', zipSize);
-      const uploadedSize = parseInt(verifyData.size);
-      
-      // If size is 0, it might be a transient issue with Drive API for small direct uploads
-      // Retry once after a short delay
-      if (uploadedSize === 0) {
-        console.log('[gdrive-migrate] Size returned 0, retrying verification...');
-        await new Promise(r => setTimeout(r, 1000));
-        const retryRes = await fetch(`${GOOGLE_DRIVE_API}/files/${fileId}?fields=size`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        const retryData = await retryRes.json();
-        console.log('[gdrive-migrate] retry verifyData:', JSON.stringify(retryData));
-        const retrySize = parseInt(retryData.size);
-        if (retrySize > 0 && Math.abs(retrySize - zipSize) <= 1024) {
-          console.log('[gdrive-migrate] Size verification passed on retry:', retrySize);
-        } else if (retrySize === 0) {
-          // Still 0 - skip size verification for direct uploads (trust the initial response)
-          console.log('[gdrive-migrate] Size still 0, skipping size verification for direct upload');
-        } else {
-          throw new Error(`Upload size mismatch: expected ${zipSize}, got ${retrySize}`);
-        }
-      } else if (isNaN(uploadedSize) || Math.abs(uploadedSize - zipSize) > 1024) {
-        throw new Error(`Upload size mismatch: expected ${zipSize}, got ${uploadedSize}`);
+      const retryData = await retryRes.json();
+      console.log('[gdrive-migrate] retry verifyData:', JSON.stringify(retryData));
+      const retrySize = parseInt(retryData.size);
+      if (retrySize > 0 && Math.abs(retrySize - zipSize) <= 1024) {
+        console.log('[gdrive-migrate] Size verification passed on retry:', retrySize);
+      } else if (retrySize === 0) {
+        // Still 0 - skip size verification for direct uploads (trust the initial response)
+        console.log('[gdrive-migrate] Size still 0, skipping size verification for direct upload');
+      } else {
+        throw new Error(`Upload size mismatch: expected ${zipSize}, got ${retrySize}`);
       }
-
-      // Update DB: mark cloud_backup = true
-      const { error: manifestUpdateError, data: updatedRows } = await supabase
-        .from('manifests')
-        .update({
-          cloud_backup: true,
-          gdrive_file_id: mode === 'created' ? fileId : manifest.gdrive_file_id,
-          archive_status: null,
-          archive_locked_at: null,
-        })
-        .eq('id', manifestId)
-        .select('id');
-
-      if (manifestUpdateError) throw manifestUpdateError;
-      if (!updatedRows || updatedRows.length === 0) {
-        throw new Error('Manifest update failed: no rows affected (possible RLS issue)');
-      }
-
-      // Delete from Supabase Storage (ONLY after successful DB update)
-      const { error: storageDeleteError } = await supabase.storage
-        .from(ARCHIVED_BUCKET)
-        .remove([`${manifestId}/archive.zip`]);
-      if (storageDeleteError) throw storageDeleteError;
-
-      // Update job
-      const { error: jobUpdateError } = await supabase
-        .from('gdrive_migration_jobs')
-        .update({ 
-          status: 'completed',
-          storage_deleted: true,
-          updated_at: new Date().toISOString()
-        })
-        .eq('manifest_id', manifestId);
-      if (jobUpdateError) throw jobUpdateError;
-
-      await logAction(manifestId, 'gdrive_migrate', 'success', `Migrated to Google Drive: ${fileId} (${mode})`);
-
-      return jsonResponse({ success: true, fileId, mode });
-    } catch (err: any) {
-      await releaseLock(manifestId, userId, 'archived');
-      await logAction(manifestId, 'gdrive_migrate', 'failed', err.message);
-      throw err;
+    } else if (isNaN(uploadedSize) || Math.abs(uploadedSize - zipSize) > 1024) {
+      throw new Error(`Upload size mismatch: expected ${zipSize}, got ${uploadedSize}`);
     }
-  } catch (err: any) {
-    console.error('[gdrive-migrate] Error:', err);
-    return jsonResponse({ error: err.message || 'Internal server error' }, 500);
+
+    // Update DB: mark cloud_backup = true
+    const { error: manifestUpdateError, data: updatedRows } = await supabase
+      .from('manifests')
+      .update({
+        cloud_backup: true,
+        gdrive_file_id: mode === 'created' ? fileId : manifest.gdrive_file_id,
+        archive_status: null,
+        archive_locked_at: null,
+      })
+      .eq('id', manifestId)
+      .select('id');
+
+    if (manifestUpdateError) throw manifestUpdateError;
+    if (!updatedRows || updatedRows.length === 0) {
+      throw new Error('Manifest update failed: no rows affected (possible RLS issue)');
+    }
+
+    // Delete from Supabase Storage (ONLY after successful DB update)
+    const { error: storageDeleteError } = await supabase.storage
+      .from(ARCHIVED_BUCKET)
+      .remove([`${manifestId}/archive.zip`]);
+    if (storageDeleteError) throw storageDeleteError;
+
+    // Update job
+    const { error: jobUpdateError } = await supabase
+      .from('gdrive_migration_jobs')
+      .update({ 
+        status: 'completed',
+        storage_deleted: true,
+        updated_at: new Date().toISOString()
+      })
+      .eq('manifest_id', manifestId);
+    if (jobUpdateError) throw jobUpdateError;
+
+    await logAction(manifestId, 'gdrive_migrate', 'success', `Migrated to Google Drive: ${fileId} (${mode})`);
+
+    return jsonResponse({ success: true, fileId, mode });
+  } catch (err: Error) {
+    await releaseLock(manifestId, userId, 'archived');
+    await logAction(manifestId, 'gdrive_migrate', 'failed', err.message);
+    throw err;
+  } finally {
+    // CRITICAL: Ensure lock is ALWAYS released, even if catch block throws or function times out
+    // Note: In Deno/Edge Runtime, finally runs before process termination on timeout
+    const { data: checkLock } = await supabase
+      .from('manifests')
+      .select('archive_status, archive_locked_at')
+      .eq('id', manifestId)
+      .eq('user_id', userId)
+      .single();
+    if (checkLock?.archive_status === 'migrating' && checkLock?.archive_locked_at) {
+      console.log('[gdrive-migrate] Finally block: releasing stale lock');
+      await releaseLock(manifestId, userId, 'archived');
+    }
   }
 });

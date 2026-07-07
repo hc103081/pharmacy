@@ -58,8 +58,7 @@ export async function parsePdf(
 ): Promise<ParsedPdf> {
   const { convertPdfToImages, mergeImagesVertically } = await import('@/lib/pdfUtils');
   const { parseHeaderWithGemini, parseBatchWithGemini } = await import('@/app/actions/import/ocr');
-  const { clientUploadImportImages } = await import('@/lib/clientUpload');
-  const { dataUriToBlob } = await import('@/lib/base64');
+  const { uploadMergedImages } = await import('@/lib/imageUpload');
 
   // ── Step 1: 將 PDF 每頁轉為 Base64 JPEG 圖片 ──
   onProgress?.({ step: 'converting', label: '正在將 PDF 轉換為圖片...', percent: 5 });
@@ -78,10 +77,7 @@ export async function parsePdf(
 
   // ── Step 3: 從客戶端直接上傳圖片至 Supabase Storage（繞過 Vercel 4.5MB 限制）──
   onProgress?.({ step: 'uploading', label: `正在上傳 ${totalBatches} 張批次圖片...`, percent: 25 });
-  const blobs: Blob[] = mergedImages.map(base64 => dataUriToBlob(base64));
-
-  const uploadResult = await clientUploadImportImages(blobs);
-  const urls = uploadResult.urls;
+  const urls = await uploadMergedImages(mergedImages);
 
   // ── Step 4: 解析表頭（單獨呼叫） ──
   onProgress?.({ step: 'header', label: '正在 AI 辨識出貨單表頭...', percent: 35 });

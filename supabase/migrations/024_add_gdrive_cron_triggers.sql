@@ -7,7 +7,7 @@ SET search_path = public
 AS $$
 DECLARE
   result jsonb;
-  function_url text := 'https://epjyodyjdssgjqrzgtnc.supabase.co/functions/v1/gdrive-migrate-cron';
+  function_url text := current_setting('app.settings.supabase_functions_url', true) || '/functions/v1/gdrive-migrate-cron';
   service_key text := current_setting('app.settings.service_role_key', true);
 BEGIN
   SELECT net.http_post(
@@ -42,7 +42,7 @@ SET search_path = public
 AS $$
 DECLARE
   result jsonb;
-  function_url text := 'https://epjyodyjdssgjqrzgtnc.supabase.co/functions/v1/gdrive-queue-worker';
+  function_url text := current_setting('app.settings.supabase_functions_url', true) || '/functions/v1/gdrive-queue-worker';
   service_key text := current_setting('app.settings.service_role_key', true);
 BEGIN
   SELECT net.http_post(
@@ -77,7 +77,7 @@ SET search_path = public
 AS $$
 DECLARE
   result jsonb;
-  function_url text := 'https://epjyodyjdssgjqrzgtnc.supabase.co/functions/v1/gdrive-storage-cleanup';
+  function_url text := current_setting('app.settings.supabase_functions_url', true) || '/functions/v1/gdrive-storage-cleanup';
   service_key text := current_setting('app.settings.service_role_key', true);
 BEGIN
   SELECT net.http_post(
