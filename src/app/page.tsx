@@ -36,9 +36,17 @@ function HomeContent() {
 
   return (
     <>
-      <main className="fixed inset-0 flex flex-col items-center justify-center p-4 lg:p-6 bg-[#07142b] text-slate-200 overflow-y-auto">
-        <UserMenu />
-        <div className="max-w-2xl w-full text-center space-y-8 lg:space-y-12">
+      <div className="h-dvh overflow-hidden flex flex-col bg-[#07142b]">
+        {/* Fixed Header - UserMenu 已經是 fixed top-0，這裡只需確保佈局結構 */}
+        <header className="fixed top-0 left-0 right-0 z-40 bg-[#07142b]/95 backdrop-blur-xl border-b border-slate-800/50">
+          <div className="max-w-2xl mx-auto px-4 py-2 bg-[#162a56]/60 border-b border-blue-500/20 backdrop-blur-md">
+            <UserMenu />
+          </div>
+        </header>
+
+        {/* Scrollable Content */}
+        <main className="flex-1 min-h-0 overflow-y-auto pt-28 lg:pt-36 pb-12 lg:pb-16 px-4 lg:px-6 flex flex-col items-center">
+          <div className="max-w-2xl w-full text-center space-y-8 lg:space-y-12">
           <div className="space-y-3 lg:space-y-4">
             <div className="flex items-center justify-center gap-3 mb-3 lg:mb-4">
               <div className="p-3 bg-[#162a56] rounded-2xl border border-blue-500/30 shadow-[0_0_20px_rgba(0,242,254,0.2)]">
@@ -115,7 +123,8 @@ function HomeContent() {
             © 2026 PhamaCount Web • 提升藥局物流效率
           </div>
         </div>
-      </main>
+        </main>
+      </div>
       {/* 教學按鈕 - 放在右下角 */}
       <TeachingButton module="system-overview" variant="fixed-bottom-right" className="mb-4" />
     </>

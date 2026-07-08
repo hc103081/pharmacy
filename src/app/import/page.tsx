@@ -348,8 +348,8 @@ export default function ImportPage() {
       )}
 
       <div className="flex-1 min-h-0 overflow-hidden">
-        <div className={parsedData ? 'max-w-3xl mx-auto flex flex-col h-full' : 'max-w-3xl mx-auto space-y-5 lg:space-y-6 p-4 lg:p-6 overflow-y-auto'}>
-          <div className="flex-shrink-0 flex items-center gap-3">
+        <div className="max-w-3xl mx-auto flex flex-col h-full">
+          <div className="flex-shrink-0 flex items-center gap-3 px-4 lg:px-6 py-2 lg:py-3">
             <Link href="/" className="p-2 hover:bg-slate-800 rounded-full transition-colors">
               <ArrowLeft className="w-5 h-5 lg:w-6 lg:h-6 text-slate-400" />
             </Link>
@@ -368,7 +368,7 @@ export default function ImportPage() {
               />
             </div>
           ) : (
-            <div className="space-y-5 lg:space-y-6">
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-5 lg:space-y-6 p-0 lg:px-6 pb-6">
               <div className="tech-card p-4 lg:p-6 space-y-5 lg:space-y-6">
                 <div className="space-y-2">
                   <label className="block text-xs lg:text-sm font-medium text-slate-400">清單名稱</label>

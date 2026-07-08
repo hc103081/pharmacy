@@ -196,7 +196,7 @@ export default function ManifestsPage() {
 
   // 手動觸發 Google Drive 授權
   const handleGdriveConnect = () => {
-    toast.info('正在導向 Google 授權頁面...');
+        toast.info('正在導向 Google 授權頁面...');
     window.location.href = '/auth/gdrive/connect?prompt=consent';
   };
 
@@ -314,9 +314,11 @@ export default function ManifestsPage() {
 
   return (
     <>
-      <div className="fixed inset-0 bg-[#07142b] text-slate-200 p-4 lg:p-6 overflow-y-auto">
-        <div className="max-w-2xl mx-auto space-y-5 lg:space-y-6">
-          <div className="flex items-center gap-3">
+      <div className="h-dvh overflow-hidden flex flex-col bg-[#07142b]">
+        {/* Fixed Header */}
+        <header className="fixed top-0 left-0 right-0 z-40 bg-[#07142b]/95 backdrop-blur-xl border-b border-slate-800/50">
+          <div className="max-w-2xl mx-auto p-4 lg:p-6">
+            <div className="flex items-center gap-3">
             <Link href="/" className="p-2 hover:bg-slate-800 rounded-full transition-colors">
               <ArrowLeft className="w-5 h-5 lg:w-6 lg:h-6 text-slate-400" />
             </Link>
@@ -473,8 +475,14 @@ export default function ManifestsPage() {
               </button>
             )}
           </div>
+        </div>
+        </header>
 
-          {/* Tabs */}
+        {/* Scrollable Content */}
+        <main className="flex-1 min-h-0 overflow-y-auto pt-20 pb-4 lg:pt-24 lg:pb-6 px-4 lg:px-6">
+          <div className="max-w-2xl mx-auto space-y-5 lg:space-y-6">
+
+            {/* Tabs */}
           <div className="flex bg-slate-900/80 rounded-xl p-1">
             <button
               onClick={() => setTab('active')}
@@ -792,7 +800,8 @@ export default function ManifestsPage() {
           {/* Toast 通知 */}
           <Toaster position="bottom-right" theme="dark" />
         </div>
-      </div>
+      </main>
+    </div>
     </>
   );
 }
