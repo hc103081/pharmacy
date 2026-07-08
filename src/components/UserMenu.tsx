@@ -40,10 +40,10 @@ export function UserMenu() {
   };
 
   return (
-    // Fixed header at top, covering full width
+    // UserMenu 現在是普通元件，由父層 header 提供 fixed 定位
     <div
       ref={wrapperRef}
-      className="fixed top-0 left-0 right-0 flex items-center justify-end px-4 py-2 bg-[#162a56]/60 border-b border-blue-500/20 backdrop-blur-md z-[999] pointer-events-auto"
+      className="flex items-center justify-end w-full pointer-events-auto"
     >
       {/* Trigger Area */}
       <div
