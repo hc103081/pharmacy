@@ -17,6 +17,14 @@ export interface ImportResponse {
   error?: string;
 }
 
+export interface ImportOptions {
+  order_number?: string;
+  delivery_date?: string;
+  source_file?: string;
+  source_images?: string[];
+  mergeByBarcode?: boolean; // 是否合併相同條碼項目，預設 true
+}
+
 export interface PageItem {
   storage_location: string;
   category: string;

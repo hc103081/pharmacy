@@ -114,9 +114,9 @@ export async function parseBatchWithGemini(url: string, _batchIndex: number): Pr
     }> = Array.isArray(parsed.items) ? parsed.items : [];
 
     const items: PageItem[] = rawItems.map((item, idx) => {
-      const rawQuantity = item.quantity || '';
-      const match = rawQuantity.match(/\d+/);
-      const expected_quantity = match ? parseInt(match[0], 10) : 0;
+      const rawQuantity = (item.quantity || '').trim();
+      const match = rawQuantity.match(/-?\d+/);
+      const expected_quantity = match ? Math.max(0, parseInt(match[0], 10)) : 0;
 
       // 若 expected_quantity === 0，在 drug_name 標記需確認
       const drugName = expected_quantity === 0 && item.drug_name
@@ -178,7 +178,7 @@ async function processSingleBatchWithGemini(urls: string[], batchIndex: number):
 - barcode: 國際條碼（純數字，格式如 471020120000），找不到請設為空字串
 - product_code: 商品條碼／健保碼（字母開頭格式如 A000015421、AC16496100），找不到請設為空字串
 - name: 中文品名
-- expected_quantity: 補貨量（數字）
+- expected_quantity: 補貨量（非負整數，>= 0）
 - storage_location: 儲位（如 F3），找不到請設為空字串
 - category: 類別（如 4），找不到請設為空字串
 
@@ -203,7 +203,7 @@ async function processSingleBatchWithGemini(urls: string[], batchIndex: number):
 3. storage_location 和 category 是選填欄位，如果圖中沒有明確顯示，請務必設為空字串，不要猜測。
 4. barcode 是國際條碼，一定是純數字（如 471020120000）；完全看不到數字條碼時請設為空字串。
 5. product_code 是商品條碼／健保碼（通常為字母開頭的健保代碼如 AC16496100，或 EAN-13 商品碼），若無則為空字串。
-6. expected_quantity 必須是數字。
+6. expected_quantity 必須是非負整數（>= 0），絕不能為負數。
 7. 不要輸出任何 Markdown 程式碼塊標記，只要純 JSON。`;
 
     const result = await model.generateContent([prompt, ...imageParts]);
@@ -227,14 +227,17 @@ async function processSingleBatchWithGemini(urls: string[], batchIndex: number):
     }> = Array.isArray(parsed.items) ? parsed.items : (Array.isArray(parsed) ? parsed : []);
 
     const items: PageItem[] = rawItems.map((item, idx) => {
-      // 若 expected_quantity 是字串（如 "1罐"），用正則提取數字
+      // 若 expected_quantity 是字串（如 "1罐" 或 "-102"），用正則提取數字
       let expectedQuantity = 0;
       if (typeof item.expected_quantity === 'number') {
         expectedQuantity = item.expected_quantity;
       } else if (typeof item.expected_quantity === 'string') {
-        const match = item.expected_quantity.match(/\d+/);
-        expectedQuantity = match ? parseInt(match[0], 10) : 0;
+        // 先 trim 再用正則找第一個數字（不限位置）
+        const fullMatch = item.expected_quantity.trim().match(/-?\d+/);
+        expectedQuantity = fullMatch ? parseInt(fullMatch[0], 10) : 0;
       }
+      // 防禦：數量不得為負數
+      expectedQuantity = Math.max(0, expectedQuantity);
 
       return {
         storage_location: item.storage_location || '',
@@ -406,7 +409,8 @@ async function processBatchForImages({ urls, batchIndex }: { urls: string[]; bat
  */
 export async function processImagesWithGemini({ urls }: { urls: string[] }): Promise<{ success: boolean; order_number?: string; delivery_date?: string; total_pages?: number; drugs?: ImportDrugItem[]; error?: string }> {
   try {
-    const BATCH_SIZE = 3; // 每批最多 3 張圖片，避免輸出截斷
+    const BATCH_SIZE = 1; // 每批 1 張照片，避免 Gemini 輸出 token 截斷（6 張 → 6 次 API 呼叫）
+    const MAX_RETRIES = 2; // 每批次最多重試 2 次
     const allBatchResults: Array<{ batchIndex: number; order_number?: string; delivery_date?: string; total_pages?: number; items: PageItem[] }> = [];
 
     // 分批處理
@@ -416,9 +420,12 @@ export async function processImagesWithGemini({ urls }: { urls: string[] }): Pro
       
       let result = await processBatchForImages({ urls: batch, batchIndex });
       
-      // 重試一次
-      if (!result.success || !result.items) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      // 重試邏輯：最多重試 MAX_RETRIES 次
+      let retryCount = 0;
+      while ((!result.success || !result.items) && retryCount < MAX_RETRIES) {
+        retryCount++;
+        console.log(`批次 ${batchIndex + 1} OCR 失敗，重試 ${retryCount}/${MAX_RETRIES}...`);
+        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // 逐次遞增延遲
         result = await processBatchForImages({ urls: batch, batchIndex });
       }
       
@@ -463,7 +470,7 @@ export async function processImagesWithGemini({ urls }: { urls: string[] }): Pro
       barcode: item.barcode,
       product_code: item.product_code || '',
       name: item.drug_name,
-      expected_quantity: parseInt(item.quantity) || 0,
+      expected_quantity: Math.max(0, parseInt(item.quantity) || 0),
       bonus_quantity: 0,
       storage_location: item.storage_location,
       category: item.category,
@@ -518,7 +525,7 @@ export async function processImagesWithGeminiAsPdf({ urls }: { urls: string[] })
       source_type: 'images',
       uploaded_image_count: urls.length,
       ocr_page_count: ocrResult.total_pages,
-      ocr_request_count: Math.ceil(urls.length / 3), // 每 3 張一批
+      ocr_request_count: urls.length, // 每張照片一次 API 呼叫
     },
     items,
   };

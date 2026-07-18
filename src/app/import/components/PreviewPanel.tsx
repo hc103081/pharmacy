@@ -112,7 +112,14 @@ export default function PreviewPanel({
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-slate-500">提取項目:</span>
-                <span className="text-slate-200 font-bold">{data.items.length} / {data.order_metadata.total_items}</span>
+                <span className="text-slate-200 font-bold">
+                  {data.items.length} / {data.order_metadata.total_items}
+                  {(() => {
+                    const mergedItems = data.items.filter(i => i.merged_count && i.merged_count > 1);
+                    const totalMerged = mergedItems.reduce((sum, i) => sum + (i.merged_count || 1) - 1, 0);
+                    return totalMerged > 0 ? ` (-${totalMerged})` : '';
+                  })()}
+                </span>
               </div>
               <button
                 onClick={() => setViewMode(viewMode === 'table' ? 'card' : 'table')}
@@ -242,7 +249,10 @@ export default function PreviewPanel({
                       </td>
                       <td className="py-3 px-2 text-right">
                         {(item.merged_count && item.merged_count > 1) ? (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/10 text-[#00f2fe] border border-cyan-500/30">
+                          <span 
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/10 text-[#00f2fe] border border-cyan-500/30 cursor-help relative"
+                            title={`合併了 ${item.merged_count} 筆相同條碼項目，數量已累加`}
+                          >
                             {item.merged_count} 合1
                           </span>
                         ) : (
@@ -289,7 +299,10 @@ export default function PreviewPanel({
                   )}
                       {(item.merged_count && item.merged_count > 1) && (
                         <div className="mt-1">
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/10 text-[#00f2fe] border border-cyan-500/30">
+                          <span 
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/10 text-[#00f2fe] border border-cyan-500/30 cursor-help relative"
+                            title={`合併了 ${item.merged_count} 筆相同條碼項目，數量已累加`}
+                          >
                             {item.merged_count} 合1
                           </span>
                         </div>
