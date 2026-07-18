@@ -772,7 +772,12 @@ export default function ManifestsPage() {
           <DeleteConfirmDialog
             isOpen={!!confirmDeleteId}
             onClose={() => setConfirmDeleteId(null)}
-            onConfirm={() => confirmDeleteId && handleDelete(confirmDeleteId)}
+            onConfirm={async () => {
+              if (!confirmDeleteId) return;
+              await handleDelete(confirmDeleteId);
+              setConfirmDeleteId(null);
+              fetchManifests();
+            }}
             loading={false}
           />
 

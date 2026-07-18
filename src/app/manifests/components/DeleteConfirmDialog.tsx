@@ -44,9 +44,7 @@ export function DeleteConfirmDialog({
           <h3 className="text-lg font-bold text-white">{title}</h3>
         </div>
 
-        <p className="text-slate-400 mb-6">
-          {message}
-        </p>
+        <p className="text-slate-400 mb-6" dangerouslySetInnerHTML={{ __html: message }} />
 
         <div className="flex gap-3 justify-end">
           <button
