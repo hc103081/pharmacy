@@ -12,6 +12,15 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { parsePdf, ParsedPdf, ParsedItem, PdfProgressStep } from '@/lib/pdfParser';
 import { validateParsedPdf } from '@/lib/pdfValidator';
+
+/** OCR 進度步驟類型 */
+interface OcrProgressStep {
+  step: 'uploading' | 'header' | 'batch' | 'done';
+  label: string;
+  percent: number;
+  currentBatch?: number;
+  totalBatches?: number;
+}
 import PreviewPanel from './components/PreviewPanel';
 import { TeachingButton } from '@/components/teaching';
 import DrugListUploader from './components/DrugListUploader';
@@ -84,6 +93,16 @@ const PDF_STEP_LABELS: Record<string, string> = {
 
 const PDF_STEPS = ['converting', 'merging', 'uploading', 'header', 'batch'] as const;
 
+/* OCR 照片匯入步驟 */
+const OCR_STEP_LABELS: Record<string, string> = {
+  uploading: '上傳',
+  header: '表頭',
+  batch: '辨識',
+  done: '完成',
+};
+
+const OCR_STEPS = ['uploading', 'header', 'batch'] as const;
+
 export default function ImportPage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -100,6 +119,7 @@ export default function ImportPage() {
   const [parsedData, setParsedData] = useState<ParsedPdf | null>(initialState?.parsedData ?? null);
   const [isParsingPdf, setIsParsingPdf] = useState(false);
   const [pdfProgress, setPdfProgress] = useState<PdfProgressStep | null>(null);
+  const [ocrProgress, setOcrProgress] = useState<OcrProgressStep | null>(null);
   const [isImporting, setIsImporting] = useState(false);
 
   useEffect(() => {
@@ -220,27 +240,39 @@ export default function ImportPage() {
   const handleOcrImages = async () => {
     if (uploadedUrls.length === 0) return;
     try {
-      setStatus('loading');
-      setMessage('正在執行 AI OCR 辨識中...');
+      // 進度顯示（Server Action 不支援 streaming 進度回傳，顯示靜態訊息）
+      setOcrProgress({ step: 'uploading', label: `正在 AI 辨識 ${uploadedUrls.length} 張照片...`, percent: 10 });
+      await new Promise(r => setTimeout(r, 300));
+
+      setOcrProgress({ step: 'batch', label: `AI 逐批辨識藥品中（共 ${uploadedUrls.length} 張，每張約 44 項）...`, percent: 30 });
+      
       const result = await processImagesWithGeminiAsPdf({ urls: uploadedUrls });
       console.log('OCR result:', result);
+      
+      setOcrProgress({ step: 'done', label: 'OCR 辨識完成！', percent: 100 });
+      await new Promise(r => setTimeout(r, 500));
+      
       if (!result.success || !result.data) {
         setStatus('error');
         setMessage(`OCR 辨識失敗: ${result.error}`);
+        setOcrProgress(null);
         return;
       }
       if (!result.data.items || result.data.items.length === 0) {
         setStatus('error');
         setMessage('OCR 辨識成功但未取得任何藥品項目，請檢查圖片或重試');
+        setOcrProgress(null);
         return;
       }
       setParsedData(result.data);
       setManifestName(prev => prev.trim() || result.data!.order_metadata.order_number || '');
       setStatus('idle');
       setMessage('');
+      setOcrProgress(null);
     } catch {
       setStatus('error');
       setMessage('OCR 辨識過程中發生錯誤');
+      setOcrProgress(null);
     }
   };
 
@@ -260,10 +292,13 @@ export default function ImportPage() {
         category: item.category || '',
       }));
       const finalName = manifestName.trim() || parsedData.order_metadata.order_number || `匯入清單 ${new Date().toLocaleDateString('zh-TW')}`;
+      // 照片 OCR 匯入不合併條碼（保留逐頁明細），PDF 匯入合併條碼
+      const isPhotoImport = parsedData.order_metadata.source_type === 'images';
       const result = await importDrugs(finalName, drugs, user!.id, {
         order_number: parsedData.order_metadata.order_number,
         delivery_date: parsedData.order_metadata.delivery_date,
-        source_file: ''
+        source_file: '',
+        mergeByBarcode: !isPhotoImport,
       });
       if (result.success) {
         setIsImporting(false);
@@ -466,6 +501,87 @@ export default function ImportPage() {
                     </div>
                   </div>
                 )}
+                {/* OCR 照片匯入進度顯示 */}
+                {ocrProgress && (
+                  <div className="tech-card p-4 lg:p-5 space-y-4 border-cyan-500/30 animate-in fade-in slide-in-from-bottom-2 relative overflow-hidden animate-scanline">
+                    <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[#00f2fe]/60 to-transparent" />
+                    <div className="flex items-center gap-3 relative z-10">
+                      <div className={`relative ${ocrProgress.step === 'batch' ? 'animate-pulse-glow' : ''} rounded-lg p-1.5`}>
+                        {ocrProgress.step === 'uploading' && <Upload className="w-5 h-5 text-cyan-400" />}
+                        {ocrProgress.step === 'header' && <Cpu className="w-5 h-5 text-[#00f2fe]" />}
+                        {ocrProgress.step === 'batch' && <Cpu className="w-5 h-5 text-[#00f2fe] animate-pulse" />}
+                        {ocrProgress.step === 'done' && <CheckCircle2 className="w-4 h-4 text-green-400" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-white truncate">{ocrProgress.label}</p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          {ocrProgress.step === 'uploading' && '準備上傳的照片進行 AI 辨識'}
+                          {ocrProgress.step === 'header' && 'Gemini AI 正在辨識出貨單號與日期'}
+                          {ocrProgress.step === 'batch' && ocrProgress.currentBatch && ocrProgress.totalBatches && `正在處理第 ${ocrProgress.currentBatch} / ${ocrProgress.totalBatches} 批（每批最多 3 張圖）`}
+                          {ocrProgress.step === 'done' && 'OCR 辨識完成，正在整理結果...'}
+                        </p>
+                      </div>
+                      <span className="text-[#00f2fe] font-mono text-lg font-bold tabular-nums">{ocrProgress.percent}%</span>
+                    </div>
+                    <div className="relative h-2.5 bg-slate-800/80 rounded-full overflow-hidden">
+                      <div 
+                        className="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-500 to-[#00f2fe] rounded-full transition-all duration-500 ease-out"
+                        style={{ width: `${ocrProgress.percent}%` }}
+                      />
+                      <div 
+                        className="absolute top-1/2 -translate-y-1/2 w-6 h-4 bg-white/30 blur-sm rounded-full transition-all duration-500 ease-out"
+                        style={{ left: `calc(${ocrProgress.percent}% - 12px)` }}
+                      />
+                      <div className="absolute inset-0 overflow-hidden">
+                        <div className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent animate-particle-flow" />
+                      </div>
+                      {ocrProgress.step === 'batch' && (
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-0 relative z-10">
+                      {OCR_STEPS.map((s, i) => {
+                        const stepOrder = [...OCR_STEPS, 'done'];
+                        const currentIdx = stepOrder.indexOf(ocrProgress.step);
+                        const thisIdx = stepOrder.indexOf(s);
+                        const isCompleted = thisIdx < currentIdx || ocrProgress.step === 'done';
+                        const isCurrent = ocrProgress.step === s;
+                        return (
+                          <React.Fragment key={s}>
+                            <div className="flex flex-col items-center gap-1.5 flex-1">
+                              <div className={`w-3 h-3 rounded-full transition-all duration-500 flex items-center justify-center ${
+                                isCompleted ? 'bg-[#00f2fe] shadow-[0_0_8px_rgba(0,242,254,0.6)]' :
+                                isCurrent ? 'bg-[#00f2fe] animate-pulse-glow' :
+                                'bg-slate-700'
+                              }`}>
+                                {isCompleted && (
+                                  <svg className="w-2 h-2 text-slate-900 animate-check-pop" viewBox="0 0 12 12" fill="none">
+                                    <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                  </svg>
+                                )}
+                              </div>
+                              <span className={`text-[9px] leading-tight text-center transition-colors duration-300 ${
+                                isCompleted ? 'text-[#00f2fe]' :
+                                isCurrent ? 'text-slate-300' :
+                                'text-slate-600'
+                              }`}>
+                                {OCR_STEP_LABELS[s] || s}
+                              </span>
+                            </div>
+                            {i < OCR_STEPS.length - 1 && (
+                              <div className={`h-px flex-1 -mt-4 transition-colors duration-300 ${
+                                isCompleted ? 'bg-[#00f2fe]/60 animate-line-glow' :
+                                isCurrent ? 'bg-slate-600' :
+                                'bg-slate-800'
+                              }`}>
+                              </div>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 {status === 'error' && (
                   <div className="mt-3 p-2 bg-red-600 rounded text-center">
                     {message}
@@ -515,13 +631,13 @@ export default function ImportPage() {
                   {uploadedUrls.length > 0 && !parsedData && (
                     <button
                       onClick={handleOcrImages}
-                      disabled={status === 'loading'}
-                      className={`tech-button w-full py-3 ${status === 'loading' ? 'bg-slate-700 text-slate-400' : 'tech-button-primary'}`}
+                      disabled={status === 'loading' || !!ocrProgress}
+                      className={`tech-button w-full py-3 ${status === 'loading' || !!ocrProgress ? 'bg-slate-700 text-slate-400' : 'tech-button-primary'}`}
                     >
-                      {status === 'loading' ? (
+                      {status === 'loading' || !!ocrProgress ? (
                         <>
                           <Loader2 className="w-5 h-5 animate-spin" />
-                          OCR 辨識中...
+                          {ocrProgress ? `OCR 辨識中... ${ocrProgress.percent}%` : 'OCR 辨識中...'}
                         </>
                       ) : (
                         <>

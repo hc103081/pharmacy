@@ -3,7 +3,7 @@
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { mergeByBarcode } from '@/lib/barcodeMerge';
 import { batchLookupNhi } from '@/lib/nhi';
-import type { ImportDrugItem, ImportResponse } from './types';
+import type { ImportDrugItem, ImportResponse, ImportOptions } from './types';
 
 /**
  * 匯入藥品清單到資料庫（含 NHI 中文名稱查詢、分頁、RPC 原子化寫入）
@@ -12,7 +12,7 @@ export async function importDrugs(
   manifestName: string,
   drugs: ImportDrugItem[],
   userId: string,
-  options: { order_number?: string; delivery_date?: string; source_file?: string; source_images?: string[] } = {}
+  options: ImportOptions = {}
 ): Promise<ImportResponse> {
   try {
     if (!drugs || drugs.length === 0) {
@@ -20,8 +20,8 @@ export async function importDrugs(
     }
 
     // 0. 合併相同條碼的項目（數量疊加，保留 storage_location 和 category）
-    // 使用共用的 mergeByBarcode 工具
-    const mergedDrugs = mergeByBarcode(drugs);
+    // 使用共用的 mergeByBarcode 工具，可透過 options.mergeByBarcode 停用
+    const mergedDrugs = options.mergeByBarcode !== false ? mergeByBarcode(drugs) : drugs;
 
     // 0.5. NHI 藥品中文名稱查詢與替換
     console.log(`[NHI] 開始查詢，共 ${mergedDrugs.length} 筆藥品`);

@@ -38,22 +38,69 @@ export async function fetchImageAsBase64(url: string): Promise<string> {
 
 /**
  * 修復 Gemini 回傳 JSON 的常見格式錯誤
- * 例如：缺少冒號、值為空、重複逗號等
+ * - Markdown 標記清除
+ * - 缺少逗號
+ * - 輸出截斷（不完整的 JSON 陣列／物件自動閉合）
  */
 export async function repairGeminiJson(text: string): Promise<string> {
   // 移除可能的 markdown 標記
   let cleaned = text.replace(/```json|```/g, '').trim();
+
   // 嘗試直接解析
   try {
     JSON.parse(cleaned);
     return cleaned;
   } catch {}
+
   // 嘗試在換行處插入逗號
-  cleaned = cleaned.replace(/"\s*\n\s*"/g, '",\n"');
+  const withCommas = cleaned.replace(/"\s*\n\s*"/g, '",\n"');
   try {
-    JSON.parse(cleaned);
-    return cleaned;
+    JSON.parse(withCommas);
+    return withCommas;
   } catch {}
+
+  // 嘗試修復被截斷的 JSON：找到最後一個完整的物件或字串
+  // 場景：Gemini 輸出 token 上限導致 items 陣列在結尾截斷
+  cleaned = withCommas;
+
+  // 步驟 1：找到最後一個完整的 "]" 或 "}"，在之後補上 "]}"
+  // 移除截斷位置後的不完整字元，然後閉合
+  try {
+    JSON.parse(cleaned + ']}');
+    return cleaned + ']}';
+  } catch {}
+
+  // 步驟 2：移除尾部不完整的物件（最後一個逗號後的內容），再補 "]}"
+  const lastComma = cleaned.lastIndexOf(',');
+  if (lastComma > 0) {
+    try {
+      const truncated = cleaned.slice(0, lastComma) + ']}';
+      JSON.parse(truncated);
+      return truncated;
+    } catch {}
+  }
+
+  // 步驟 2.5：移除尾部不完整的連續物件（最後一個 ]} 之後的內容截斷）
+  const lastItemEnd = cleaned.lastIndexOf('"}');
+  if (lastItemEnd > 0) {
+    try {
+      const truncated = cleaned.slice(0, lastItemEnd + 2) + ']}';
+      JSON.parse(truncated);
+      return truncated;
+    } catch {}
+  }
+
+  // 步驟 3：嘗試找最後一個完整的陣列元素，簡單閉合
+  const lastBrace = cleaned.lastIndexOf('}');
+  if (lastBrace > 0) {
+    try {
+      const truncated = cleaned.slice(0, lastBrace + 1) + ']}';
+      JSON.parse(truncated);
+      return truncated;
+    } catch {}
+  }
+
+  // 完全無法修復
   return '{}';
 }
 
