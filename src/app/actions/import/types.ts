@@ -5,6 +5,7 @@ export interface ImportDrugItem {
   product_code: string;
   name: string;
   expected_quantity: number;
+  warehouse_quantity?: number; // 總倉庫存量（紙本最右欄的純整數）
   bonus_quantity: number;
   storage_location: string;
   category: string;
@@ -32,6 +33,7 @@ export interface PageItem {
   product_code?: string;
   drug_name: string;
   quantity: string; // 原始字串如 "1罐"，後續用正則提取數字
+  warehouse_quantity?: number; // 總倉庫存量（紙本最右欄純整數，可能為負）
   page_number?: number; // 照片頁碼（用於排序）
   upload_index?: number; // 原始上傳順序（fallback 排序）
 }

@@ -1,0 +1,6 @@
+{"type":"click","text":"B\n    \n      方案 B — 完整方案\n      方案 A + 頁面驗證 + 漏品項警告提示。更可靠但實作時間較長。","choice":"b","id":null,"timestamp":1784641881593}
+{"type":"click","text":"B\n    \n      方案 B — 完整方案\n      方案 A + 頁面驗證 + 漏品項警告提示。更可靠但實作時間較長。","choice":"b","id":null,"timestamp":1784641882414}
+{"type":"click","text":"B\n    \n      方案 B — 完整方案\n      方案 A + 頁面驗證 + 漏品項警告提示。更可靠但實作時間較長。","choice":"b","id":null,"timestamp":1784641888368}
+{"type":"click","text":"B\n    \n      方案 B — 完整方案\n      方案 A + 頁面驗證 + 漏品項警告提示。更可靠但實作時間較長。","choice":"b","id":null,"timestamp":1784641888533}
+{"type":"click","text":"A\n    \n      方案 A — 最小改動\n      純 prompt 修正 + 新增 warehouse_quantity 欄位 + UI 顯示。快速、低風險。","choice":"a","id":null,"timestamp":1784641889163}
+{"type":"click","text":"B\n    \n      方案 B — 完整方案\n      方案 A + 頁面驗證 + 漏品項警告提示。更可靠但實作時間較長。","choice":"b","id":null,"timestamp":1784641889501}

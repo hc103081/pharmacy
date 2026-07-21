@@ -1,0 +1,105 @@
+<h2>三個問題的解決方案比較</h2>
+<p class="subtitle">針對 OCR 數量混淆、新增倉庫存量欄位、漏品項三個問題，提出兩種方案路徑</p>
+
+<div class="section">
+  <h3>方案 A：最小改動 — 純 Prompt 修正 (Recommended)</h3>
+  <p style="color: var(--text-secondary); margin-bottom: 1rem;">只改 Gemini prompt + 新增一個欄位，不改資料庫結構</p>
+
+  <div class="mockup">
+    <div class="mockup-header">變更範圍</div>
+    <div class="mockup-body">
+      <table style="width:100%; border-collapse: collapse; font-size: 0.85rem;">
+        <tr style="border-bottom: 1px solid var(--border);">
+          <th style="text-align:left; padding: 0.5rem;">檔案</th>
+          <th style="text-align:left; padding: 0.5rem;">改動</th>
+          <th style="text-align:left; padding: 0.5rem;">風險</th>
+        </tr>
+        <tr style="border-bottom: 1px solid var(--border);">
+          <td style="padding: 0.5rem;">ocr.ts（兩處 prompt）</td>
+          <td style="padding: 0.5rem;">修正 prompt 區分「補貨量」vs「總倉庫存量」、新增 warehouse_quantity 提取要求、強調「不要漏任何品項」</td>
+          <td style="padding: 0.5rem; color: var(--success);">低</td>
+        </tr>
+        <tr style="border-bottom: 1px solid var(--border);">
+          <td style="padding: 0.5rem;">types.ts (PageItem, ImportDrugItem)</td>
+          <td style="padding: 0.5rem;">新增 warehouse_quantity 欄位</td>
+          <td style="padding: 0.5rem; color: var(--success);">低</td>
+        </tr>
+        <tr style="border-bottom: 1px solid var(--border);">
+          <td style="padding: 0.5rem;">DrugCard.tsx</td>
+          <td style="padding: 0.5rem;">卡片顯示倉庫存量（與數量並排）</td>
+          <td style="padding: 0.5rem; color: var(--success);">低</td>
+        </tr>
+        <tr style="border-bottom: 1px solid var(--border);">
+          <td style="padding: 0.5rem;">PreviewPanel.tsx</td>
+          <td style="padding: 0.5rem;">預覽表格新增倉庫存量欄</td>
+          <td style="padding: 0.5rem; color: var(--success);">低</td>
+        </tr>
+        <tr>
+          <td style="padding: 0.5rem;">pdfParser.ts (ParsedItem, ParsedPdf)</td>
+          <td style="padding: 0.5rem;">型態新增 warehouse_quantity</td>
+          <td style="padding: 0.5rem; color: var(--success);">低</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="pros-cons">
+    <div class="pros"><h4>優點</h4><ul><li>改動最小，不牽動資料庫 migration</li><li>不影響現有掃描/清點流程</li><li>實施快速（1-2 小時）</li></ul></div>
+    <div class="cons"><h4>缺點</h4><ul><li>倉庫存量不會持久化到 DB（僅匯入時顯示）</li><li>漏品項只能靠 prompt 約束，無自動偵測/補救</li></ul></div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>方案 B：完整方案 — Prompt + 輕量驗證層</h3>
+  <p style="color: var(--text-secondary); margin-bottom: 1rem;">方案 A 的改動 + 新增頁面項目數驗證 + 倉庫存量可選持久化</p>
+
+  <div class="mockup">
+    <div class="mockup-header">額外變更（在方案 A 基礎上）</div>
+    <div class="mockup-body">
+      <table style="width:100%; border-collapse: collapse; font-size: 0.85rem;">
+        <tr style="border-bottom: 1px solid var(--border);">
+          <th style="text-align:left; padding: 0.5rem;">檔案</th>
+          <th style="text-align:left; padding: 0.5rem;">改動</th>
+          <th style="text-align:left; padding: 0.5rem;">風險</th>
+        </tr>
+        <tr style="border-bottom: 1px solid var(--border);">
+          <td style="padding: 0.5rem;">ocr.ts</td>
+          <td style="padding: 0.5rem;">每批 OCR 後驗證該頁項目數 ≈ 44（±2 容忍），不足時自動重試或標記警告</td>
+          <td style="padding: 0.5rem; color: var(--warning);">中</td>
+        </tr>
+        <tr style="border-bottom: 1px solid var(--border);">
+          <td style="padding: 0.5rem;">ocr.ts</td>
+          <td style="padding: 0.5rem;">新增頁碼連續性檢查（1→2→3...），跳頁時警告</td>
+          <td style="padding: 0.5rem; color: var(--warning);">中</td>
+        </tr>
+        <tr style="border-bottom: 1px solid var(--border);">
+          <td style="padding: 0.5rem;">ImportOverlay.tsx</td>
+          <td style="padding: 0.5rem;">匯入前顯示總項數確認摘要（e.g. "辨識 262/264 項，2項可能有漏"）</td>
+          <td style="padding: 0.5rem; color: var(--success);">低</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="pros-cons">
+    <div class="pros"><h4>優點</h4><ul><li>漏品項有主動偵測與使用者提示</li><li>頁碼連續性驗證增加資料可靠性</li><li>使用者可在匯入前看到異常警告</li></ul></div>
+    <div class="cons"><h4>缺點</h4><ul><li>需要更多實作時間（3-4 小時）</li><li>頁碼偵測依賴 OCR 準確度（OCR 本身可能錯頁碼）</li><li>驗證邏輯可能誤報（如末頁不足 44 項是正常的）</li></ul></div>
+  </div>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>方案 A — 最小改動</h3>
+      <p>純 prompt 修正 + 新增 warehouse_quantity 欄位 + UI 顯示。快速、低風險。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>方案 B — 完整方案</h3>
+      <p>方案 A + 頁面驗證 + 漏品項警告提示。更可靠但實作時間較長。</p>
+    </div>
+  </div>
+</div>

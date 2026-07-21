@@ -281,25 +281,30 @@ export default function ImportPage() {
     try {
       setStatus('loading');
       setIsImporting(true);
+      console.log('[Import] 開始匯入，parsedData:', parsedData);
       const sourceItems = items || parsedData.items;
+      console.log('[Import] sourceItems:', sourceItems);
       const drugs: ImportDrugItem[] = sourceItems.map(item => ({
         barcode: item.barcode,
         product_code: item.product_code || '',
         name: item.drug_name,
         expected_quantity: item.quantity,
+        warehouse_quantity: item.warehouse_quantity,
         bonus_quantity: 0,
         storage_location: item.storage_location || '',
         category: item.category || '',
       }));
+      console.log('[Import] 準備送入 importDrugs:', drugs);
       const finalName = manifestName.trim() || parsedData.order_metadata.order_number || `匯入清單 ${new Date().toLocaleDateString('zh-TW')}`;
-      // 照片 OCR 匯入不合併條碼（保留逐頁明細），PDF 匯入合併條碼
       const isPhotoImport = parsedData.order_metadata.source_type === 'images';
+      console.log('[Import] 呼叫 importDrugs...', { finalName, isPhotoImport });
       const result = await importDrugs(finalName, drugs, user!.id, {
         order_number: parsedData.order_metadata.order_number,
         delivery_date: parsedData.order_metadata.delivery_date,
         source_file: '',
         mergeByBarcode: !isPhotoImport,
       });
+      console.log('[Import] importDrugs 回傳:', result);
       if (result.success) {
         setIsImporting(false);
         setStatus('success');
@@ -311,7 +316,8 @@ export default function ImportPage() {
         setStatus('error');
         setMessage(`匯入失敗: ${result.error}`);
       }
-    } catch {
+    } catch (err) {
+      console.error('[Import] 錯誤:', err);
       setIsImporting(false);
       setStatus('error');
       setMessage('匯入過程中發生錯誤，請檢查數據格式');
@@ -394,6 +400,42 @@ export default function ImportPage() {
       
           {parsedData ? (
             <div className="flex-1 min-h-0">
+              {/* OCR 警告摘要 */}
+              {(parsedData as any).warnings && (parsedData as any).warnings.length > 0 && (
+                <div className="flex-shrink-0 mx-4 lg:mx-6 mt-4 mb-2 animate-in fade-in slide-in-from-top-2">
+                  <div className="tech-card p-4 border-[#ff9f0a]/50 bg-[#ff9f0a]/10">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-[#ff9f0a]/20 flex items-center justify-center mt-0.5">
+                        <span className="text-[10px] font-bold text-[#ff9f0a]">⚠</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-[#ff9f0a] mb-2">OCR 辨識可能有遺漏品項</p>
+                        <p className="text-xs text-slate-400 mb-2">
+                          總頁數 {(parsedData as any).order_metadata?.ocr_page_count || '?'} 頁，辨識 {parsedData.items.length} 項
+                          {(() => {
+                            const expected = ((parsedData as any).order_metadata?.ocr_page_count || 0) * 44;
+                            const diff = expected - parsedData.items.length;
+                            return diff > 0 ? `（預期 ~${expected} 項，可能缺 ${diff} 項）` : '';
+                          })()}
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {(parsedData as any).warnings.map((w: { missing_count: number; page_number: number }, i: number) => (
+                            <span key={i} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-[10px] font-medium text-slate-300">
+                              <span className="text-[#ff9f0a] font-bold">第 {w.page_number} 頁</span>
+                              {w.missing_count > 0 ? (
+                                <span>缺 {w.missing_count} 項</span>
+                              ) : (
+                                <span className="text-slate-500">異常多</span>
+                              )}
+                            </span>
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-2">建議人工檢查上述頁數的紙本，確認是否有遺漏品項</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
               <PreviewPanel 
                 data={parsedData}
                 validation={validateParsedPdf(parsedData)}

@@ -1,0 +1,136 @@
+<h2>OCR 漏品項 — 解決方案</h2>
+<p class="subtitle">Gemini 在單頁內偶發性漏辨識 1-2 個品項（非整頁截斷）</p>
+
+<div class="section">
+  <h3>根因分析</h3>
+  <p style="color: var(--text-secondary);">
+    目前 prompt 已說「保持項目在圖片中出現的物理順序」和「忽略表頭、頁尾」，但<strong>沒有明確要求「不要遺漏任何品項、完整輸出所有行」</strong>。
+    Gemini 可能因為以下原因跳過品項：
+  </p>
+  <ul style="color: var(--text-secondary); font-size: 0.85rem; margin-left: 1.5rem;">
+    <li>該品項的品名模糊、條碼不清 → Gemini 認為「辨識不出來乾脆不輸出」</li>
+    <li>靠近頁尾/頁首邊界 → 被誤判為表頭表尾而忽略</li>
+    <li>輸出 token 接近上限 → 最後 1-2 項被截斷（即使單頁也可能觸及 8K 限制）</li>
+    <li>品名過長或不常見 → Gemini 跳過「不確定」的項目</li>
+  </ul>
+</div>
+
+<div class="section">
+  <h3>方案：雙層防禦</h3>
+
+  <div class="mockup">
+    <div class="mockup-header">第一層：Prompt 強化</div>
+    <div class="mockup-body">
+      <p style="margin-bottom: 0.75rem;">在 prompt 加入以下約束：</p>
+      <ol style="font-size: 0.85rem; color: var(--text-secondary); margin-left: 1.5rem;">
+        <li style="margin-bottom: 0.5rem;"><strong>完整性要求</strong>：「請<strong>逐行輸出每一筆藥品項目，不可跳過任何一行</strong>。即使某欄位無法辨識（條碼模糊、品名不清），仍需輸出該行，將無法辨識的欄位設為空字串。」</li>
+        <li style="margin-bottom: 0.5rem;"><strong>總數自檢</strong>：「輸出完成後，請在 JSON 中加入 item_count 欄位記錄實際輸出的項目數。」</li>
+        <li style="margin-bottom: 0.5rem;"><strong>邊界提示</strong>：「頁尾的頁碼行 <strong>不是藥品</strong>，不要輸出；但頁尾<strong>前一行的藥品</strong>不可遺漏。」</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">第二層：後端驗證 + 自動重試</div>
+    <div class="mockup-body">
+      <p style="margin-bottom: 0.75rem;">在 parseBatchWithGemini 回傳後加入驗證邏輯：</p>
+      <ol style="font-size: 0.85rem; color: var(--text-secondary); margin-left: 1.5rem;">
+        <li style="margin-bottom: 0.5rem;"><strong>項目數檢查</strong>：若 items.length &lt; 40（正常一頁 44 項，容忍 ±4），標記為「可能漏項」</li>
+        <li style="margin-bottom: 0.5rem;"><strong>自動重試</strong>：漏項時自動重試一次（已存在重試機制，只需調整觸發條件）</li>
+        <li style="margin-bottom: 0.5rem;"><strong>警告標記</strong>：重試後仍不足時，回傳中附加 warning 欄位，供前端顯示</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">第三層：前端使用者提示（輕量）</div>
+    <div class="mockup-body">
+      <p style="margin-bottom: 0.75rem;">在 ImportOverlay 或 PreviewPanel 顯示摘要資訊：</p>
+      <div style="background: #07142b; color: #fff; border-radius: 8px; padding: 0.75rem;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <span style="font-size: 2rem;">📋</span>
+          <div>
+            <div style="font-weight: 600;">OCR 辨識完成</div>
+            <div style="font-size: 0.85rem; color: #86868b;">
+              總頁數 6 頁，辨識 262 項
+              <span style="color: #ff9f0a;">（預期 ~264 項，可能有 2 項遺漏）</span>
+            </div>
+            <div style="font-size: 0.75rem; color: #636366; margin-top: 0.25rem;">
+              頁 3：42 項 | 頁 5：43 項 ← 需人工確認
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>邊界測試</h3>
+  <table style="width:100%; border-collapse: collapse; font-size: 0.85rem;">
+    <tr style="border-bottom: 1px solid var(--border);">
+      <th style="text-align:left; padding: 0.4rem;">#</th>
+      <th style="text-align:left; padding: 0.4rem;">場景</th>
+      <th style="text-align:left; padding: 0.4rem;">期望行為</th>
+    </tr>
+    <tr style="border-bottom: 1px solid var(--border);">
+      <td style="padding: 0.4rem;">1</td>
+      <td style="padding: 0.4rem;">正常頁 44 項全辨識</td>
+      <td style="padding: 0.4rem;">items.length=44，無警告</td>
+    </tr>
+    <tr style="border-bottom: 1px solid var(--border);">
+      <td style="padding: 0.4rem;">2</td>
+      <td style="padding: 0.4rem;">末頁只有 30 項（正常）</td>
+      <td style="padding: 0.4rem;">不觸發漏項警告（末頁特殊處理）</td>
+    </tr>
+    <tr style="border-bottom: 1px solid var(--border);">
+      <td style="padding: 0.4rem;">3</td>
+      <td style="padding: 0.4rem;">某頁 42 項（漏 2 項）</td>
+      <td style="padding: 0.4rem;">自動重試 → 仍 42 → 標記 warning</td>
+    </tr>
+    <tr style="border-bottom: 1px solid var(--border);">
+      <td style="padding: 0.4rem;">4</td>
+      <td style="padding: 0.4rem;">某頁 39 項（漏 5 項）</td>
+      <td style="padding: 0.4rem;">自動重試 → 仍 39 → 標記 warning</td>
+    </tr>
+    <tr style="border-bottom: 1px solid var(--border);">
+      <td style="padding: 0.4rem;">5</td>
+      <td style="padding: 0.4rem;">重試後補回 44 項</td>
+      <td style="padding: 0.4rem;">清除 warning，正常匯入</td>
+    </tr>
+    <tr style="border-bottom: 1px solid var(--border);">
+      <td style="padding: 0.4rem;">6</td>
+      <td style="padding: 0.4rem;">全部頁都正常</td>
+      <td style="padding: 0.4rem;">前端顯示「辨識 N 項」，無警告</td>
+    </tr>
+    <tr>
+      <td style="padding: 0.4rem;">7</td>
+      <td style="padding: 0.4rem;">item_count 與實際 items.length 不符</td>
+      <td style="padding: 0.4rem;">以實際 items.length 為準，記錄 log 不一致</td>
+    </tr>
+  </table>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="leak-a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>三層全上 (Recommended)</h3>
+      <p>Prompt 強化 + 後端驗證重試 + 前端警告提示。最完整的防禦。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="leak-b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>只做 Prompt + 驗證</h3>
+      <p>不做前端提示，只靠後端自動重試。較簡單但使用者不知情。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="leak-c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>只做 Prompt 強化</h3>
+      <p>最輕量。只靠 prompt 約束 Gemini，不做任何驗證。</p>
+    </div>
+  </div>
+</div>

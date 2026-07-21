@@ -1,0 +1,115 @@
+<h2>總倉庫存量 — UI 顯示設計</h2>
+<p class="subtitle">DrugCard（掃描清點卡片）與 PreviewPanel（匯入預覽）兩處都要顯示 warehouse_quantity</p>
+
+<div class="section">
+  <h3>DrugCard 掃描卡片：三個方案</h3>
+
+  <div class="options">
+    <div class="option" data-choice="card-a" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>與數量欄並排顯示</h3>
+        <p>預期數量旁直接顯示倉庫存量，一行內呈現完整數字資訊。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="card-b" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>獨立一行小字</h3>
+        <p>卡片底部用較小字體、較低對比度顯示倉庫存量，不干擾主清點流程。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="card-c" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>可折疊/展開資訊區</h3>
+        <p>預設隱藏，點擊展開才看倉庫存量。手機小螢幕友善。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>DrugCard 示意（方案 A）</h3>
+
+  <div class="mockup" style="max-width: 400px; margin: 0 auto;">
+    <div class="mockup-header">DrugCard — 方案 A：並排顯示</div>
+    <div class="mockup-body" style="background: #07142b; color: #fff; border-radius: 12px; padding: 1rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <span style="font-weight: 600;">銀貝貝ENT棉棒滅菌10支</span>
+        <span style="background: #00f2fe20; color: #00f2fe; padding: 2px 8px; border-radius: 6px; font-size: 0.75rem;">已完成</span>
+      </div>
+      <div style="display: flex; gap: 1rem; margin-bottom: 0.5rem; font-size: 0.85rem;">
+        <span style="color: #86868b;">條碼: 4719881452117</span>
+        <span style="color: #86868b;">儲位: I3</span>
+      </div>
+      <div style="display: flex; gap: 1.5rem; align-items: baseline;">
+        <div>
+          <span style="color: #86868b; font-size: 0.7rem;">預期</span>
+          <span style="font-size: 1.5rem; font-weight: 700; color: #00f2fe; margin-left: 0.3rem;">10</span>
+        </div>
+        <div>
+          <span style="color: #86868b; font-size: 0.7rem;">實際</span>
+          <span style="font-size: 1.5rem; font-weight: 700; color: #34c759; margin-left: 0.3rem;">10</span>
+        </div>
+        <div style="border-left: 1px solid rgba(255,255,255,0.1); padding-left: 1.5rem;">
+          <span style="color: #86868b; font-size: 0.7rem;">倉庫存量</span>
+          <span style="font-size: 1.5rem; font-weight: 700; color: #ff9f0a; margin-left: 0.3rem;">120</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>PreviewPanel 預覽面板</h3>
+  <p style="color: var(--text-secondary); margin-bottom: 1rem;">目前預覽表格欄位：行號 | 條碼 | 健保碼 | 品名 | 預期量 | 儲位 | 類別</p>
+
+  <div class="mockup">
+    <div class="mockup-header">PreviewPanel 新增欄位</div>
+    <div class="mockup-body" style="background: #07142b; color: #fff; border-radius: 8px; padding: 0.75rem; overflow-x: auto;">
+      <table style="width:100%; border-collapse: collapse; font-size: 0.78rem;">
+        <thead>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.15); color: #86868b; text-align: left;">
+            <th style="padding: 0.4rem;">#</th><th style="padding: 0.4rem;">條碼</th><th style="padding: 0.4rem;">健保碼</th><th style="padding: 0.4rem;">品名</th><th style="padding: 0.4rem;">預期量</th><th style="padding: 0.4rem; color: #ff9f0a;">倉庫存量 ✨</th><th style="padding: 0.4rem;">儲位</th><th style="padding: 0.4rem;">類別</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+            <td style="padding: 0.4rem;">1</td><td style="padding: 0.4rem;">4719881452117</td><td style="padding: 0.4rem;">-</td><td style="padding: 0.4rem;">銀貝貝ENT棉棒</td><td style="padding: 0.4rem; color: #00f2fe;">10</td><td style="padding: 0.4rem; color: #ff9f0a;">120</td><td style="padding: 0.4rem;">I3</td><td style="padding: 0.4rem;">30</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+            <td style="padding: 0.4rem;">2</td><td style="padding: 0.4rem;">4719256000387</td><td style="padding: 0.4rem;">AC43588157</td><td style="padding: 0.4rem;">CYPROMIN 120mL</td><td style="padding: 0.4rem; color: #00f2fe;">5</td><td style="padding: 0.4rem; color: #ff9f0a;">84</td><td style="padding: 0.4rem;">Z9</td><td style="padding: 0.4rem;">X</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>方案選擇</h3>
+  <div class="options">
+    <div class="option" data-choice="ui-a" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>卡片 A（並排）+ 預覽表格新增欄位 (Recommended)</h3>
+        <p>清晰直觀，一眼看到三組數字關係。最符合藥局現場快速掃描的需求。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="ui-b" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>卡片 B（小字獨立行）+ 預覽表格新增欄位</h3>
+        <p>卡片保持簡潔，倉庫存量不搶眼。適合不想被額外數字干擾的使用者。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="ui-c" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>卡片 C（可折疊）+ 預覽表格新增欄位</h3>
+        <p>手機小螢幕最省空間，但多一步操作才能看到存量。</p>
+      </div>
+    </div>
+  </div>
+</div>
