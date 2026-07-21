@@ -121,12 +121,12 @@ const isNoBarcode = !drug.barcode?.trim() && !drug.product_code?.trim();
               {drug.name}
             </div>
 
-            {/* 條碼 + 預期數量（放大突出） */}
-            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            {/* 條碼 + 預期數量 + 倉庫數量（同一垂直容器） */}
+            <div className="flex flex-col gap-0.5 min-h-[3.5rem]">
               {isNoBarcode ? (
                 <span className="text-xs font-mono text-slate-600">無條碼</span>
               ) : (
-                <div className="flex flex-col gap-0.5 min-h-[3.5rem]">
+                <>
                   {drug.product_code?.trim() && (
                     <div className="flex items-center gap-1">
                       <span className="text-lg font-semibold text-[#00f2fe] drop-shadow-[0_0_8px_rgba(0,242,254,0.4)] leading-tight">
@@ -165,20 +165,23 @@ const isNoBarcode = !drug.barcode?.trim() && !drug.product_code?.trim();
                       )}
                     </div>
                   )}
-                </div>
-              )}
-              <span className="text-slate-600 text-sm">·</span>
-              <span className="text-xs font-medium text-slate-500">預期:</span>
-              <span className="text-xl font-bold text-[#00f2fe] drop-shadow-[0_0_8px_rgba(0,242,254,0.4)]">
-                {drug.expected_quantity}
-              </span>
-              {drug.warehouse_quantity != null && (
-                <>
-                  <span className="text-slate-600 text-sm">·</span>
-                  <span className="text-xs font-medium text-slate-500">倉庫:</span>
-                  <span className="text-xl font-bold text-[#ff9f0a] drop-shadow-[0_0_8px_rgba(255,159,10,0.4)]">
-                    {drug.warehouse_quantity}
-                  </span>
+                  {/* 預期 / 倉庫數量 - 與條碼同一垂直容器 */}
+                  <div className="flex items-center gap-1 text-sm pt-0.5 border-t border-slate-800/50">
+                    <span className="text-slate-600">·</span>
+                    <span className="text-xs font-medium text-slate-500">預期:</span>
+                    <span className="text-lg font-bold text-[#00f2fe] drop-shadow-[0_0_8px_rgba(0,242,254,0.4)]">
+                      {drug.expected_quantity}
+                    </span>
+                    {drug.warehouse_quantity != null && (
+                      <>
+                        <span className="text-slate-600">·</span>
+                        <span className="text-xs font-medium text-slate-500">倉庫:</span>
+                        <span className="text-lg font-bold text-[#ff9f0a] drop-shadow-[0_0_8px_rgba(255,159,10,0.4)]">
+                          {drug.warehouse_quantity}
+                        </span>
+                      </>
+                    )}
+                  </div>
                 </>
               )}
             </div>
