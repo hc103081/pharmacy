@@ -172,6 +172,15 @@ const isNoBarcode = !drug.barcode?.trim() && !drug.product_code?.trim();
               <span className="text-xl font-bold text-[#00f2fe] drop-shadow-[0_0_8px_rgba(0,242,254,0.4)]">
                 {drug.expected_quantity}
               </span>
+              {drug.warehouse_quantity != null && (
+                <>
+                  <span className="text-slate-600 text-sm">·</span>
+                  <span className="text-xs font-medium text-slate-500">倉庫:</span>
+                  <span className="text-xl font-bold text-[#ff9f0a] drop-shadow-[0_0_8px_rgba(255,159,10,0.4)]">
+                    {drug.warehouse_quantity}
+                  </span>
+                </>
+              )}
             </div>
 
             {isError && drug.actual_quantity !== undefined && (

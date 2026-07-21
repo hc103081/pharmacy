@@ -36,7 +36,7 @@ export default function PreviewPanel({
     const newItems = [...editedItems];
     const item = { ...newItems[index] };
     
-    if (field === 'quantity') {
+    if (field === 'quantity' || field === 'warehouse_quantity') {
       (item as any)[field] = Number(value) || 0;
     } else if (field === 'storage_location' || field === 'category') {
       (item as any)[field] = value as string;
@@ -184,9 +184,10 @@ export default function PreviewPanel({
                   <th className="py-3 px-2 font-medium">儲位</th>
                   <th className="py-3 px-2 font-medium">類別</th>
                   <th className="py-3 px-2 font-medium">商品代碼（product_code）</th>
-<th className="py-3 px-2 font-medium">國際條碼（barcode）</th>
+                  <th className="py-3 px-2 font-medium">國際條碼（barcode）</th>
                   <th className="py-3 px-2 font-medium">品名</th>
                   <th className="py-3 px-2 font-medium text-right">補貨量</th>
+                  <th className="py-3 px-2 font-medium text-right" style={{color: '#ff9f0a'}}>倉庫存量</th>
                   <th className="py-3 px-2 font-medium text-center">同碼合併</th>
                   <th className="py-3 px-2 font-medium text-center">狀態</th>
                 </tr>
@@ -246,6 +247,13 @@ export default function PreviewPanel({
                           onChange={(e) => handleInputChange(idx, 'quantity', e.target.value)}
                           className="bg-transparent text-slate-200 border border-transparent hover:border-slate-700 focus:border-[#00f2fe] focus:bg-slate-950 outline-none px-1 rounded transition-all text-right w-16"
                         />
+                      </td>
+                      <td className="py-3 px-2 text-right">
+                        {item.warehouse_quantity != null ? (
+                          <span className="text-[#ff9f0a] font-bold">{item.warehouse_quantity}</span>
+                        ) : (
+                          <span className="text-slate-600">-</span>
+                        )}
                       </td>
                       <td className="py-3 px-2 text-right">
                         {(item.merged_count && item.merged_count > 1) ? (
@@ -318,6 +326,8 @@ export default function PreviewPanel({
                         <div className="flex items-center gap-1 mt-2 flex-nowrap">
                           <span className="text-slate-400 text-xs whitespace-nowrap">補貨量</span>
                           <input type="number" value={item.quantity} onChange={(e) => handleInputChange(idx, 'quantity', e.target.value)} className="w-14 bg-transparent text-slate-200 border-none focus:outline-none focus:ring-0 appearance-none" />
+                          <span className="text-slate-400 text-xs whitespace-nowrap">倉庫</span>
+                          <input type="number" value={item.warehouse_quantity != null ? item.warehouse_quantity : ''} onChange={(e) => handleInputChange(idx, 'warehouse_quantity', e.target.value)} className="w-10 bg-transparent text-[#ff9f0a] border-none focus:outline-none focus:ring-0 appearance-none" />
                           <span className="text-slate-400 text-xs whitespace-nowrap">儲位</span>
                           <input value={item.storage_location || ''} onChange={(e) => handleInputChange(idx, 'storage_location', e.target.value)} className="w-10 bg-transparent text-slate-200 border-none focus:outline-none focus:ring-0 appearance-none" />
                           <span className="text-slate-400 text-xs whitespace-nowrap">類別</span>

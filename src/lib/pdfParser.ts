@@ -5,6 +5,7 @@ export interface ParsedItem {
   barcode: string;
   drug_name: string;
   quantity: number;
+  warehouse_quantity?: number; // 總倉庫存量（紙本最右欄純整數，可能為負）
   bonus_quantity: number; // [保留欄位，新格式固定為 0]
   storage_location: string; // 儲位（如 F3）
   category: string; // 類別（如 4）
