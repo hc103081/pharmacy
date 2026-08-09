@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { updateDrugStatus } from '@/app/actions/scan/updatePhoto';
 import { incrementStorageSize } from '@/app/actions/manifests/storage';
@@ -15,10 +15,6 @@ interface UsePhotoCaptureOptions {
  onToast: (message: string) => void;
  onRefresh: () => Promise<void>;
  onResetInput: () => void;
- // AI 計數相關
- isAIModeEnabled?: boolean;
- onAIAdoptCount?: () => number;
- onAIDispose?: () => void;
 }
 
 interface UsePhotoCaptureReturn {
@@ -87,10 +83,12 @@ export function usePhotoCapture({
 
  const drugId = matchingItem.id;
 
- // 如果有 AI 計數結果，優先使用
+ // 如果有 AI 計數結果（從 window.aiAdoptedCount 讀取），優先使用
  let finalQuantity = 0;
- if (isAIModeEnabled && onAIAdoptCount) {
-   finalQuantity = onAIAdoptCount();
+ const aiCount = window.aiAdoptedCount;
+ if (aiCount !== undefined) {
+   finalQuantity = aiCount;
+   delete window.aiAdoptedCount; // 讀取後清除
  } else if (selectedStatus === 'correct') {
    finalQuantity = matchingItem.expected_quantity;
  } else {
@@ -195,10 +193,12 @@ export function usePhotoCapture({
 
  const drugId = matchingItem.id;
 
- // 如果有 AI 計數結果，優先使用
+ // 如果有 AI 計數結果（從 window.aiAdoptedCount 讀取），優先使用
  let finalQuantity = 0;
- if (isAIModeEnabled && onAIAdoptCount) {
-   finalQuantity = onAIAdoptCount();
+ const aiCount = window.aiAdoptedCount;
+ if (aiCount !== undefined) {
+   finalQuantity = aiCount;
+   delete window.aiAdoptedCount; // 讀取後清除
  } else if (selectedStatus === 'correct') {
    finalQuantity = matchingItem.expected_quantity;
  } else {
@@ -289,19 +289,12 @@ export function usePhotoCapture({
  });
 
  // Note: We don't revoke the object URL immediately to avoid flickering
- // It will be cleaned up when the component unmounts or when a new file is selected
- }
- })();
- },
+// It will be cleaned up when the component unmounts or when a new file is selected
+}
+})();
+},
 [manifestId, matchingItem, selectedStatus, actualQuantity, onResetInput, onRefresh]
 );
-
-// 關閉 Modal 時釋放 AI 資源
-useEffect(() => {
-  if (!showCameraModal && onAIDispose) {
-    onAIDispose();
-  }
-}, [showCameraModal, onAIDispose]);
 
 return {
     fileInputRef,
