@@ -13,13 +13,15 @@ import {
   ChevronDown,
   X,
   Camera as CameraIcon,
-  RefreshCw
+  RefreshCw,
+  Settings
 } from 'lucide-react';
 import Link from 'next/link';
 import { TeachingButton } from '@/components/teaching';
 import { DrugCard, ErrorDrawer, JumpDialog, PhotoPreview, BarcodeSearchBar, CameraModal } from './components';
 import { useBarcodeMatch, usePhotoCapture, usePagePersistence } from './hooks';
 import { useScanKeyboard } from './hooks/useScanKeyboard';
+import { useAICounting } from '@/hooks/useAICounting';
 import type { DrugItem, ErrorDrugItem, JumpTarget } from '@/types';
 import { resetDrugStatus } from '@/app/actions/scan/resetDrug';
 import { updateDrugStatus } from '@/app/actions/scan/updatePhoto';
@@ -54,6 +56,8 @@ export default function ScanContent() {
   const pageInputRef = useRef<HTMLInputElement>(null);
   const [isStatsExpanded, setIsStatsExpanded] = useState(false);
   const { isKeyboardOpen } = useScanKeyboard();
+  const { state: aiState, modelState, toggleAIMode, adoptCount, dispose } = useAICounting();
+  const [showAISettings, setShowAISettings] = useState(false);
   const shouldJumpToNextRef = useRef(false);
   const pendingBarcodeRef = useRef<string | null>(null);
   const requestRef = useRef<{ manifestId: string | null; currentPage: number } | null>(null);
@@ -578,6 +582,31 @@ export default function ScanContent() {
             </div>
   
             <div className="flex items-center gap-2 shrink-0">
+              {/* AI 計數設定齒輪 */}
+              <button
+                onClick={() => setShowAISettings(!showAISettings)}
+                className="p-2 rounded-full hover:bg-slate-700 transition-colors"
+                aria-label="AI 計數設定"
+              >
+                <Settings className="w-5 h-5 text-slate-400 hover:text-[#00f2fe]" />
+              </button>
+              {showAISettings && (
+                <div className="absolute right-4 top-full mt-2 p-3 bg-[#162a56] border border-blue-500/30 rounded-xl shadow-lg z-50 min-w-[200px]">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={aiState.isAIModeEnabled}
+                      onChange={e => toggleAIMode(e.target.checked)}
+                      className="w-4 h-4 accent-[#00f2fe]" />
+                    <span className="text-sm font-medium text-slate-200">啟用 AI 計數模式</span>
+                  </label>
+                  <div className="mt-2 pt-2 border-t border-slate-700 text-xs text-slate-500">
+                    模式: {modelState.backend === 'webgpu' ? '🟢 WebGPU' : '🟡 CPU (WASM)'}
+                    {modelState.encoder === 'loading' && <span className="ml-2 animate-pulse">載入中...</span>}
+                    {modelState.encoder === 'error' && <span className="ml-2 text-red-400">錯誤: {modelState.errorMessage}</span>}
+                  </div>
+                </div>
+              )}
               <Link
                 href={`/summary/${manifestId}`}
                 className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-950/50 text-slate-300 rounded-xl border border-slate-800 hover:bg-slate-800 transition-all text-xs font-medium"
@@ -886,6 +915,31 @@ export default function ScanContent() {
             </div>
   
             <div className="flex items-center gap-2">
+              {/* AI 計數設定齒輪 (桌面版) */}
+              <button
+                onClick={() => setShowAISettings(!showAISettings)}
+                className="p-2 rounded-full hover:bg-slate-700 transition-colors"
+                aria-label="AI 計數設定"
+              >
+                <Settings className="w-5 h-5 text-slate-400 hover:text-[#00f2fe]" />
+              </button>
+              {showAISettings && (
+                <div className="absolute right-4 top-full mt-2 p-3 bg-[#162a56] border border-blue-500/30 rounded-xl shadow-lg z-50 min-w-[200px]">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={aiState.isAIModeEnabled}
+                      onChange={e => toggleAIMode(e.target.checked)}
+                      className="w-4 h-4 accent-[#00f2fe]" />
+                    <span className="text-sm font-medium text-slate-200">啟用 AI 計數模式</span>
+                  </label>
+                  <div className="mt-2 pt-2 border-t border-slate-700 text-xs text-slate-500">
+                    模式: {modelState.backend === 'webgpu' ? '🟢 WebGPU' : '🟡 CPU (WASM)'}
+                    {modelState.encoder === 'loading' && <span className="ml-2 animate-pulse">載入中...</span>}
+                    {modelState.encoder === 'error' && <span className="ml-2 text-red-400">錯誤: {modelState.errorMessage}</span>}
+                  </div>
+                </div>
+              )}
               <Link
                 href={`/summary/${manifestId}`}
                 className="flex items-center gap-1 px-3 py-1.5 bg-slate-950/50 text-slate-300 rounded-xl border border-slate-800 hover:bg-slate-800 transition-all text-xs font-medium flex-1 justify-center"
@@ -1150,6 +1204,9 @@ export default function ScanContent() {
         onCapture={handleCameraFile}
         onError={setCameraError}
         onCheckingSupport={setCheckingCameraSupport}
+        isAIModeEnabled={aiState.isAIModeEnabled}
+        onAIAdoptCount={adoptCount}
+        onAIDispose={dispose}
       />
     )}
     </>
