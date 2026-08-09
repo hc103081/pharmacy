@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import * as ort from 'onnxruntime-web';
-import { modelLoader } from '@/lib/ai/model-loader';
+import { getModelLoader } from '@/lib/ai/model-loader';
 import { processClick, handleNegativeClick, binarizeAndResize, computeBBox } from '@/lib/ai/counting-logic';
 import type { AICountingState, AISegmentedItem, ModelLoadState } from '@/types/ai-count';
 
@@ -24,22 +24,30 @@ export function useAICounting() {
     historyIndex: 0,
   });
 
-  const [modelState, setModelState] = useState<ModelLoadState>(modelLoader.getState());
+  const [modelState, setModelState] = useState<ModelLoadState>({
+    decoder: 'idle',
+    encoder: 'idle',
+    backend: 'unknown',
+    isEncoderProcessing: false,
+  });
   const decoderSessionRef = useRef<ort.InferenceSession | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
-  const animationFrameRef = useRef<number>();
+  const animationFrameRef = useRef<number | undefined>(undefined);
+  const modelLoaderRef = useRef<ReturnType<typeof getModelLoader> | null>(null);
 
-  // 訂閱模型載入狀態
+  // 初始化 ModelLoader (僅客戶端)
   useEffect(() => {
-    const unsubscribe = modelLoader.subscribe(setModelState);
-    return unsubscribe;
+    const loader = getModelLoader();
+    modelLoaderRef.current = loader;
+    const unsubscribe = loader.subscribe(setModelState);
+    return () => unsubscribe();
   }, []);
 
   // Phase 1: 進頁即初始化 Decoder (Main Thread 也需要自己的 session)
   useEffect(() => {
     let mounted = true;
-    modelLoader.initDecoder().then(({ backend }) => {
+    modelLoaderRef.current?.initDecoder().then(({ backend }) => {
       if (!mounted) return;
       import('@/lib/ai/onnx-session').then(({ createDecoderSession }) =>
         createDecoderSession().then(({ session }) => {
@@ -55,7 +63,7 @@ export function useAICounting() {
   const toggleAIMode = useCallback(async (enabled: boolean) => {
     setState(s => ({ ...s, isAIModeEnabled: enabled, showAIOverlay: enabled }));
     if (enabled && modelState.encoder !== 'ready' && modelState.encoder !== 'loading') {
-      await modelLoader.initEncoder();
+      await modelLoaderRef.current?.initEncoder();
     }
     if (!enabled) {
       // 關閉模式時清理
@@ -77,7 +85,7 @@ export function useAICounting() {
       historyIndex: 0,
     }));
 
-    const { embedding, shape } = await modelLoader.runEncoder(bitmap);
+    const { embedding, shape } = await modelLoaderRef.current!.runEncoder(bitmap);
     const tensor = new ort.Tensor('float32', embedding, shape);
     setState(s => ({ ...s, imageEmbedding: tensor, isEncoderReady: true, showAIOverlay: true }));
     bitmap.close();
@@ -191,7 +199,9 @@ export function useAICounting() {
   useEffect(() => {
     if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
     animationFrameRef.current = requestAnimationFrame(renderOverlay);
-    return () => cancelAnimationFrame(animationFrameRef.current);
+    return () => {
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+    };
   }, [renderOverlay]);
 
   // Undo/Redo 歷史堆疊
@@ -233,9 +243,9 @@ export function useAICounting() {
       state.imageEmbedding.dispose();
     }
     // maskData 是 Uint8Array 不需 dispose
-    decoderSessionRef.current?.dispose();
+    // decoderSessionRef.current?.dispose(); // InferenceSession 無 dispose 方法
     decoderSessionRef.current = null;
-    modelLoader.dispose();
+    modelLoaderRef.current?.dispose();
     setState(s => ({
       ...s,
       imageEmbedding: null,

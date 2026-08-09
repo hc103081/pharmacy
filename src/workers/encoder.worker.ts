@@ -77,8 +77,10 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
         const float32Data = embedding.data as Float32Array;
 
         // 關鍵：Transferable 零拷貝傳回 Main Thread
+        // embedding.dims 是 readonly，需轉為 mutable array
+        const shape: number[] = Array.from(embedding.dims);
         self.postMessage(
-          { type: 'EMBEDDING_READY', embedding: float32Data, shape: embedding.dims } satisfies WorkerResponse,
+          { type: 'EMBEDDING_READY', embedding: float32Data, shape: shape as number[] } satisfies WorkerResponse,
           [float32Data.buffer]
         );
 
@@ -88,8 +90,7 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
       }
 
       case 'DISPOSE': {
-        encoderSession?.dispose();
-        decoderSession?.dispose();
+        // InferenceSession 在較新版本沒有 dispose 方法，直接釋放參考
         encoderSession = null;
         decoderSession = null;
         break;

@@ -40,4 +40,16 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# MobileSAM models & local dev artifacts
+MobileSAM/
+mobilesam-env/
+public/models/*.onnx
+public/models/*.onnx.data
+public/models/*_fp32.onnx
+public/wasm/*.wasm
+public/workbox-*.js
+public/workers/
+export_onnx.py
+mobile_sam.pt
+
 log.txt

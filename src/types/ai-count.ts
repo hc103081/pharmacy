@@ -36,6 +36,7 @@ export interface ModelLoadState {
   encoder: 'idle' | 'loading' | 'ready' | 'error';
   backend: 'webgpu' | 'wasm' | 'unknown';
   errorMessage?: string;
+  isEncoderProcessing: boolean;
 }
 
 // Worker 通訊協定

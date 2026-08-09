@@ -80,7 +80,7 @@ export async function processClick(
   imageEmbedding: ort.Tensor
 ): Promise<AISegmentedItem | { action: 'delete'; item: AISegmentedItem } | null> {
   // SAM 輸入解析度 1024x1024
-  const pointCoords = new Float32Array([[clickX * 1024, clickY * 1024]]);
+  const pointCoords = new Float32Array([clickX * 1024, clickY * 1024]);
   const pointLabels = new Float32Array([label]);
 
   const feeds = {
