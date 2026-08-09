@@ -13,7 +13,7 @@ const withPWA = require('next-pwa')({
         cacheName: 'supabase-api',
         expiration: {
           maxEntries: 100,
-          maxAgeSeconds: 60 * 60 * 24, // 24 hours
+          maxAgeSeconds: 60 * 60 * 24,
         },
       },
     },
@@ -26,6 +26,8 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "25mb",
     },
   },
+  // 強制使用 Webpack (Next.js 16+ 預設 Turbopack)
+  turbopack: {},
 };
 
 export default withPWA(nextConfig);
