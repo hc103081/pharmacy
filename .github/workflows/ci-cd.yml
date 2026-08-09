@@ -1,0 +1,215 @@
+# CI/CD Pipeline for PhamaCount Web with MobileSAM
+# .github/workflows/ci-cd.yml
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+env:
+  NODE_VERSION: '20.x'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # ==========================================
+  # 檢查與測試
+  # ==========================================
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true  # 重要：下載 LFS 檔案
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run TypeScript type check
+        run: npx tsc --noEmit
+
+      - name: Run Jest tests
+        run: npm test -- --ci --coverage
+
+      - name: Verify model files exist
+        run: |
+          echo "🔍 驗證模型檔案..."
+          test -f public/models/mobile_sam_encoder.onnx && echo "✅ Encoder 存在" || (echo "❌ 缺少 Encoder" && exit 1)
+          test -f public/models/mobile_sam_decoder.onnx && echo "✅ Decoder 存在" || (echo "❌ 缺少 Decoder" && exit 1)
+          test -f public/wasm/ort-wasm.wasm && echo "✅ WASM 存在" || (echo "❌ 缺少 WASM" && exit 1)
+          test -f public/wasm/ort-wasm-simd.wasm && echo "✅ WASM SIMD 存在" || (echo "❌ 缺少 WASM SIMD" && exit 1)
+
+  # ==========================================
+  # 建置測試
+  # ==========================================
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Next.js application
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextjs-build
+          path: |
+            .next
+            public
+          retention-days: 1
+
+  # ==========================================
+  # E2E 測試
+  # ==========================================
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: nextjs-build
+          path: .
+
+      - name: Start preview server
+        run: |
+          nohup npm run start > server.log 2>&1 &
+          sleep 10
+          curl -f http://localhost:3000 || (cat server.log && exit 1)
+
+      - name: Run Playwright E2E tests
+        run: npx playwright test tests/e2e/ai-counting.spec.ts --reporter=line
+        env:
+          HAS_MODEL_FILES: "true"
+
+  # ==========================================
+  # 部署到 Vercel (Preview)
+  # ==========================================
+  deploy-preview:
+    name: Deploy Preview
+    runs-on: ubuntu-latest
+    needs: [build, e2e-tests]
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Pull Vercel Environment
+        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build Project Artifacts
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy to Vercel Preview
+        run: |
+          url=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          echo "PREVIEW_URL=$url" >> $GITHUB_ENV
+
+      - name: Comment PR with Preview URL
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '🚀 **Preview 部署完成**\n\n測試連結: ${{ env.PREVIEW_URL }}\n\n請檢查 AI 計數功能是否正常運作。'
+            })
+
+  # ==========================================
+  # 部署到 Vercel (Production)
+  # ==========================================
+  deploy-production:
+    name: Deploy Production
+    runs-on: ubuntu-latest
+    needs: [build, e2e-tests]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Pull Vercel Environment
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build Project Artifacts
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy to Vercel Production
+        run: |
+          url=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          echo "PRODUCTION_URL=$url" >> $GITHUB_ENV
+
+      - name: Notify Deployment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: ${{ github.event.deployment.id }},
+              state: 'success',
+              environment_url: '${{ env.PRODUCTION_URL }}',
+              description: 'Production deployment successful'
+            })

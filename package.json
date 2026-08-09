@@ -10,7 +10,10 @@
     "lint": "eslint",
     "seed:test": "node scripts/seed-test-data.js",
     "cleanup:test": "node scripts/cleanup-test-data.js",
-    "verify:models": "node scripts/verify-models.js"
+    "verify:models": "node scripts/verify-models.js",
+    "download:models": "python scripts/download_and_convert_models.py",
+    "deploy:preview": "vercel --token=$VERCEL_TOKEN",
+    "deploy:prod": "vercel --prod --token=$VERCEL_TOKEN"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

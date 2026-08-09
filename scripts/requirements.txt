@@ -1,0 +1,5 @@
+# Python 依賴 (用於模型下載/轉換腳本)
+onnx>=1.15.0
+onnxruntime>=1.17.0
+torch>=2.0.0
+requests>=2.31.0
