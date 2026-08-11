@@ -25,6 +25,56 @@ function preprocessImage(bitmap) {
   return new ort.Tensor('float32', data, [1, 3, 1024, 1024]);
 }
 
+async function loadModelWithProgress(modelUrl, wasmConfig, onProgress) {
+  ort.env.wasm.numThreads = wasmConfig.numThreads;
+  ort.env.wasm.simd = wasmConfig.simd;
+  
+  // 先用 fetch 下載並追蹤進度
+  onProgress({ progress: 5, stage: 'downloading' });
+  const response = await fetch(modelUrl);
+  if (!response.ok) throw new Error('Model download failed');
+  
+  const contentLength = response.headers.get('content-length');
+  const total = contentLength ? parseInt(contentLength, 10) : 0;
+  let loaded = 0;
+  
+  const reader = response.body.getReader();
+  const chunks = [];
+  
+  onProgress({ progress: 10, stage: 'downloading' });
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    loaded += value.length;
+    if (total > 0) {
+      const percent = 10 + Math.round((loaded / total) * 70); // 10-80%
+      onProgress({ progress: percent, stage: 'downloading' });
+    }
+  }
+  
+  onProgress({ progress: 85, stage: 'initializing' });
+  
+  // 合併 chunks 為 ArrayBuffer
+  const modelData = new Uint8Array(loaded);
+  let offset = 0;
+  for (const chunk of chunks) {
+    modelData.set(chunk, offset);
+    offset += chunk.length;
+  }
+  
+  onProgress({ progress: 90, stage: 'initializing' });
+  
+  // 從 ArrayBuffer 建立 Session
+  const session = await ort.InferenceSession.create(modelData, {
+    executionProviders: ['webgpu'],
+    graphOptimizationLevel: 'all',
+  });
+  
+  onProgress({ progress: 100, stage: 'ready' });
+  return session;
+}
+
 self.onmessage = async (e) => {
   const { type } = e.data;
   try {
@@ -53,17 +103,24 @@ self.onmessage = async (e) => {
         const { modelUrl, wasmConfig } = e.data;
         ort.env.wasm.numThreads = wasmConfig.numThreads;
         ort.env.wasm.simd = wasmConfig.simd;
+        
+        const sendProgress = (progress, stage) => {
+          self.postMessage({ type: 'ENCODER_PROGRESS', progress, stage });
+        };
+        
         try {
-          encoderSession = await ort.InferenceSession.create(modelUrl, {
-            executionProviders: ['webgpu'],
-            graphOptimizationLevel: 'all',
-          });
+          encoderSession = await loadModelWithProgress(modelUrl, wasmConfig, sendProgress);
+          self.postMessage({ type: 'ENCODER_READY' });
         } catch {
-          encoderSession = await ort.InferenceSession.create(modelUrl, {
-            executionProviders: ['wasm'],
-          });
+          // WebGPU 失敗，降級 WASM
+          sendProgress(10, 'downloading');
+          try {
+            encoderSession = await loadModelWithProgress(modelUrl, wasmConfig, sendProgress);
+            self.postMessage({ type: 'ENCODER_READY' });
+          } catch (e) {
+            self.postMessage({ type: 'ERROR', message: 'Encoder init failed: ' + e.message });
+          }
         }
-        self.postMessage({ type: 'ENCODER_READY' });
         break;
       }
       case 'RUN_ENCODER': {
@@ -82,8 +139,6 @@ self.onmessage = async (e) => {
         break;
       }
       case 'DISPOSE': {
-        encoderSession?.dispose();
-        decoderSession?.dispose();
         encoderSession = null;
         decoderSession = null;
         break;
@@ -103,6 +158,8 @@ export class ModelLoader {
     encoder: 'idle',
     backend: 'unknown',
     isEncoderProcessing: false,
+    encoderProgress: 0,
+    encoderStage: 'downloading',
   };
   private listeners: Set<(state: ModelLoadState) => void> = new Set();
   private decoderReadyResolver: ((value: { backend: 'webgpu' | 'wasm' }) => void) | null = null;
@@ -128,6 +185,8 @@ export class ModelLoader {
         break;
       case 'ENCODER_READY':
         this.state.encoder = 'ready';
+        this.state.encoderProgress = 100;
+        this.state.encoderStage = 'ready';
         this.encoderReadyResolver?.();
         this.encoderReadyResolver = null;
         break;
@@ -135,6 +194,10 @@ export class ModelLoader {
         this.state.isEncoderProcessing = false;
         this.embeddingResolver?.({ embedding: e.data.embedding, shape: e.data.shape });
         this.embeddingResolver = null;
+        break;
+      case 'ENCODER_PROGRESS':
+        this.state.encoderProgress = e.data.progress;
+        this.state.encoderStage = e.data.stage;
         break;
       case 'ERROR':
         this.state.decoder = 'error';
@@ -160,7 +223,6 @@ export class ModelLoader {
 
   async initDecoder(): Promise<{ backend: 'webgpu' | 'wasm' }> {
     if (this.state.decoder !== 'idle') {
-      // decoder ready 時 backend 已設為 webgpu 或 wasm
       return { backend: this.state.backend === 'webgpu' ? 'webgpu' : 'wasm' };
     }
     this.state.decoder = 'loading';
@@ -180,6 +242,8 @@ export class ModelLoader {
   async initEncoder(): Promise<void> {
     if (this.state.encoder !== 'idle') return;
     this.state.encoder = 'loading';
+    this.state.encoderProgress = 0;
+    this.state.encoderStage = 'downloading';
     this.notify();
 
     this.worker.postMessage({
@@ -195,6 +259,8 @@ export class ModelLoader {
 
   async runEncoder(imageBitmap: ImageBitmap): Promise<{ embedding: Float32Array; shape: number[] }> {
     this.state.isEncoderProcessing = true;
+    this.state.encoderProgress = 0;
+    this.state.encoderStage = 'initializing';
     this.notify();
 
     // Transferable: 零拷貝傳輸 ImageBitmap 給 Worker
@@ -208,7 +274,7 @@ export class ModelLoader {
   dispose() {
     this.worker.postMessage({ type: 'DISPOSE' });
     this.worker.terminate();
-    URL.revokeObjectURL(this.workerUrl); // 釋放 Blob URL
+    URL.revokeObjectURL(this.workerUrl);
     this.listeners.clear();
   }
 }

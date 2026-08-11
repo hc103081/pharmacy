@@ -606,9 +606,30 @@ export default function ScanContent() {
                       className="w-4 h-4 accent-[#00f2fe]" />
                     <span className="text-sm font-medium text-slate-200">啟用 AI 計數模式</span>
                   </label>
+                  
+                  {/* 載入進度顯示 */}
+                  {modelState.encoder === 'loading' && modelState.encoderProgress !== undefined && (
+                    <div className="mt-3 p-2 bg-slate-900/50 rounded-lg border border-slate-700">
+                      <div className="flex justify-between text-xs text-slate-400 mb-1">
+                        <span>{modelState.encoderStage === 'downloading' ? '下載模型' : modelState.encoderStage === 'initializing' ? '初始化模型' : '完成'}</span>
+                        <span>{modelState.encoderProgress}%</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-[#00f2fe] to-[#4fd1c5] transition-all duration-300 ease-out"
+                          style={{ width: `${modelState.encoderProgress}%` }}
+                        />
+                      </div>
+                      <p className="text-slate-400 text-xs text-center mt-1">
+                        {modelState.encoderStage === 'downloading' 
+                          ? `正在下載 Encoder (~11MB)...` 
+                          : `正在初始化模型...`}
+                      </p>
+                    </div>
+                  )}
+                  
                   <div className="mt-2 pt-2 border-t border-slate-700 text-xs text-slate-500">
                     模式: {modelState.backend === 'webgpu' ? '🟢 WebGPU' : '🟡 CPU (WASM)'}
-                    {modelState.encoder === 'loading' && <span className="ml-2 animate-pulse">載入中...</span>}
                     {modelState.encoder === 'error' && <span className="ml-2 text-red-400">錯誤: {modelState.errorMessage}</span>}
                   </div>
                 </div>
@@ -945,9 +966,30 @@ export default function ScanContent() {
                       className="w-4 h-4 accent-[#00f2fe]" />
                     <span className="text-sm font-medium text-slate-200">啟用 AI 計數模式</span>
                   </label>
+                  
+                  {/* 載入進度顯示 */}
+                  {modelState.encoder === 'loading' && modelState.encoderProgress !== undefined && (
+                    <div className="mt-3 p-2 bg-slate-900/50 rounded-lg border border-slate-700">
+                      <div className="flex justify-between text-xs text-slate-400 mb-1">
+                        <span>{modelState.encoderStage === 'downloading' ? '下載模型' : modelState.encoderStage === 'initializing' ? '初始化模型' : '完成'}</span>
+                        <span>{modelState.encoderProgress}%</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-[#00f2fe] to-[#4fd1c5] transition-all duration-300 ease-out"
+                          style={{ width: `${modelState.encoderProgress}%` }}
+                        />
+                      </div>
+                      <p className="text-slate-400 text-xs text-center mt-1">
+                        {modelState.encoderStage === 'downloading' 
+                          ? `正在下載 Encoder (~11MB)...` 
+                          : `正在初始化模型...`}
+                      </p>
+                    </div>
+                  )}
+                  
                   <div className="mt-2 pt-2 border-t border-slate-700 text-xs text-slate-500">
                     模式: {modelState.backend === 'webgpu' ? '🟢 WebGPU' : '🟡 CPU (WASM)'}
-                    {modelState.encoder === 'loading' && <span className="ml-2 animate-pulse">載入中...</span>}
                     {modelState.encoder === 'error' && <span className="ml-2 text-red-400">錯誤: {modelState.errorMessage}</span>}
                   </div>
                 </div>

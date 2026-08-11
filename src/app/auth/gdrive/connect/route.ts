@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const scope = 'https://www.googleapis.com/auth/drive.file openid email';
+  const scope = 'https://www.googleapis.com/auth/drive openid email';
   const state = crypto.randomUUID();
 
   const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');

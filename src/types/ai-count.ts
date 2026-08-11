@@ -37,6 +37,8 @@ export interface ModelLoadState {
   backend: 'webgpu' | 'wasm' | 'unknown';
   errorMessage?: string;
   isEncoderProcessing: boolean;
+  encoderProgress?: number; // 0-100
+  encoderStage?: 'downloading' | 'initializing' | 'ready';
 }
 
 // Worker 通訊協定
@@ -50,4 +52,5 @@ export type WorkerResponse =
   | { type: 'DECODER_READY'; backend: 'webgpu' | 'wasm' }
   | { type: 'ENCODER_READY' }
   | { type: 'EMBEDDING_READY'; embedding: Float32Array; shape: number[] }
-  | { type: 'ERROR'; message: string };
+  | { type: 'ERROR'; message: string }
+  | { type: 'ENCODER_PROGRESS'; progress: number; stage: 'downloading' | 'initializing' | 'ready' };

@@ -39,6 +39,7 @@ export default function CameraModal({
   // AI 計數相關
   const {
     state: aiState,
+    modelState,
     canvasRef: aiCanvasRef,
     imgRef,
     handleCanvasClick,
@@ -294,11 +295,26 @@ export default function CameraModal({
               />
             )}
 
-            {/* AI 載入中提示 */}
-            {isAIModeEnabled && !aiState.isEncoderReady && aiState.isEncoderProcessing && (
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-3 bg-slate-900/90 backdrop-blur p-6 rounded-xl border border-blue-500/30">
-                <div className="w-10 h-10 border-4 border-[#00f2fe] border-t-transparent rounded-full animate-spin" />
-                <span className="text-slate-300">AI 模型分析中...</span>
+            {/* AI 載入中提示 - 顯示進度 */}
+            {isAIModeEnabled && !aiState.isEncoderReady && modelState.encoder === 'loading' && modelState.encoderProgress !== undefined && (
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-3 bg-slate-900/90 backdrop-blur p-6 rounded-xl border border-blue-500/30 min-w-[280px]">
+                <div className="w-full flex flex-col gap-2">
+                  <div className="flex justify-between text-xs text-slate-400">
+                    <span>{modelState.encoderStage === 'downloading' ? '下載模型' : modelState.encoderStage === 'initializing' ? '初始化模型' : '完成'}</span>
+                    <span>{modelState.encoderProgress}%</span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-[#00f2fe] to-[#4fd1c5] transition-all duration-300 ease-out"
+                      style={{ width: `${modelState.encoderProgress}%` }}
+                    />
+                  </div>
+                  <p className="text-slate-300 text-sm text-center">
+                    {modelState.encoderStage === 'downloading' 
+                      ? `正在下載 Encoder 模型 (~11MB)...` 
+                      : `正在初始化模型...`}
+                  </p>
+                </div>
               </div>
             )}
 
