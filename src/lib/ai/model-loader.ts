@@ -37,11 +37,13 @@ self.onmessage = async (e) => {
           decoderSession = await ort.InferenceSession.create(modelUrl, {
             executionProviders: ['webgpu'],
             graphOptimizationLevel: 'all',
+            externalData: [{ data: '/models/mobile_sam_decoder.onnx.data', path: 'mobile_sam_decoder.onnx.data' }],
           });
           self.postMessage({ type: 'DECODER_READY', backend: 'webgpu' });
         } catch {
           decoderSession = await ort.InferenceSession.create(modelUrl, {
             executionProviders: ['wasm'],
+            externalData: [{ data: '/models/mobile_sam_decoder.onnx.data', path: 'mobile_sam_decoder.onnx.data' }],
           });
           self.postMessage({ type: 'DECODER_READY', backend: 'wasm' });
         }

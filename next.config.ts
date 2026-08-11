@@ -26,6 +26,8 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "25mb",
     },
   },
+  // 允許內網 IP 訪問開發資源 (HMR、webpack 等)
+  allowedDevOrigins: ['192.168.1.111'],
   // 強制使用 Webpack (Next.js 16+ 預設 Turbopack)
   turbopack: {},
 };

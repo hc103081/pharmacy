@@ -581,17 +581,23 @@ export default function ScanContent() {
               </div>
             </div>
   
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 relative">
               {/* AI 計數設定齒輪 */}
               <button
-                onClick={() => setShowAISettings(!showAISettings)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowAISettings(!showAISettings);
+                }}
                 className="p-2 rounded-full hover:bg-slate-700 transition-colors"
                 aria-label="AI 計數設定"
               >
                 <Settings className="w-5 h-5 text-slate-400 hover:text-[#00f2fe]" />
               </button>
               {showAISettings && (
-                <div className="absolute right-4 top-full mt-2 p-3 bg-[#162a56] border border-blue-500/30 rounded-xl shadow-lg z-50 min-w-[200px]">
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute right-0 top-full mt-2 p-3 bg-[#162a56] border border-blue-500/30 rounded-xl shadow-lg z-50 min-w-[200px]"
+                >
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input
                       type="checkbox"
@@ -914,17 +920,23 @@ export default function ScanContent() {
               </div>
             </div>
   
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 relative">
               {/* AI 計數設定齒輪 (桌面版) */}
               <button
-                onClick={() => setShowAISettings(!showAISettings)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowAISettings(!showAISettings);
+                }}
                 className="p-2 rounded-full hover:bg-slate-700 transition-colors"
                 aria-label="AI 計數設定"
               >
                 <Settings className="w-5 h-5 text-slate-400 hover:text-[#00f2fe]" />
               </button>
               {showAISettings && (
-                <div className="absolute right-4 top-full mt-2 p-3 bg-[#162a56] border border-blue-500/30 rounded-xl shadow-lg z-50 min-w-[200px]">
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute right-0 top-full mt-2 p-3 bg-[#162a56] border border-blue-500/30 rounded-xl shadow-lg z-50 min-w-[200px]"
+                >
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input
                       type="checkbox"
