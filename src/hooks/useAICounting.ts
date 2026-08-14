@@ -29,6 +29,8 @@ export function useAICounting() {
     encoder: 'idle',
     backend: 'unknown',
     isEncoderProcessing: false,
+    encoderProgress: 0,
+    encoderStage: 'idle',
   });
   const decoderSessionRef = useRef<ort.InferenceSession | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);

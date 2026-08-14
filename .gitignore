@@ -43,6 +43,7 @@ next-env.d.ts
 # MobileSAM models & local dev artifacts
 MobileSAM/
 mobilesam-env/
+MobileSAM_repo/
 public/models/*.onnx
 public/models/*.onnx.data
 public/models/*_fp32.onnx
@@ -51,5 +52,11 @@ public/workbox-*.js
 public/workers/
 export_onnx.py
 mobile_sam.pt
+check_release.py
+convert_embed.py
+download_checkpoint.py
+embed_weights.py
+export_encoder.py
+export_encoder_embedded.py
 
 log.txt

@@ -34,15 +34,20 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
         ort.env.wasm.numThreads = wasmConfig.numThreads;
         ort.env.wasm.simd = wasmConfig.simd;
 
+        // Decoder 使用 externalData (模型有外部權重檔案)
+        const decoderExternalData = [{ data: '/models/mobile_sam_decoder.onnx.data', path: 'mobile_sam_decoder.onnx.data' }];
+
         try {
           decoderSession = await ort.InferenceSession.create(modelUrl, {
             executionProviders: ['webgpu'],
             graphOptimizationLevel: 'all',
+            externalData: decoderExternalData,
           });
           self.postMessage({ type: 'DECODER_READY', backend: 'webgpu' } satisfies WorkerResponse);
         } catch {
           decoderSession = await ort.InferenceSession.create(modelUrl, {
             executionProviders: ['wasm'],
+            externalData: decoderExternalData,
           });
           self.postMessage({ type: 'DECODER_READY', backend: 'wasm' } satisfies WorkerResponse);
         }
@@ -55,16 +60,34 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
         ort.env.wasm.simd = wasmConfig.simd;
 
         try {
-          encoderSession = await ort.InferenceSession.create(modelUrl, {
-            executionProviders: ['webgpu'],
-            graphOptimizationLevel: 'all',
-          });
-        } catch {
-          encoderSession = await ort.InferenceSession.create(modelUrl, {
-            executionProviders: ['wasm'],
-          });
+          // 先嘗試 WebGPU (Encoder 模型權重已內嵌，無需 externalData)
+          try {
+            console.log('[Worker] 嘗試 WebGPU 建立 Encoder session...');
+            encoderSession = await ort.InferenceSession.create(modelUrl, {
+              executionProviders: ['webgpu'],
+              graphOptimizationLevel: 'all',
+            });
+            console.log('[Worker] WebGPU 成功');
+            self.postMessage({ type: 'ENCODER_READY' } satisfies WorkerResponse);
+          } catch (webgpuErr: unknown) {
+            // WebGPU 失敗，降級 WASM
+            console.warn('[Worker] WebGPU 失敗，降級 WASM:', (webgpuErr as Error).message);
+            try {
+              encoderSession = await ort.InferenceSession.create(modelUrl, {
+                executionProviders: ['wasm'],
+                graphOptimizationLevel: 'all',
+              });
+              console.log('[Worker] WASM 成功');
+              self.postMessage({ type: 'ENCODER_READY' } satisfies WorkerResponse);
+            } catch (wasmErr: unknown) {
+              console.error('[Worker] WASM 也失敗:', (wasmErr as Error).message);
+              self.postMessage({ type: 'ERROR', message: 'Encoder init failed (both WebGPU and WASM): ' + (wasmErr as Error).message } satisfies WorkerResponse);
+            }
+          }
+        } catch (err: unknown) {
+          console.error('[Worker] Encoder init outer error:', (err as Error).message);
+          self.postMessage({ type: 'ERROR', message: 'Encoder init failed: ' + (err as Error).message } satisfies WorkerResponse);
         }
-        self.postMessage({ type: 'ENCODER_READY' } satisfies WorkerResponse);
         break;
       }
 

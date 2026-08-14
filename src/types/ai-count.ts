@@ -38,7 +38,7 @@ export interface ModelLoadState {
   errorMessage?: string;
   isEncoderProcessing: boolean;
   encoderProgress?: number; // 0-100
-  encoderStage?: 'downloading' | 'initializing' | 'ready';
+  encoderStage?: 'idle' | 'downloading' | 'initializing' | 'ready';
 }
 
 // Worker 通訊協定

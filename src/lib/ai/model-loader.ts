@@ -2,176 +2,51 @@
 
 import type { ModelLoadState, WorkerMessage, WorkerResponse } from '@/types/ai-count';
 
-// Worker 程式碼字串 (內嵌編譯後的 worker 內容)
-const WORKER_CODE = `
-// Encoder Web Worker：背景執行 Encoder 推論，零拷貝傳回 Embedding
-import * as ort from 'onnxruntime-web';
-
-let encoderSession = null;
-let decoderSession = null;
-
-function preprocessImage(bitmap) {
-  const canvas = new OffscreenCanvas(1024, 1024);
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('OffscreenCanvas 2D context not available');
-  ctx.drawImage(bitmap, 0, 0, 1024, 1024);
-  const imageData = ctx.getImageData(0, 0, 1024, 1024);
-  const data = new Float32Array(3 * 1024 * 1024);
-  for (let i = 0; i < 1024 * 1024; i++) {
-    data[i] = imageData.data[i * 4] / 255;
-    data[1024 * 1024 + i] = imageData.data[i * 4 + 1] / 255;
-    data[2 * 1024 * 1024 + i] = imageData.data[i * 4 + 2] / 255;
-  }
-  return new ort.Tensor('float32', data, [1, 3, 1024, 1024]);
-}
-
-async function loadModelWithProgress(modelUrl, wasmConfig, onProgress) {
-  ort.env.wasm.numThreads = wasmConfig.numThreads;
-  ort.env.wasm.simd = wasmConfig.simd;
-  
-  // 先用 fetch 下載並追蹤進度
-  onProgress({ progress: 5, stage: 'downloading' });
-  const response = await fetch(modelUrl);
-  if (!response.ok) throw new Error('Model download failed');
-  
-  const contentLength = response.headers.get('content-length');
-  const total = contentLength ? parseInt(contentLength, 10) : 0;
-  let loaded = 0;
-  
-  const reader = response.body.getReader();
-  const chunks = [];
-  
-  onProgress({ progress: 10, stage: 'downloading' });
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    loaded += value.length;
-    if (total > 0) {
-      const percent = 10 + Math.round((loaded / total) * 70); // 10-80%
-      onProgress({ progress: percent, stage: 'downloading' });
-    }
-  }
-  
-  onProgress({ progress: 85, stage: 'initializing' });
-  
-  // 合併 chunks 為 ArrayBuffer
-  const modelData = new Uint8Array(loaded);
-  let offset = 0;
-  for (const chunk of chunks) {
-    modelData.set(chunk, offset);
-    offset += chunk.length;
-  }
-  
-  onProgress({ progress: 90, stage: 'initializing' });
-  
-  // 從 ArrayBuffer 建立 Session
-  const session = await ort.InferenceSession.create(modelData, {
-    executionProviders: ['webgpu'],
-    graphOptimizationLevel: 'all',
-  });
-  
-  onProgress({ progress: 100, stage: 'ready' });
-  return session;
-}
-
-self.onmessage = async (e) => {
-  const { type } = e.data;
-  try {
-    switch (type) {
-      case 'INIT_DECODER': {
-        const { modelUrl, wasmConfig } = e.data;
-        ort.env.wasm.numThreads = wasmConfig.numThreads;
-        ort.env.wasm.simd = wasmConfig.simd;
-        try {
-          decoderSession = await ort.InferenceSession.create(modelUrl, {
-            executionProviders: ['webgpu'],
-            graphOptimizationLevel: 'all',
-            externalData: [{ data: '/models/mobile_sam_decoder.onnx.data', path: 'mobile_sam_decoder.onnx.data' }],
-          });
-          self.postMessage({ type: 'DECODER_READY', backend: 'webgpu' });
-        } catch {
-          decoderSession = await ort.InferenceSession.create(modelUrl, {
-            executionProviders: ['wasm'],
-            externalData: [{ data: '/models/mobile_sam_decoder.onnx.data', path: 'mobile_sam_decoder.onnx.data' }],
-          });
-          self.postMessage({ type: 'DECODER_READY', backend: 'wasm' });
-        }
-        break;
-      }
-      case 'INIT_ENCODER': {
-        const { modelUrl, wasmConfig } = e.data;
-        ort.env.wasm.numThreads = wasmConfig.numThreads;
-        ort.env.wasm.simd = wasmConfig.simd;
-        
-        const sendProgress = (progress, stage) => {
-          self.postMessage({ type: 'ENCODER_PROGRESS', progress, stage });
-        };
-        
-        try {
-          encoderSession = await loadModelWithProgress(modelUrl, wasmConfig, sendProgress);
-          self.postMessage({ type: 'ENCODER_READY' });
-        } catch {
-          // WebGPU 失敗，降級 WASM
-          sendProgress(10, 'downloading');
-          try {
-            encoderSession = await loadModelWithProgress(modelUrl, wasmConfig, sendProgress);
-            self.postMessage({ type: 'ENCODER_READY' });
-          } catch (e) {
-            self.postMessage({ type: 'ERROR', message: 'Encoder init failed: ' + e.message });
-          }
-        }
-        break;
-      }
-      case 'RUN_ENCODER': {
-        if (!encoderSession) throw new Error('Encoder not initialized');
-        const { imageBitmap } = e.data;
-        const inputTensor = preprocessImage(imageBitmap);
-        const results = await encoderSession.run({ images: inputTensor });
-        const embedding = results.image_embeddings;
-        const float32Data = embedding.data;
-        self.postMessage(
-          { type: 'EMBEDDING_READY', embedding: float32Data, shape: embedding.dims },
-          [float32Data.buffer]
-        );
-        inputTensor.dispose();
-        embedding.dispose();
-        break;
-      }
-      case 'DISPOSE': {
-        encoderSession = null;
-        decoderSession = null;
-        break;
-      }
-    }
-  } catch (error) {
-    self.postMessage({ type: 'ERROR', message: error.message });
-  }
-};
-`;
-
 export class ModelLoader {
   private worker: Worker;
-  private workerUrl: string;
   private state: ModelLoadState = {
     decoder: 'idle',
     encoder: 'idle',
     backend: 'unknown',
     isEncoderProcessing: false,
     encoderProgress: 0,
-    encoderStage: 'downloading',
+    encoderStage: 'idle',
   };
   private listeners: Set<(state: ModelLoadState) => void> = new Set();
   private decoderReadyResolver: ((value: { backend: 'webgpu' | 'wasm' }) => void) | null = null;
   private encoderReadyResolver: (() => void) | null = null;
   private embeddingResolver: ((value: { embedding: Float32Array; shape: number[] }) => void) | null = null;
 
+  private workerReady: Promise<void>;
+
   constructor() {
-    // 使用 Blob URL 建立 Worker (相容 Turbopack 和 Webpack)
-    const blob = new Blob([WORKER_CODE], { type: 'application/javascript' });
-    this.workerUrl = URL.createObjectURL(blob);
-    this.worker = new Worker(this.workerUrl, { type: 'module' });
+    // 使用 public/workers 下的檔案式 Worker (Next.js 相容)
+    this.worker = new Worker('/workers/encoder.worker.js', { type: 'module' });
     this.worker.onmessage = this.handleWorkerMessage.bind(this);
+
+    // 等待 Worker 就緒 (Worker 啟動後會發送第一則訊息)
+    this.workerReady = new Promise(resolve => {
+      const handler = (e: MessageEvent) => {
+        if (e.data?.type === 'WORKER_READY' || e.data?.type === 'DECODER_READY' || e.data?.type === 'ENCODER_READY' || e.data?.type === 'ERROR') {
+          console.log('[ModelLoader] Worker ready 收到:', e.data.type);
+          this.worker.removeEventListener('message', handler);
+          resolve();
+        }
+      };
+      this.worker.addEventListener('message', handler);
+      // 保險：3 秒後強制 resolve
+      setTimeout(() => {
+        console.log('[ModelLoader] Worker ready 逾時，強制 resolve');
+        this.worker.removeEventListener('message', handler);
+        resolve();
+      }, 3000);
+    });
+  }
+
+  private async ensureWorkerReady() {
+    console.log('[ModelLoader] 等待 Worker ready...');
+    await this.workerReady;
+    console.log('[ModelLoader] Worker ready 完成');
   }
 
   private handleWorkerMessage(e: MessageEvent<WorkerResponse>) {
@@ -184,6 +59,8 @@ export class ModelLoader {
         this.decoderReadyResolver = null;
         break;
       case 'ENCODER_READY':
+        this.progressCleanup?.();
+        this.progressCleanup = null;
         this.state.encoder = 'ready';
         this.state.encoderProgress = 100;
         this.state.encoderStage = 'ready';
@@ -200,9 +77,15 @@ export class ModelLoader {
         this.state.encoderStage = e.data.stage;
         break;
       case 'ERROR':
+        this.progressCleanup?.();
+        this.progressCleanup = null;
         this.state.decoder = 'error';
         this.state.encoder = 'error';
         this.state.errorMessage = e.data.message;
+        console.error('[ModelLoader] Worker ERROR:', e.data.message);
+        // 解開等待的 Promise，避免卡住
+        this.encoderReadyResolver?.();
+        this.decoderReadyResolver?.({ backend: 'wasm' });
         break;
     }
     this.notify();
@@ -225,6 +108,7 @@ export class ModelLoader {
     if (this.state.decoder !== 'idle') {
       return { backend: this.state.backend === 'webgpu' ? 'webgpu' : 'wasm' };
     }
+    await this.ensureWorkerReady();
     this.state.decoder = 'loading';
     this.notify();
 
@@ -241,26 +125,145 @@ export class ModelLoader {
 
   async initEncoder(): Promise<void> {
     if (this.state.encoder !== 'idle') return;
+    await this.ensureWorkerReady();
     this.state.encoder = 'loading';
     this.state.encoderProgress = 0;
     this.state.encoderStage = 'downloading';
     this.notify();
 
-    this.worker.postMessage({
-      type: 'INIT_ENCODER',
-      modelUrl: '/models/mobile_sam_encoder.onnx',
-      wasmConfig: { numThreads: navigator.hardwareConcurrency || 4, simd: true },
-    } satisfies WorkerMessage);
+    // Cache-busting: 使用時間戳記強制重新下載新模型 (0.9 MB, 無 external data)
+    const modelUrl = '/models/mobile_sam_encoder.onnx?v=' + Date.now();
+    let cancelled = false;
 
-    return new Promise(resolve => {
-      this.encoderReadyResolver = resolve;
-    });
+    try {
+      // 1. 主執行緒下載模型並追蹤進度
+      const response = await fetch(modelUrl, { cache: 'force-cache' });
+      if (!response.ok) throw new Error('模型下載失敗: ' + response.status);
+
+      const contentLength = response.headers.get('content-length');
+      const total = contentLength ? parseInt(contentLength, 10) : 0;
+      let loaded = 0;
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('無法讀取模型資料流');
+
+      const chunks: Uint8Array[] = [];
+
+      try {
+        while (true) {
+          if (cancelled) break;
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          loaded += value.length;
+
+          let progress = 0;
+          if (total > 0) {
+            progress = Math.min(80, Math.round((loaded / total) * 80));
+          } else {
+            // 未知大小：依已下載 MB 數估算 (Encoder ~11MB)
+            const mb = loaded / 1024 / 1024;
+            progress = Math.min(80, Math.round(mb * 7));
+          }
+
+          this.state.encoderProgress = progress;
+          this.state.encoderStage = 'downloading';
+          this.notify();
+        }
+      } catch {
+        // 忽略 fetch 取消/錯誤
+      }
+
+      if (cancelled) return;
+
+      // 2. 合併 chunks
+      this.state.encoderProgress = 85;
+      this.state.encoderStage = 'initializing';
+      this.notify();
+
+      const modelData = new Uint8Array(loaded);
+      let offset = 0;
+      for (const chunk of chunks) {
+        modelData.set(chunk, offset);
+        offset += chunk.length;
+      }
+
+      // 驗證模型資料
+      if (modelData.length === 0) {
+        throw new Error('模型下載為空 (0 bytes)');
+      }
+      if (modelData.length < 1024 * 1024) { // 少於 1MB 可能是錯誤頁面
+        console.warn('[ModelLoader] 模型大小異常:', modelData.length, 'bytes');
+      }
+      console.log('[ModelLoader] 模型下載完成:', modelData.length, 'bytes');
+
+      // 3. 傳送 URL 給 Worker 建立 session (與 Decoder 相同方式，避免 Uint8Array 相容性問題)
+      this.state.encoderProgress = 90;
+      this.notify();
+
+      // 修正線程數：非 crossOriginIsolated 環境限制為 1
+      const isCrossOriginIsolated = typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated;
+      const numThreads = isCrossOriginIsolated ? (navigator.hardwareConcurrency || 4) : 1;
+      
+      console.log('[ModelLoader] 送出 INIT_ENCODER (URL), numThreads:', numThreads);
+      this.worker.postMessage({
+        type: 'INIT_ENCODER',
+        modelUrl: modelUrl,
+        wasmConfig: { numThreads, simd: true },
+      } satisfies WorkerMessage);
+      console.log('[ModelLoader] postMessage 完成');
+
+      // 獨立輪詢：每 200ms 更新進度 90% → 99%，直到 Worker 完成
+      const pollStart = Date.now();
+      const pollInterval = setInterval(() => {
+        if (this.state.encoder === 'ready') {
+          this.state.encoderProgress = 100;
+          this.state.encoderStage = 'ready';
+          this.notify();
+          clearInterval(pollInterval);
+          return;
+        }
+        const elapsed = Date.now() - pollStart;
+        const progress = Math.min(99, 90 + Math.floor(elapsed / 200));
+        this.state.encoderProgress = progress;
+        this.notify();
+      }, 200);
+
+      // 等待 Worker 完成
+      try {
+        await Promise.race([
+          new Promise<void>(resolve => {
+            this.encoderReadyResolver = resolve;
+          }),
+          new Promise<void>((_, reject) => 
+            setTimeout(() => reject(new Error('Encoder 初始化逾時 (60秒)')), 60000)
+          ),
+        ]);
+      } catch (err) {
+        console.error('[ModelLoader] initEncoder 失敗:', err);
+        this.state.encoder = 'error';
+        this.state.errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        this.notify();
+        throw err;
+      }
+
+      // 確保進度到 100%（若輪詢尚未跑到）
+      this.state.encoderProgress = 100;
+      this.state.encoderStage = 'ready';
+      this.notify();
+      clearInterval(pollInterval);
+
+      // 清理
+      this.encoderReadyResolver = null;
+    } finally {
+      this.progressCleanup = () => { cancelled = true; };
+    }
   }
+
+  private progressCleanup: (() => void) | null = null;
 
   async runEncoder(imageBitmap: ImageBitmap): Promise<{ embedding: Float32Array; shape: number[] }> {
     this.state.isEncoderProcessing = true;
-    this.state.encoderProgress = 0;
-    this.state.encoderStage = 'initializing';
     this.notify();
 
     // Transferable: 零拷貝傳輸 ImageBitmap 給 Worker
@@ -274,7 +277,6 @@ export class ModelLoader {
   dispose() {
     this.worker.postMessage({ type: 'DISPOSE' });
     this.worker.terminate();
-    URL.revokeObjectURL(this.workerUrl);
     this.listeners.clear();
   }
 }

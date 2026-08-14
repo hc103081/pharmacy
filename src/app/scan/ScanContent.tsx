@@ -629,8 +629,20 @@ export default function ScanContent() {
                   )}
                   
                   <div className="mt-2 pt-2 border-t border-slate-700 text-xs text-slate-500">
-                    模式: {modelState.backend === 'webgpu' ? '🟢 WebGPU' : '🟡 CPU (WASM)'}
-                    {modelState.encoder === 'error' && <span className="ml-2 text-red-400">錯誤: {modelState.errorMessage}</span>}
+                    {modelState.encoder === 'loading' ? (
+                      <span className="text-blue-400 animate-pulse flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-[#00f2fe] animate-pulse" />
+                        模型載入中...
+                      </span>
+                    ) : modelState.encoder === 'ready' ? (
+                      <>
+                        模式: {modelState.backend === 'webgpu' ? '🟢 WebGPU' : '🟡 CPU (WASM)'}
+                      </>
+                    ) : modelState.encoder === 'error' ? (
+                      <span className="text-red-400">載入失敗: {modelState.errorMessage}</span>
+                    ) : (
+                      <span>未啟用</span>
+                    )}
                   </div>
                 </div>
               )}
@@ -989,8 +1001,20 @@ export default function ScanContent() {
                   )}
                   
                   <div className="mt-2 pt-2 border-t border-slate-700 text-xs text-slate-500">
-                    模式: {modelState.backend === 'webgpu' ? '🟢 WebGPU' : '🟡 CPU (WASM)'}
-                    {modelState.encoder === 'error' && <span className="ml-2 text-red-400">錯誤: {modelState.errorMessage}</span>}
+                    {modelState.encoder === 'loading' ? (
+                      <span className="text-blue-400 animate-pulse flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-[#00f2fe] animate-pulse" />
+                        模型載入中...
+                      </span>
+                    ) : modelState.encoder === 'ready' ? (
+                      <>
+                        模式: {modelState.backend === 'webgpu' ? '🟢 WebGPU' : '🟡 CPU (WASM)'}
+                      </>
+                    ) : modelState.encoder === 'error' ? (
+                      <span className="text-red-400">載入失敗: {modelState.errorMessage}</span>
+                    ) : (
+                      <span>未啟用</span>
+                    )}
                   </div>
                 </div>
               )}

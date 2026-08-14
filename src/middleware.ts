@@ -18,7 +18,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/_next') ||
     pathname === '/favicon.ico' ||
     pathname === '/login' ||
-    pathname.match(/\.(svg|png|jpg|jpeg|gif|webp)$/)
+    pathname.match(/\.(svg|png|jpg|jpeg|gif|webp|onnx|onnx\.data)$/) ||
+    pathname.startsWith('/models/')
   ) {
     return supabaseResponse;
   }
