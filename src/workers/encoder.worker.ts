@@ -30,12 +30,12 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
   try {
     switch (type) {
       case 'INIT_DECODER': {
-        const { modelUrl, wasmConfig } = e.data;
+        const { modelUrl, decoderDataUrl, wasmConfig } = e.data;
         ort.env.wasm.numThreads = wasmConfig.numThreads;
         ort.env.wasm.simd = wasmConfig.simd;
 
         // Decoder 使用 externalData (模型有外部權重檔案)
-        const decoderExternalData = [{ data: '/models/mobile_sam_decoder.onnx.data', path: 'mobile_sam_decoder.onnx.data' }];
+        const decoderExternalData = [{ data: decoderDataUrl, path: 'mobile_sam_decoder.onnx.data' }];
 
         try {
           decoderSession = await ort.InferenceSession.create(modelUrl, {

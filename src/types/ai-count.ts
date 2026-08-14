@@ -43,7 +43,7 @@ export interface ModelLoadState {
 
 // Worker 通訊協定
 export type WorkerMessage =
-  | { type: 'INIT_DECODER'; modelUrl: string; wasmConfig: { numThreads: number; simd: boolean } }
+  | { type: 'INIT_DECODER'; modelUrl: string; decoderDataUrl: string; wasmConfig: { numThreads: number; simd: boolean } }
   | { type: 'INIT_ENCODER'; modelUrl: string; wasmConfig: { numThreads: number; simd: boolean } }
   | { type: 'RUN_ENCODER'; imageBitmap: ImageBitmap }
   | { type: 'DISPOSE' };

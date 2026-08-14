@@ -2,6 +2,8 @@
 
 import type { ModelLoadState, WorkerMessage, WorkerResponse } from '@/types/ai-count';
 
+const SUPABASE_STORAGE_BASE = 'https://epjyodyjdssgjqrzgtnc.supabase.co/storage/v1/object/public/models';
+
 export class ModelLoader {
   private worker: Worker;
   private state: ModelLoadState = {
@@ -114,7 +116,8 @@ export class ModelLoader {
 
     this.worker.postMessage({
       type: 'INIT_DECODER',
-      modelUrl: '/models/mobile_sam_decoder.onnx',
+      modelUrl: `${SUPABASE_STORAGE_BASE}/mobile_sam_decoder.onnx`,
+      decoderDataUrl: `${SUPABASE_STORAGE_BASE}/mobile_sam_decoder.onnx.data`,
       wasmConfig: { numThreads: navigator.hardwareConcurrency || 4, simd: true },
     } satisfies WorkerMessage);
 
@@ -131,8 +134,8 @@ export class ModelLoader {
     this.state.encoderStage = 'downloading';
     this.notify();
 
-    // Cache-busting: 使用時間戳記強制重新下載新模型 (0.9 MB, 無 external data)
-    const modelUrl = '/models/mobile_sam_encoder.onnx?v=' + Date.now();
+    // 使用 Supabase Storage URL (已內嵌權重，無需 cache-busting)
+    const modelUrl = `${SUPABASE_STORAGE_BASE}/mobile_sam_encoder.onnx`;
     let cancelled = false;
 
     try {
