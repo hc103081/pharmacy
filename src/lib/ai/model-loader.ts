@@ -131,136 +131,69 @@ export class ModelLoader {
     await this.ensureWorkerReady();
     this.state.encoder = 'loading';
     this.state.encoderProgress = 0;
-    this.state.encoderStage = 'downloading';
+    this.state.encoderStage = 'initializing';
     this.notify();
 
-    // 使用 Supabase Storage URL (已內嵌權重，無需 cache-busting)
+    // 使用 Supabase Storage URL，直接傳給 Worker (避免雙重下載)
     const modelUrl = `${SUPABASE_STORAGE_BASE}/mobile_sam_encoder.onnx`;
-    let cancelled = false;
 
+    // 修正線程數：非 crossOriginIsolated 環境限制為 1
+    const isCrossOriginIsolated = typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated;
+    const numThreads = isCrossOriginIsolated ? (navigator.hardwareConcurrency || 4) : 1;
+
+    console.log('[ModelLoader] 送出 INIT_ENCODER (URL), numThreads:', numThreads);
+    this.worker.postMessage({
+      type: 'INIT_ENCODER',
+      modelUrl: modelUrl,
+      wasmConfig: { numThreads, simd: true },
+    } satisfies WorkerMessage);
+    console.log('[ModelLoader] postMessage 完成');
+
+    // 獨立輪詢：更新進度直到 Worker 完成
+    const pollStart = Date.now();
+    const pollInterval = setInterval(() => {
+      if (this.state.encoder === 'ready') {
+        this.state.encoderProgress = 100;
+        this.state.encoderStage = 'ready';
+        this.notify();
+        clearInterval(pollInterval);
+        return;
+      }
+      const elapsed = Date.now() - pollStart;
+      // 估算進度：下載(0-90%) + 初始化(90-99%)
+      const progress = Math.min(99, Math.floor(elapsed / 200));
+      this.state.encoderProgress = progress;
+      this.state.encoderStage = progress < 90 ? 'downloading' : 'initializing';
+      this.notify();
+    }, 200);
+
+    // 等待 Worker 完成 (120 秒逾時，因為 27MB 模型下載需要時間)
     try {
-      // 1. 主執行緒下載模型並追蹤進度
-      const response = await fetch(modelUrl, { cache: 'force-cache' });
-      if (!response.ok) throw new Error('模型下載失敗: ' + response.status);
-
-      const contentLength = response.headers.get('content-length');
-      const total = contentLength ? parseInt(contentLength, 10) : 0;
-      let loaded = 0;
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('無法讀取模型資料流');
-
-      const chunks: Uint8Array[] = [];
-
-      try {
-        while (true) {
-          if (cancelled) break;
-          const { done, value } = await reader.read();
-          if (done) break;
-          chunks.push(value);
-          loaded += value.length;
-
-          let progress = 0;
-          if (total > 0) {
-            progress = Math.min(80, Math.round((loaded / total) * 80));
-          } else {
-            // 未知大小：依已下載 MB 數估算 (Encoder ~11MB)
-            const mb = loaded / 1024 / 1024;
-            progress = Math.min(80, Math.round(mb * 7));
-          }
-
-          this.state.encoderProgress = progress;
-          this.state.encoderStage = 'downloading';
-          this.notify();
-        }
-      } catch {
-        // 忽略 fetch 取消/錯誤
-      }
-
-      if (cancelled) return;
-
-      // 2. 合併 chunks
-      this.state.encoderProgress = 85;
-      this.state.encoderStage = 'initializing';
-      this.notify();
-
-      const modelData = new Uint8Array(loaded);
-      let offset = 0;
-      for (const chunk of chunks) {
-        modelData.set(chunk, offset);
-        offset += chunk.length;
-      }
-
-      // 驗證模型資料
-      if (modelData.length === 0) {
-        throw new Error('模型下載為空 (0 bytes)');
-      }
-      if (modelData.length < 1024 * 1024) { // 少於 1MB 可能是錯誤頁面
-        console.warn('[ModelLoader] 模型大小異常:', modelData.length, 'bytes');
-      }
-      console.log('[ModelLoader] 模型下載完成:', modelData.length, 'bytes');
-
-      // 3. 傳送 URL 給 Worker 建立 session (與 Decoder 相同方式，避免 Uint8Array 相容性問題)
-      this.state.encoderProgress = 90;
-      this.notify();
-
-      // 修正線程數：非 crossOriginIsolated 環境限制為 1
-      const isCrossOriginIsolated = typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated;
-      const numThreads = isCrossOriginIsolated ? (navigator.hardwareConcurrency || 4) : 1;
-      
-      console.log('[ModelLoader] 送出 INIT_ENCODER (URL), numThreads:', numThreads);
-      this.worker.postMessage({
-        type: 'INIT_ENCODER',
-        modelUrl: modelUrl,
-        wasmConfig: { numThreads, simd: true },
-      } satisfies WorkerMessage);
-      console.log('[ModelLoader] postMessage 完成');
-
-      // 獨立輪詢：每 200ms 更新進度 90% → 99%，直到 Worker 完成
-      const pollStart = Date.now();
-      const pollInterval = setInterval(() => {
-        if (this.state.encoder === 'ready') {
-          this.state.encoderProgress = 100;
-          this.state.encoderStage = 'ready';
-          this.notify();
-          clearInterval(pollInterval);
-          return;
-        }
-        const elapsed = Date.now() - pollStart;
-        const progress = Math.min(99, 90 + Math.floor(elapsed / 200));
-        this.state.encoderProgress = progress;
-        this.notify();
-      }, 200);
-
-      // 等待 Worker 完成
-      try {
-        await Promise.race([
-          new Promise<void>(resolve => {
-            this.encoderReadyResolver = resolve;
-          }),
-          new Promise<void>((_, reject) => 
-            setTimeout(() => reject(new Error('Encoder 初始化逾時 (60秒)')), 60000)
-          ),
-        ]);
-      } catch (err) {
-        console.error('[ModelLoader] initEncoder 失敗:', err);
-        this.state.encoder = 'error';
-        this.state.errorMessage = err instanceof Error ? err.message : 'Unknown error';
-        this.notify();
-        throw err;
-      }
-
-      // 確保進度到 100%（若輪詢尚未跑到）
-      this.state.encoderProgress = 100;
-      this.state.encoderStage = 'ready';
-      this.notify();
+      await Promise.race([
+        new Promise<void>(resolve => {
+          this.encoderReadyResolver = resolve;
+        }),
+        new Promise<void>((_, reject) => 
+          setTimeout(() => reject(new Error('Encoder 初始化逾時 (120秒)')), 120000)
+        ),
+      ]);
+    } catch (err) {
       clearInterval(pollInterval);
-
-      // 清理
-      this.encoderReadyResolver = null;
-    } finally {
-      this.progressCleanup = () => { cancelled = true; };
+      console.error('[ModelLoader] initEncoder 失敗:', err);
+      this.state.encoder = 'error';
+      this.state.errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      this.notify();
+      throw err;
     }
+
+    // 確保進度到 100%
+    this.state.encoderProgress = 100;
+    this.state.encoderStage = 'ready';
+    this.notify();
+    clearInterval(pollInterval);
+
+    // 清理
+    this.encoderReadyResolver = null;
   }
 
   private progressCleanup: (() => void) | null = null;
