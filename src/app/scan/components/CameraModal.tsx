@@ -297,7 +297,7 @@ export default function CameraModal({
 
             {/* AI 載入中提示 - 顯示進度 */}
             {isAIModeEnabled && !aiState.isEncoderReady && modelState.encoder === 'loading' && modelState.encoderProgress !== undefined && (
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-3 bg-slate-900/90 backdrop-blur p-6 rounded-xl border border-blue-500/30 min-w-[280px]">
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-3 bg-slate-900/90 backdrop-blur p-6 rounded-xl border border-blue-500/30 min-w-[280px] z-30">
                 <div className="w-full flex flex-col gap-2">
                   <div className="flex justify-between text-xs text-slate-400">
                     <span>{modelState.encoderStage === 'downloading' ? '下載模型' : modelState.encoderStage === 'initializing' ? '初始化模型' : '完成'}</span>
@@ -311,7 +311,7 @@ export default function CameraModal({
                   </div>
                   <p className="text-slate-300 text-sm text-center">
                     {modelState.encoderStage === 'downloading' 
-                      ? `正在下載 Encoder 模型 (~11MB)...` 
+                      ? `正在下載 Encoder 模型 (~27MB)...` 
                       : `正在初始化模型...`}
                   </p>
                 </div>
@@ -322,15 +322,15 @@ export default function CameraModal({
             {isAIModeEnabled && !aiState.isEncoderReady && !aiState.isEncoderProcessing && (
               <button
                 onClick={() => { /* loadImage 會在 onLoad 觸發 */ }}
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#00f2fe] text-slate-900 px-6 py-3 rounded-xl font-bold text-lg shadow-[0_0_20px_rgba(0,242,254,0.4)]"
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#00f2fe] text-slate-900 px-6 py-3 rounded-xl font-bold text-lg shadow-[0_0_20px_rgba(0,242,254,0.4)] z-30"
               >
                 開始 AI 分析
               </button>
             )}
 
-            {/* 底部 AI 計數操作列 - Sticky Bottom Bar */}
+            {/* 底部 AI 計數操作列 - Sticky Bottom Bar (只在照片預覽模式顯示) */}
             {isAIModeEnabled && aiState.isEncoderReady && aiState.items.length > 0 && (
-              <div className="fixed bottom-0 left-0 right-0 p-4 bg-[#162a56]/95 backdrop-blur border-t border-blue-500/30 z-40 pointer-events-auto">
+              <div className="absolute bottom-0 left-0 right-0 p-4 bg-[#162a56]/95 backdrop-blur border-t border-blue-500/30 z-20 pointer-events-auto pb-safe">
                 <div className="max-w-4xl mx-auto flex flex-col gap-3">
                   <div className="flex items-center justify-between text-center">
                     <span className="text-slate-400 text-sm">AI 偵測顆粒數</span>
@@ -356,7 +356,6 @@ export default function CameraModal({
                     <button
                       onClick={() => {
                         const count = adoptCount();
-                        // 將 count 存入全域供 handleCameraFile/handleFileSelect 使用
                         window.aiAdoptedCount = count;
                       }}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#00f2fe] text-slate-900 font-bold shadow-[0_0_10px_rgba(0,242,254,0.4)] hover:bg-[#00f2fe]/90 active:scale-95 transition-all"
@@ -368,8 +367,8 @@ export default function CameraModal({
               </div>
             )}
 
-            {/* 原有的操作按鈕區 */}
-            <div className={`absolute bottom-0 left-0 right-0 p-4 flex gap-2 ${isAIModeEnabled && aiState.items.length > 0 ? 'pb-32' : ''}`}>
+            {/* 原有的操作按鈕區 - 照片預覽模式專用 */}
+            <div className={`absolute bottom-0 left-0 right-0 p-4 flex gap-2 ${isAIModeEnabled && aiState.items.length > 0 ? 'pb-24' : ''}`}>
               <button
                 onClick={() => {
                   setPhotoUrl(null);
@@ -385,7 +384,6 @@ export default function CameraModal({
               </button>
               <button
                 onClick={() => {
-                  // 確認使用這張照片
                   onClose();
                 }}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#00f2fe] text-slate-900 font-bold shadow-[0_0_10px_rgba(0,242,254,0.4)] hover:bg-[#00f2fe]/90 active:scale-95 transition-all"
