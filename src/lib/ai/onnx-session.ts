@@ -3,6 +3,8 @@
 
 import * as ort from 'onnxruntime-web';
 
+const SUPABASE_STORAGE_BASE = 'https://epjyodyjdssgjqrzgtnc.supabase.co/storage/v1/object/public/models';
+
 export interface SessionResult {
   session: ort.InferenceSession;
   backend: 'webgpu' | 'wasm';
@@ -10,9 +12,10 @@ export interface SessionResult {
 
 /** 建立 Decoder Session (Main Thread 使用，需毫秒級回應) */
 export async function createDecoderSession(): Promise<SessionResult> {
-  const modelUrl = '/models/mobile_sam_decoder.onnx';
+  const modelUrl = `${SUPABASE_STORAGE_BASE}/mobile_sam_decoder.onnx`;
+  const decoderDataUrl = `${SUPABASE_STORAGE_BASE}/mobile_sam_decoder.onnx.data`;
   // Decoder 有外部資料檔案 (.data)，需透過 externalData 載入
-  const externalData = [{ data: '/models/mobile_sam_decoder.onnx.data', path: 'mobile_sam_decoder.onnx.data' }];
+  const externalData = [{ data: decoderDataUrl, path: 'mobile_sam_decoder.onnx.data' }];
 
   try {
     // 優先嘗試 WebGPU
@@ -39,8 +42,8 @@ export async function createDecoderSession(): Promise<SessionResult> {
 
 /** 建立 Encoder Session (Web Worker 使用，僅執行一次) */
 export async function createEncoderSession(): Promise<SessionResult> {
-  const modelUrl = '/models/mobile_sam_encoder.onnx';
-  // Encoder 模型為自包含 (11MB)，無外部 .data 檔案，不需 externalData
+  const modelUrl = `${SUPABASE_STORAGE_BASE}/mobile_sam_encoder.onnx`;
+  // Encoder 模型為自包含 (27MB 內嵌權重)，無外部 .data 檔案，不需 externalData
 
   try {
     const session = await ort.InferenceSession.create(modelUrl, {
