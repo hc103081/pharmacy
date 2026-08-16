@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { TeachingButton } from '@/components/teaching';
-import { DrugCard, ErrorDrawer, JumpDialog, PhotoPreview, BarcodeSearchBar, CameraModal } from './components';
+import { DrugCard, ErrorDrawer, JumpDialog, PhotoPreview, BarcodeSearchBar, CameraModalSimple, CameraModalAI } from './components';
 import { useBarcodeMatch, usePhotoCapture, usePagePersistence } from './hooks';
 import { useScanKeyboard } from './hooks/useScanKeyboard';
 import { useAICounting } from '@/hooks/useAICounting';
@@ -336,8 +336,10 @@ export default function ScanContent() {
     triggerCamera, 
     handleFileUpload,
     handleCameraFile,
-    showCameraModal,
-    setShowCameraModal,
+    showCameraModalSimple,
+    setShowCameraModalSimple,
+    showCameraModalAI,
+    setShowCameraModalAI,
     cameraError,
     setCameraError,
     checkingCameraSupport,
@@ -350,6 +352,7 @@ export default function ScanContent() {
     onToast: showToast,
     onRefresh: refreshStatsOnly,
     onResetInput: onResetInputForCamera,
+    isAIModeEnabled: aiState.isAIModeEnabled,
   });
 
   // 恢復上次的頁碼
@@ -588,10 +591,13 @@ export default function ScanContent() {
                   e.stopPropagation();
                   setShowAISettings(!showAISettings);
                 }}
-                className="p-2 rounded-full hover:bg-slate-700 transition-colors"
+                className="p-2 rounded-full hover:bg-slate-700 transition-colors relative"
                 aria-label="AI 計數設定"
               >
-                <Settings className="w-5 h-5 text-slate-400 hover:text-[#00f2fe]" />
+                <Settings className="w-5 h-5 text-slate-400 hover:text-[#00f2fe] transition-colors" />
+                {aiState.isAIModeEnabled && (
+                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-[#00f2fe] rounded-full animate-pulse border-2 border-[#07142b]" aria-hidden="true" />
+                )}
               </button>
               {showAISettings && (
                 <div
@@ -602,7 +608,11 @@ export default function ScanContent() {
                     <input
                       type="checkbox"
                       checked={aiState.isAIModeEnabled}
-                      onChange={e => toggleAIMode(e.target.checked)}
+                      onChange={(e) => {
+                        const enabled = e.target.checked;
+                        toggleAIMode(enabled);
+                        showToast(enabled ? '已啟用 AI 計數模式' : '已關閉 AI 計數模式');
+                      }}
                       className="w-4 h-4 accent-[#00f2fe]" />
                     <span className="text-sm font-medium text-slate-200">啟用 AI 計數模式</span>
                   </label>
@@ -960,10 +970,13 @@ export default function ScanContent() {
                   e.stopPropagation();
                   setShowAISettings(!showAISettings);
                 }}
-                className="p-2 rounded-full hover:bg-slate-700 transition-colors"
+                className="p-2 rounded-full hover:bg-slate-700 transition-colors relative"
                 aria-label="AI 計數設定"
               >
-                <Settings className="w-5 h-5 text-slate-400 hover:text-[#00f2fe]" />
+                <Settings className="w-5 h-5 text-slate-400 hover:text-[#00f2fe] transition-colors" />
+                {aiState.isAIModeEnabled && (
+                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-[#00f2fe] rounded-full animate-pulse border-2 border-[#07142b]" aria-hidden="true" />
+                )}
               </button>
               {showAISettings && (
                 <div
@@ -974,7 +987,11 @@ export default function ScanContent() {
                     <input
                       type="checkbox"
                       checked={aiState.isAIModeEnabled}
-                      onChange={e => toggleAIMode(e.target.checked)}
+                      onChange={(e) => {
+                        const enabled = e.target.checked;
+                        toggleAIMode(enabled);
+                        showToast(enabled ? '已啟用 AI 計數模式' : '已關閉 AI 計數模式');
+                      }}
                       className="w-4 h-4 accent-[#00f2fe]" />
                     <span className="text-sm font-medium text-slate-200">啟用 AI 計數模式</span>
                   </label>
@@ -1275,10 +1292,19 @@ export default function ScanContent() {
         </div>
       </div>
     </div>
-    {showCameraModal && (
-      <CameraModal
-        isOpen={showCameraModal}
-        onClose={() => setShowCameraModal(false)}
+    {showCameraModalSimple && (
+      <CameraModalSimple
+        isOpen={showCameraModalSimple}
+        onClose={() => setShowCameraModalSimple(false)}
+        onCapture={handleCameraFile}
+        onError={setCameraError}
+        onCheckingSupport={setCheckingCameraSupport}
+      />
+    )}
+    {showCameraModalAI && (
+      <CameraModalAI
+        isOpen={showCameraModalAI}
+        onClose={() => setShowCameraModalAI(false)}
         onCapture={handleCameraFile}
         onError={setCameraError}
         onCheckingSupport={setCheckingCameraSupport}

@@ -6,6 +6,19 @@ import { getModelLoader } from '@/lib/ai/model-loader';
 import { processClick, handleNegativeClick, binarizeAndResize, computeBBox } from '@/lib/ai/counting-logic';
 import type { AICountingState, AISegmentedItem, ModelLoadState } from '@/types/ai-count';
 
+// localStorage key for AI mode preference
+const AI_MODE_STORAGE_KEY = 'pharmacount_ai_mode_enabled';
+
+function getInitialAIMode(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const stored = localStorage.getItem(AI_MODE_STORAGE_KEY);
+    return stored === 'true';
+  } catch {
+    return false;
+  }
+}
+
 export function useAICounting() {
   const [state, setState] = useState<AICountingState>({
     imageId: '',
@@ -17,8 +30,8 @@ export function useAICounting() {
     imageEmbedding: null,
     items: [],
     totalCount: 0,
-    isAIModeEnabled: false,
-    showAIOverlay: false,
+    isAIModeEnabled: getInitialAIMode(),
+    showAIOverlay: getInitialAIMode(),
     pendingAdoption: false,
     historyStack: [[]],
     historyIndex: 0,
@@ -64,6 +77,14 @@ export function useAICounting() {
   // 啟用/關閉 AI 模式
   const toggleAIMode = useCallback(async (enabled: boolean) => {
     setState(s => ({ ...s, isAIModeEnabled: enabled, showAIOverlay: enabled }));
+    // 持久化使用者偏好
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(AI_MODE_STORAGE_KEY, String(enabled));
+      } catch {
+        // 忽略儲存錯誤
+      }
+    }
     if (enabled && modelState.encoder !== 'ready' && modelState.encoder !== 'loading') {
       await modelLoaderRef.current?.initEncoder();
     }

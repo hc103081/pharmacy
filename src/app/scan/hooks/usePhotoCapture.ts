@@ -8,13 +8,14 @@ import { compressImage } from '@/lib/imageCompression';
 import type { DrugItem } from '@/types';
 
 interface UsePhotoCaptureOptions {
- manifestId: string | null;
- matchingItem: DrugItem | null;
- selectedStatus: 'correct' | 'incorrect' | 'pending_photo' | 'pending_skip' | null;
- actualQuantity: string;
- onToast: (message: string) => void;
- onRefresh: () => Promise<void>;
- onResetInput: () => void;
+  manifestId: string | null;
+  matchingItem: DrugItem | null;
+  selectedStatus: 'correct' | 'incorrect' | 'pending_photo' | 'pending_skip' | null;
+  actualQuantity: string;
+  onToast: (message: string) => void;
+  onRefresh: () => Promise<void>;
+  onResetInput: () => void;
+  isAIModeEnabled: boolean;
 }
 
 interface UsePhotoCaptureReturn {
@@ -25,57 +26,71 @@ interface UsePhotoCaptureReturn {
   triggerCamera: () => void;
   handleFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
   handleCameraFile: (file: File) => Promise<void>;
-  showCameraModal: boolean;
-  setShowCameraModal: (open: boolean) => void;
+  // Simple (non-AI) modal
+  showCameraModalSimple: boolean;
+  setShowCameraModalSimple: (open: boolean) => void;
+  // AI modal
+  showCameraModalAI: boolean;
+  setShowCameraModalAI: (open: boolean) => void;
   cameraError: string | null;
   setCameraError: (error: string | null) => void;
   checkingCameraSupport: boolean | null;
   setCheckingCameraSupport: (support: boolean | null) => void;
- }
+}
 
 export function usePhotoCapture({
- manifestId,
- matchingItem,
- selectedStatus,
- actualQuantity,
- onToast,
- onRefresh,
- onResetInput,
+  manifestId,
+  matchingItem,
+  selectedStatus,
+  actualQuantity,
+  onToast,
+  onRefresh,
+  onResetInput,
+  isAIModeEnabled,
 }: UsePhotoCaptureOptions): UsePhotoCaptureReturn {
- const fileInputRef = useRef<HTMLInputElement>(null);
- const [uploadingQueue, setUploadingQueue] = useState<Set<string>>(new Set());
- const [optimisticUrls, setOptimisticUrls] = useState<Map<string, string>>(new Map());
- const [uploadErrors, setUploadErrors] = useState<Map<string, string>>(new Map());
- const [showCameraModal, setShowCameraModal] = useState(false);
- const [cameraError, setCameraError] = useState<string | null>(null);
- const [checkingCameraSupport, setCheckingCameraSupport] = useState<boolean | null>(null);
- const supabase = createClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingQueue, setUploadingQueue] = useState<Set<string>>(new Set());
+  const [optimisticUrls, setOptimisticUrls] = useState<Map<string, string>>(new Map());
+  const [uploadErrors, setUploadErrors] = useState<Map<string, string>>(new Map());
+  const [showCameraModalSimple, setShowCameraModalSimple] = useState(false);
+  const [showCameraModalAI, setShowCameraModalAI] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [checkingCameraSupport, setCheckingCameraSupport] = useState<boolean | null>(null);
+  const supabase = createClient();
 
- const triggerCamera = useCallback(() => {
- if (!matchingItem) {
- onToast('請先輸入條碼以匹配藥品');
- return;
- }
+  const triggerCamera = useCallback(() => {
+    if (!matchingItem) {
+      onToast('請先輸入條碼以匹配藥品');
+      return;
+    }
 
- if (checkingCameraSupport === true) {
- setShowCameraModal(true);
- } else if (checkingCameraSupport === false) {
- fileInputRef.current?.click();
- } else {
- (async () => {
- const isSupported =
- typeof navigator !== 'undefined' &&
- typeof navigator.mediaDevices !== 'undefined' &&
- typeof navigator.mediaDevices.getUserMedia === 'function';
- setCheckingCameraSupport(isSupported);
- if (isSupported) {
- setShowCameraModal(true);
- } else {
- fileInputRef.current?.click();
- }
- })();
- }
- }, [matchingItem, onToast, checkingCameraSupport]);
+    if (checkingCameraSupport === true) {
+      if (isAIModeEnabled) {
+        setShowCameraModalAI(true);
+      } else {
+        setShowCameraModalSimple(true);
+      }
+    } else if (checkingCameraSupport === false) {
+      fileInputRef.current?.click();
+    } else {
+      (async () => {
+        const isSupported =
+          typeof navigator !== 'undefined' &&
+          typeof navigator.mediaDevices !== 'undefined' &&
+          typeof navigator.mediaDevices.getUserMedia === 'function';
+        setCheckingCameraSupport(isSupported);
+        if (isSupported) {
+          if (isAIModeEnabled) {
+            setShowCameraModalAI(true);
+          } else {
+            setShowCameraModalSimple(true);
+          }
+        } else {
+          fileInputRef.current?.click();
+        }
+      })();
+    }
+  }, [matchingItem, onToast, checkingCameraSupport, isAIModeEnabled]);
 
  const handleCameraFile = useCallback(
  async (file: File) => {
@@ -304,8 +319,12 @@ return {
     triggerCamera,
     handleFileUpload,
     handleCameraFile,
-    showCameraModal,
-    setShowCameraModal,
+    // Simple (non-AI) modal
+    showCameraModalSimple,
+    setShowCameraModalSimple,
+    // AI modal
+    showCameraModalAI,
+    setShowCameraModalAI,
     cameraError,
     setCameraError,
     checkingCameraSupport,

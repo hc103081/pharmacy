@@ -4,7 +4,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { X, Camera, CheckCircle2, RotateCcw, Trash2, RefreshCw } from 'lucide-react';
 import { useAICounting } from '@/hooks/useAICounting';
 
-interface CameraModalProps {
+interface CameraModalAIProps {
   isOpen: boolean;
   onClose: () => void;
   onCapture: (file: File) => void;
@@ -17,24 +17,25 @@ interface CameraModalProps {
   onAIDispose: () => void;
 }
 
-export default function CameraModal({
+export default function CameraModalAI({
   isOpen,
   onClose,
   onCapture,
   onError,
   onCheckingSupport,
-  frontCamera = false,
+  frontCamera: initialFrontCamera = false,
   isAIModeEnabled,
   onAIAdoptCount,
   onAIDispose,
-}: CameraModalProps) {
+}: CameraModalAIProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [checkingSupport, setCheckingSupport] = useState(false);
+  const [checkingSupport, setCheckingSupport] = useState<boolean | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [frontCamera, setFrontCamera] = useState(initialFrontCamera);
 
   // AI 計數相關
   const {
@@ -61,7 +62,7 @@ export default function CameraModal({
       }
     }
     return () => {
-      if (stream) stream.getTracks().forEach(t => t.stop());
+      if (stream) stream.getTracks().forEach((t) => t.stop());
     };
   }, [isOpen, isAIModeEnabled, onAIDispose, dispose, stream]);
 
@@ -77,13 +78,16 @@ export default function CameraModal({
   }, [onCheckingSupport]);
 
   // 照片載入完成後觸發 AI Encoder
-  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
-    const img = e.currentTarget;
-    imgRef.current = img;
-    if (isAIModeEnabled && aiState.isEncoderReady === false && !aiState.isEncoderProcessing) {
-      loadImage(img, `photo-${Date.now()}`);
-    }
-  }, [isAIModeEnabled, aiState.isEncoderReady, aiState.isEncoderProcessing, loadImage]);
+  const handleImageLoad = useCallback(
+    (e: React.SyntheticEvent<HTMLImageElement>) => {
+      const img = e.currentTarget;
+      imgRef.current = img;
+      if (isAIModeEnabled && aiState.isEncoderReady === false && !aiState.isEncoderProcessing) {
+        loadImage(img, `photo-${Date.now()}`);
+      }
+    },
+    [isAIModeEnabled, aiState.isEncoderReady, aiState.isEncoderProcessing, loadImage]
+  );
 
   const startCamera = useCallback(async () => {
     try {
@@ -92,8 +96,8 @@ export default function CameraModal({
         video: {
           facingMode: frontCamera ? 'user' : 'environment',
           width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        }
+          height: { ideal: 1080 },
+        },
       };
       const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
       setStream(mediaStream);
@@ -112,7 +116,7 @@ export default function CameraModal({
 
   const stopCamera = useCallback(() => {
     if (stream) {
-      stream.getTracks().forEach(track => track.stop());
+      stream.getTracks().forEach((track) => track.stop());
       setStream(null);
     }
     if (videoRef.current) {
@@ -122,7 +126,7 @@ export default function CameraModal({
 
   const handleCapture = useCallback(async () => {
     if (!videoRef.current || !stream) {
-      onError("相機未就緒");
+      onError('相機未就緒');
       return;
     }
 
@@ -139,15 +143,11 @@ export default function CameraModal({
 
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      const blob = await new Promise<Blob | null>((resolve, reject) => {
-        canvas.toBlob((blob) => {
-          resolve(blob);
-        }, 'image/jpeg');
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob((blob) => resolve(blob), 'image/jpeg');
       });
 
-      if (!blob) {
-        throw new Error('無法處理圖像');
-      }
+      if (!blob) throw new Error('無法處理圖像');
 
       const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
 
@@ -160,7 +160,6 @@ export default function CameraModal({
 
       // 呼叫 onCapture 讓上層處理上傳
       onCapture(file);
-
     } catch (err: any) {
       setIsLoading(false);
       setError(`拍照失敗: ${err.message}`);
@@ -169,16 +168,22 @@ export default function CameraModal({
     }
   }, [stream, onError, onCapture, stopCamera]);
 
-  const handleFileSelect = useCallback((file: File) => {
-    const url = URL.createObjectURL(file);
-    setPhotoUrl(url);
-    onCapture(file);
-  }, [onCapture]);
+  const handleFileSelect = useCallback(
+    (file: File) => {
+      const url = URL.createObjectURL(file);
+      setPhotoUrl(url);
+      onCapture(file);
+    },
+    [onCapture]
+  );
 
-  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) handleFileSelect(file);
-  }, [handleFileSelect]);
+  const handleFileInput = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) handleFileSelect(file);
+    },
+    [handleFileSelect]
+  );
 
   // 鍵盤快捷鍵
   useEffect(() => {
@@ -214,10 +219,14 @@ export default function CameraModal({
         <div className="bg-[#162a56] border border-blue-500/30 rounded-xl p-6 max-w-md w-full mx-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-bold text-white">相機錯誤</h3>
-            <button onClick={onClose} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
+            <button onClick={onClose} className="text-slate-400 hover:text-white">
+              <X className="h-5 w-5" />
+            </button>
           </div>
           <p className="text-slate-300 mb-4">{error}</p>
-          <button onClick={onClose} className="w-full bg-[#00f2fe] text-slate-900 font-bold py-2 px-4 rounded-xl hover:bg-[#00f2fe]/90 active:scale-95 transition-all">關閉</button>
+          <button onClick={onClose} className="w-full bg-[#00f2fe] text-slate-900 font-bold py-2 px-4 rounded-xl hover:bg-[#00f2fe]/90 active:scale-95 transition-all">
+            關閉
+          </button>
         </div>
       </div>
     );
@@ -230,10 +239,16 @@ export default function CameraModal({
         <div className="bg-[#162a56] border border-blue-500/30 rounded-xl p-6 max-w-md w-full mx-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-bold text-white">相機功能不可用</h3>
-            <button onClick={onClose} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
+            <button onClick={onClose} className="text-slate-400 hover:text-white">
+              <X className="h-5 w-5" />
+            </button>
           </div>
-          <p className="text-slate-300 mb-4">您的設備或瀏覽器不支援進階相機功能。將使用傳統檔案上傳方式。</p>
-          <button onClick={onClose} className="w-full bg-[#00f2fe] text-slate-900 font-bold py-2 px-4 rounded-xl hover:bg-[#00f2fe]/90 active:scale-95 transition-all">關閉並使用傳統方式</button>
+          <p className="text-slate-300 mb-4">
+            您的設備或瀏覽器不支援進階相機功能。將使用傳統檔案上傳方式。
+          </p>
+          <button onClick={onClose} className="w-full bg-[#00f2fe] text-slate-900 font-bold py-2 px-4 rounded-xl hover:bg-[#00f2fe]/90 active:scale-95 transition-all">
+            關閉並使用傳統方式
+          </button>
         </div>
       </div>
     );
@@ -244,7 +259,7 @@ export default function CameraModal({
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
         <div className="text-center">
-          <div className="w-8 h-8 border-4 border-[#00f2fe] border-t-transparent rounded-full animate-spin"></div>
+          <div className="w-8 h-8 border-4 border-[#00f2fe] border-t-transparent rounded-full animate-spin" />
           <p className="mt-2 text-slate-300">檢查相機權限...</p>
         </div>
       </div>
@@ -287,8 +302,8 @@ export default function CameraModal({
               <canvas
                 ref={aiCanvasRef}
                 className="absolute top-0 left-0 pointer-events-none"
-                onClick={e => handleCanvasClick(e as React.MouseEvent<HTMLCanvasElement>, false)}
-                onContextMenu={e => {
+                onClick={(e) => handleCanvasClick(e as React.MouseEvent<HTMLCanvasElement>, false)}
+                onContextMenu={(e) => {
                   e.preventDefault();
                   handleCanvasClick(e as React.MouseEvent<HTMLCanvasElement>, true);
                 }}
@@ -304,14 +319,14 @@ export default function CameraModal({
                     <span>{modelState.encoderProgress}%</span>
                   </div>
                   <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className="h-full bg-gradient-to-r from-[#00f2fe] to-[#4fd1c5] transition-all duration-300 ease-out"
                       style={{ width: `${modelState.encoderProgress}%` }}
                     />
                   </div>
                   <p className="text-slate-300 text-sm text-center">
-                    {modelState.encoderStage === 'downloading' 
-                      ? `正在下載 Encoder 模型 (~27MB)...` 
+                    {modelState.encoderStage === 'downloading'
+                      ? `正在下載 Encoder 模型 (~11MB)...`
                       : `正在初始化模型...`}
                   </p>
                 </div>
@@ -321,7 +336,9 @@ export default function CameraModal({
             {/* AI 未就緒時的啟動按鈕 */}
             {isAIModeEnabled && !aiState.isEncoderReady && !aiState.isEncoderProcessing && (
               <button
-                onClick={() => { /* loadImage 會在 onLoad 觸發 */ }}
+                onClick={() => {
+                  /* loadImage 會在 onLoad 觸發 */
+                }}
                 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#00f2fe] text-slate-900 px-6 py-3 rounded-xl font-bold text-lg shadow-[0_0_20px_rgba(0,242,254,0.4)] z-30"
               >
                 開始 AI 分析
@@ -408,7 +425,7 @@ export default function CameraModal({
               <div className="absolute top-2 right-2">
                 <button
                   onClick={() => {
-                    frontCamera = !frontCamera;
+                    setFrontCamera((prev) => !prev);
                     stopCamera();
                     startCamera();
                   }}
