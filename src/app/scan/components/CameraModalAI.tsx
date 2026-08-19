@@ -66,6 +66,48 @@ export default function CameraModalAI({
     };
   }, [isOpen, isAIModeEnabled, onAIDispose, dispose, stream]);
 
+  // 開啟 Modal 時啟動相機
+  useEffect(() => {
+    if (!isOpen || checkingSupport !== true) return;
+
+    const startCamera = async () => {
+      try {
+        setCheckingSupport(true);
+        const constraints = {
+          video: {
+            facingMode: frontCamera ? 'user' : 'environment',
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
+        };
+        const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+        setStream(mediaStream);
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+        }
+        setError(null);
+        onCheckingSupport(true);
+      } catch (err) {
+        console.error('Camera access error:', err);
+        setError('無法訪問相機，請檢查權限');
+        setCheckingSupport(false);
+        onCheckingSupport(false);
+      }
+    };
+
+    startCamera();
+
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+        setStream(null);
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+    };
+  }, [isOpen, checkingSupport, frontCamera, onCheckingSupport]);
+
   // 檢查相機支援
   useEffect(() => {
     if (typeof navigator !== 'undefined' && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
@@ -271,10 +313,10 @@ export default function CameraModalAI({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
       <div className="relative w-full max-w-4xl max-h-[90vh] mx-4" ref={containerRef}>
-        {/* 關閉按鈕 */}
+        {/* 關閉按鈕 - 與切換鏡頭按鈕水平對齊，避免重疊 */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 z-10 p-2 bg-slate-900/80 rounded-full text-slate-300 hover:text-white transition-colors"
+          className="absolute top-2 right-2 z-10 p-2 bg-slate-900/80 rounded-full text-slate-300 hover:text-white transition-colors"
         >
           <X className="w-6 h-6" />
         </button>
@@ -421,8 +463,9 @@ export default function CameraModalAI({
             />
 
             <div className="absolute inset-0 flex flex-col items-end pb-4 pt-2 space-y-2">
-              {/* 右上：切換前後鏡頭 */}
-              <div className="absolute top-2 right-2">
+              {/* 右上：關閉按鈕 (left) + 切換前後鏡頭 (right) - 水平排列避免重疊 */}
+              <div className="absolute top-2 right-2 flex items-center gap-2">
+                {/* 切換前後鏡頭 */}
                 <button
                   onClick={() => {
                     setFrontCamera((prev) => !prev);
@@ -430,7 +473,7 @@ export default function CameraModalAI({
                     startCamera();
                   }}
                   disabled={isLoading}
-                  className="p-2 rounded-full bg-slate-900/80 hover:bg-slate-800 transition-colors"
+                  className="p-2 rounded-full bg-slate-900/80 hover:bg-slate-800 transition-colors disabled:opacity-50"
                 >
                   <RefreshCw className="h-5 w-5 text-white" />
                 </button>
@@ -447,16 +490,6 @@ export default function CameraModalAI({
                     <div className="w-full h-full rounded-full bg-white opacity-0 transition-opacity duration-200" />
                   </div>
                   <Camera className="h-6 w-6 text-white" />
-                </button>
-              </div>
-
-              {/* 左上：關閉按鈕 */}
-              <div className="absolute top-2 left-2">
-                <button
-                  onClick={onClose}
-                  className="p-2 rounded-full bg-slate-900/80 hover:bg-slate-800 transition-colors"
-                >
-                  <X className="h-5 w-5 text-slate-300 hover:text-white" />
                 </button>
               </div>
             </div>
