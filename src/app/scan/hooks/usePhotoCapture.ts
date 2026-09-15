@@ -1,20 +1,20 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { getPresignedUploadUrl } from '@/app/actions/scan/getUploadUrl';
 import { updateDrugStatus } from '@/app/actions/scan/updatePhoto';
 import { incrementStorageSize } from '@/app/actions/manifests/storage';
 import { compressImage } from '@/lib/imageCompression';
 import type { DrugItem } from '@/types';
 
 interface UsePhotoCaptureOptions {
- manifestId: string | null;
- matchingItem: DrugItem | null;
- selectedStatus: 'correct' | 'incorrect' | 'pending_photo' | 'pending_skip' | null;
- actualQuantity: string;
- onToast: (message: string) => void;
- onRefresh: () => Promise<void>;
- onResetInput: () => void;
+  manifestId: string | null;
+  matchingItem: DrugItem | null;
+  selectedStatus: 'correct' | 'incorrect' | 'pending_photo' | 'pending_skip' | null;
+  actualQuantity: string;
+  onToast: (message: string) => void;
+  onRefresh: () => Promise<void>;
+  onResetInput: () => void;
 }
 
 interface UsePhotoCaptureReturn {
@@ -31,262 +31,169 @@ interface UsePhotoCaptureReturn {
   setCameraError: (error: string | null) => void;
   checkingCameraSupport: boolean | null;
   setCheckingCameraSupport: (support: boolean | null) => void;
- }
+}
 
 export function usePhotoCapture({
- manifestId,
- matchingItem,
- selectedStatus,
- actualQuantity,
- onToast,
- onRefresh,
- onResetInput,
+  manifestId,
+  matchingItem,
+  selectedStatus,
+  actualQuantity,
+  onToast,
+  onRefresh,
+  onResetInput,
 }: UsePhotoCaptureOptions): UsePhotoCaptureReturn {
- const fileInputRef = useRef<HTMLInputElement>(null);
- const [uploadingQueue, setUploadingQueue] = useState<Set<string>>(new Set());
- const [optimisticUrls, setOptimisticUrls] = useState<Map<string, string>>(new Map());
- const [uploadErrors, setUploadErrors] = useState<Map<string, string>>(new Map());
- const [showCameraModal, setShowCameraModal] = useState(false);
- const [cameraError, setCameraError] = useState<string | null>(null);
- const [checkingCameraSupport, setCheckingCameraSupport] = useState<boolean | null>(null);
- const supabase = createClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingQueue, setUploadingQueue] = useState<Set<string>>(new Set());
+  const [optimisticUrls, setOptimisticUrls] = useState<Map<string, string>>(new Map());
+  const [uploadErrors, setUploadErrors] = useState<Map<string, string>>(new Map());
+  const [showCameraModal, setShowCameraModal] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [checkingCameraSupport, setCheckingCameraSupport] = useState<boolean | null>(null);
 
- const triggerCamera = useCallback(() => {
- if (!matchingItem) {
- onToast('請先輸入條碼以匹配藥品');
- return;
- }
+  const triggerCamera = useCallback(() => {
+    if (!matchingItem) {
+      onToast('請先輸入條碼以匹配藥品');
+      return;
+    }
 
- if (checkingCameraSupport === true) {
- setShowCameraModal(true);
- } else if (checkingCameraSupport === false) {
- fileInputRef.current?.click();
- } else {
- (async () => {
- const isSupported =
- typeof navigator !== 'undefined' &&
- typeof navigator.mediaDevices !== 'undefined' &&
- typeof navigator.mediaDevices.getUserMedia === 'function';
- setCheckingCameraSupport(isSupported);
- if (isSupported) {
- setShowCameraModal(true);
- } else {
- fileInputRef.current?.click();
- }
- })();
- }
- }, [matchingItem, onToast, checkingCameraSupport]);
+    if (checkingCameraSupport === true) {
+      setShowCameraModal(true);
+    } else if (checkingCameraSupport === false) {
+      fileInputRef.current?.click();
+    } else {
+      (async () => {
+        const isSupported =
+          typeof navigator !== 'undefined' &&
+          typeof navigator.mediaDevices !== 'undefined' &&
+          typeof navigator.mediaDevices.getUserMedia === 'function';
+        setCheckingCameraSupport(isSupported);
+        if (isSupported) {
+          setShowCameraModal(true);
+        } else {
+          fileInputRef.current?.click();
+        }
+      })();
+    }
+  }, [matchingItem, onToast, checkingCameraSupport]);
 
- const handleCameraFile = useCallback(
- async (file: File) => {
- if (!matchingItem) return;
+  // 核心上傳邏輯：B2 Presigned URL 直傳
+  const uploadToB2 = useCallback(
+    async (file: File, drugId: string, barcode: string, pageNumber: number) => {
+      if (!manifestId) throw new Error('缺少 manifestId');
 
- const drugId = matchingItem.id;
+      let finalQuantity = 0;
+      if (selectedStatus === 'correct') {
+        finalQuantity = matchingItem?.expected_quantity || 0;
+      } else {
+        finalQuantity = parseInt(actualQuantity || '0');
+      }
 
- let finalQuantity = 0;
- if (selectedStatus === 'correct') {
- finalQuantity = matchingItem.expected_quantity;
- } else {
- finalQuantity = parseInt(actualQuantity || '0');
- }
+      // 1. 建立物件 URL 供即時預覽 (樂觀 UI)
+      const objectUrl = URL.createObjectURL(file);
 
- // Create object URL for immediate preview
- const objectUrl = URL.createObjectURL(file);
+      // 2. 設定樂觀狀態
+      setUploadingQueue((prev) => new Set(prev).add(drugId));
+      setOptimisticUrls((prev) => {
+        const next = new Map(prev);
+        next.set(drugId, objectUrl);
+        return next;
+      });
+      setUploadErrors((prev) => {
+        const next = new Map(prev);
+        next.delete(drugId);
+        return next;
+      });
 
- // Set optimistic UI state immediately
- setUploadingQueue((prev) => new Set(prev).add(drugId));
- setOptimisticUrls((prev) => {
- const next = new Map(prev);
- next.set(drugId, objectUrl);
- return next;
- });
- setUploadErrors((prev) => {
- const next = new Map(prev);
- next.delete(drugId); // Clear any previous error
- return next;
- });
+      onResetInput();
 
- onResetInput();
+      // 3. 背景執行上傳流程
+      try {
+        // 3.1 向 Server 申請 Presigned Upload URL
+        const res = await getPresignedUploadUrl(manifestId, barcode, pageNumber, 'jpg');
+        if (!res.success || !res.uploadUrl || !res.key) {
+          throw new Error(res.error || '取得上傳連結失敗');
+        }
 
- // Perform upload in background
- (async () => {
- try {
- const now = new Date();
- const year = now.getFullYear();
- const month = String(now.getMonth() + 1).padStart(2, '0');
- const day = String(now.getDate()).padStart(2, '0');
- const filePath = `photos/${year}/${month}/${day}/${manifestId}/${matchingItem.page_number}/${matchingItem.barcode}_${Date.now()}.jpg`;
+        // 3.2 壓縮圖片 (限制 100KB)
+        const compressedFile = await compressImage(file);
 
- // 壓縮圖片確保不超過300KB
- const compressedFile = await compressImage(file);
- const { error: uploadError } = await supabase.storage
- .from('drug-photos')
- .upload(filePath, compressedFile);
+        // 3.3 直接 PUT 到 B2
+        const uploadRes = await fetch(res.uploadUrl, {
+          method: 'PUT',
+          body: compressedFile,
+          headers: { 'Content-Type': compressedFile.type || 'image/jpeg' },
+        });
 
- if (uploadError) throw uploadError;
+        if (!uploadRes.ok) {
+          const errText = await uploadRes.text();
+          throw new Error(`B2 上傳失敗: ${uploadRes.status} ${errText}`);
+        }
 
- const {
- data: { publicUrl },
- } = await supabase.storage
- .from('drug-photos')
- .getPublicUrl(filePath);
+        // 3.4 上傳成功，呼叫 updateDrugStatus 更新 DB
+        // 傳入 B2 key (相對路徑)，而非 public URL
+        const result = await updateDrugStatus(drugId, res.key, finalQuantity);
+        if (!result.success) throw new Error(result.error || '更新狀態失敗');
 
- const result = await updateDrugStatus(drugId, publicUrl, finalQuantity);
- if (!result.success) throw new Error(result.error || '更新狀態失敗');
+        // 3.5 更新清單已用容量
+        if (manifestId) {
+          await incrementStorageSize(manifestId, compressedFile.size);
+        }
 
- // 更新清單已用容量
- if (manifestId) {
- await incrementStorageSize(manifestId, compressedFile.size);
- }
+        // 3.6 更新樂觀 URL 為 B2 key (後續顯示時會轉成 presigned view URL)
+        setOptimisticUrls((prev) => {
+          const next = new Map(prev);
+          next.set(drugId, res.key!);
+          return next;
+        });
 
- // Update optimistic URL to the real one on success
- setOptimisticUrls((prev) => {
- const next = new Map(prev);
- next.set(drugId, publicUrl);
- return next;
- });
+        // 清除錯誤狀態
+        setUploadErrors((prev) => {
+          const next = new Map(prev);
+          next.delete(drugId);
+          return next;
+        });
 
- // Clear any error state
- setUploadErrors((prev) => {
- const next = new Map(prev);
- next.delete(drugId);
- return next;
- });
+        // 同步 Server 狀態
+        await onRefresh();
+      } catch (error: any) {
+        // 錯誤處理：保留樂觀 URL 但顯示錯誤
+        setUploadErrors((prev) => {
+          const next = new Map(prev);
+          next.set(drugId, error.message);
+          return next;
+        });
+        onToast(`上傳失敗: ${error.message}`);
+      } finally {
+        // 移出上傳佇列
+        setUploadingQueue((prev) => {
+          const next = new Set(prev);
+          next.delete(drugId);
+          return next;
+        });
+        // 不立即 revoke objectUrl，避免閃爍；元件卸載或下次選檔時清理
+      }
+    },
+    [manifestId, matchingItem, selectedStatus, actualQuantity, onResetInput, onRefresh]
+  );
 
- // Sync with server state
- await onRefresh();
- } catch (error: any) {
- // Handle error - keep optimistic URL but show error
- setUploadErrors((prev) => {
- const next = new Map(prev);
- next.set(drugId, error.message);
- return next;
- });
+  const handleCameraFile = useCallback(
+    async (file: File) => {
+      if (!matchingItem) return;
+      await uploadToB2(file, matchingItem.id, matchingItem.barcode, matchingItem.page_number);
+    },
+    [matchingItem, uploadToB2]
+  );
 
- // Show error toast
- onToast(`上傳失敗: ${error.message}`);
- } finally {
- // Always remove from uploading queue
- setUploadingQueue((prev) => {
- const next = new Set(prev);
- next.delete(drugId);
- return next;
- });
+  const handleFileUpload = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file || !matchingItem) return;
+      await uploadToB2(file, matchingItem.id, matchingItem.barcode, matchingItem.page_number);
+    },
+    [matchingItem, uploadToB2]
+  );
 
- // Note: We don't revoke the object URL immediately to avoid flickering
- // It will be cleaned up when the component unmounts or when a new file is selected
- }
- })();
- },
- [manifestId, matchingItem, selectedStatus, actualQuantity, onResetInput, onRefresh]
- );
-
- const handleFileUpload = useCallback(
- async (e: React.ChangeEvent<HTMLInputElement>) => {
- const file = e.target.files?.[0];
- if (!file || !matchingItem) return;
-
- const drugId = matchingItem.id;
-
- let finalQuantity = 0;
- if (selectedStatus === 'correct') {
- finalQuantity = matchingItem.expected_quantity;
- } else {
- finalQuantity = parseInt(actualQuantity || '0');
- }
-
- // Create object URL for immediate preview
- const objectUrl = URL.createObjectURL(file);
-
- // Set optimistic UI state immediately
- setUploadingQueue((prev) => new Set(prev).add(drugId));
- setOptimisticUrls((prev) => {
- const next = new Map(prev);
- next.set(drugId, objectUrl);
- return next;
- });
- setUploadErrors((prev) => {
- const next = new Map(prev);
- next.delete(drugId); // Clear any previous error
- return next;
- });
-
- onResetInput();
-
- // Perform upload in background
- (async () => {
- try {
- const now = new Date();
- const year = now.getFullYear();
- const month = String(now.getMonth() + 1).padStart(2, '0');
- const day = String(now.getDate()).padStart(2, '0');
- const filePath = `photos/${year}/${month}/${day}/${manifestId}/${matchingItem.page_number}/${matchingItem.barcode}_${Date.now()}.jpg`;
-
- // 壓縮圖片確保不超過300KB
- const compressedFile = await compressImage(file);
- const { error: uploadError } = await supabase.storage
- .from('drug-photos')
- .upload(filePath, compressedFile);
-
- if (uploadError) throw uploadError;
-
- const {
- data: { publicUrl },
- } = await supabase.storage
- .from('drug-photos')
- .getPublicUrl(filePath);
-
- const result = await updateDrugStatus(drugId, publicUrl, finalQuantity);
- if (!result.success) throw new Error(result.error || '更新狀態失敗');
-
- // 更新清單已用容量
- if (manifestId) {
- await incrementStorageSize(manifestId, compressedFile.size);
- }
-
- // Update optimistic URL to the real one on success
- setOptimisticUrls((prev) => {
- const next = new Map(prev);
- next.set(drugId, publicUrl);
- return next;
- });
-
- // Clear any error state
- setUploadErrors((prev) => {
- const next = new Map(prev);
- next.delete(drugId);
- return next;
- });
-
- // Sync with server state
- await onRefresh();
- } catch (error: any) {
- // Handle error - keep optimistic URL but show error
- setUploadErrors((prev) => {
- const next = new Map(prev);
- next.set(drugId, error.message);
- return next;
- });
-
- // Show error toast
- onToast(`上傳失敗: ${error.message}`);
- } finally {
- // Always remove from uploading queue
- setUploadingQueue((prev) => {
- const next = new Set(prev);
- next.delete(drugId);
- return next;
- });
-
- // Note: We don't revoke the object URL immediately to avoid flickering
- // It will be cleaned up when the component unmounts or when a new file is selected
- }
- })();
- },
- [manifestId, matchingItem, selectedStatus, actualQuantity, onResetInput, onRefresh]
- );
-
- return {
+  return {
     fileInputRef,
     uploadingQueue,
     optimisticUrls,

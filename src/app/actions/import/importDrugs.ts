@@ -68,7 +68,7 @@ export async function importDrugs(
       p_manifest: {
         name: manifestName,
         order_number: options.order_number ?? '',
-        delivery_date: options.delivery_date ?? '',
+        delivery_date: options.delivery_date ?? null,
         source_file: options.source_file ?? '',
         total_items: drugItemsToInsert.length,
         user_id: userId,

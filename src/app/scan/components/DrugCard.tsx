@@ -6,6 +6,7 @@ import type { DrugItem } from '@/types';
 
 interface DrugCardProps {
   drug: DrugItem;
+  photoViewUrl?: string; // B2 presigned view URL for photo preview
   isMatched: boolean;
   isUploading: boolean;
   isLocked: boolean;
@@ -24,6 +25,7 @@ interface DrugCardProps {
 
 export default function DrugCard({
   drug,
+  photoViewUrl,
   isMatched,
   isUploading,
   isLocked,
@@ -199,7 +201,7 @@ const isNoBarcode = !drug.barcode?.trim() && !drug.product_code?.trim();
           <div
             className={`w-11 h-11 lg:w-12 lg:h-12 rounded-lg overflow-hidden border shrink-0 shadow-inner bg-slate-900 relative ${isMatched ? 'border-[#00f2fe]' : 'border-slate-700'}`}
           >
-            {drug.photo_url && <img src={drug.photo_url} alt="Thumbnail" className="w-full h-full object-cover opacity-30" />}
+            {photoViewUrl && <img src={photoViewUrl} alt="Thumbnail" className="w-full h-full object-cover opacity-30" />}
             <div className="absolute inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
               <div className="relative w-6 h-6">
                 <div className="absolute inset-0 rounded-full border-2 border-[#00f2fe]/30" />
@@ -208,13 +210,13 @@ const isNoBarcode = !drug.barcode?.trim() && !drug.product_code?.trim();
               </div>
             </div>
           </div>
-        ) : drug.photo_url ? (
+        ) : photoViewUrl ? (
           <div
-            onClick={() => onPreviewPhoto(drug.photo_url!)}
+            onClick={() => onPreviewPhoto(photoViewUrl!)}
             className={`w-11 h-11 lg:w-12 lg:h-12 rounded-lg overflow-hidden border cursor-pointer transition-all shrink-0 shadow-inner bg-slate-900 ${isMatched ? 'border-[#00f2fe] hover:scale-110' : 'border-slate-700 hover:border-[#00f2fe]'}`}
             title="點擊預覽照片"
           >
-            <img src={drug.photo_url} alt="Thumbnail" className="w-full h-full object-cover" />
+            <img src={photoViewUrl} alt="Thumbnail" className="w-full h-full object-cover" />
           </div>
         ) : null}
       </div>

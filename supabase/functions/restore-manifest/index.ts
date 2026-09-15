@@ -4,7 +4,7 @@ import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 // Deno-native ZIP library (Supabase 官方推薦)
 import { JSZip } from 'https://deno.land/x/jszip/mod.ts';
 
-console.log('restore-manifest boot (v3 - JSZip native)');
+console.log('restore-manifest boot (v4 - Strategy 2: B2 photos stay in place)');
 
 declare const Deno: any;
 
@@ -13,7 +13,6 @@ const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 const ARCHIVED_MANIFESTS_BUCKET = 'archived-manifests';
-const DRUG_PHOTOS_BUCKET = 'drug-photos';
 const LOCK_TIMEOUT_HOURS = 1;
 
 // Helper to create SSE formatted message
@@ -137,8 +136,8 @@ serve(async (req: Request) => {
         throw new Error('Failed to parse data.json');
       }
 
-      // Restore drug_items using upsert
-      await send({ status: 'upserting_items', message: '還原藥品項目到資料庫...' });
+      // Step 4: Restore drug_items using upsert - 直接使用 data.json 中的 photo_url (Strategy 2)
+      await send({ status: 'upserting_items', message: '還原藥品項目到資料庫 (照片直接使用 B2 key)...' });
       for (const item of dataJsonItems) {
         const { error: itemError } = await supabase
           .from('drug_items')
@@ -156,74 +155,18 @@ serve(async (req: Request) => {
             counted_status: item.counted_status,
             storage_location: item.storage_location ?? null,
             category: item.category ?? null,
-            photo_url: null, // Will be updated after photo restore
+            // Strategy 2: photo_url 直接從 data.json 讀取 (可能是 Supabase URL 或 B2 key)
+            photo_url: item.photo_url ?? null,
             created_at: item.created_at ?? new Date().toISOString(),
             updated_at: item.updated_at ?? new Date().toISOString(),
           }, { onConflict: 'id' });
         if (itemError) throw itemError;
       }
 
-      // Step 4: Extract photos and upload to drug-photos bucket
-      await send({ status: 'uploading_photos', message: '還原照片...' });
+      // Step 5: 不需上傳照片 (Strategy 2: 照片留在 B2)
+      await send({ status: 'finalizing', message: '完成還原 (照片已在 B2)...' });
 
-      const photoUrlUpdates: { [drugItemId: string]: string } = { };
-
-      // 使用 deno.land/x/jszip 的 iterator 遍歷所有檔案
-      for (const entry of zip) {
-        const filename = (entry as any).name;
-        if (!filename || !filename.startsWith('photos/')) continue;
-
-        try {
-          const basename = filename.split('/').pop();
-          const drugItemId = basename?.split('.')[0];
-          if (!drugItemId) continue;
-
-          const photoUint8 = await (entry as any).async('uint8array');
-          const ext = filename.split('.').pop();
-
-          const photoPath = `${manifestId}/${drugItemId}.${ext}`;
-          const { error: uploadError } = await supabase.storage
-            .from(DRUG_PHOTOS_BUCKET)
-            .upload(photoPath, photoUint8, {
-              contentType: ext === 'png' ? 'image/png' : 'image/jpeg',
-              upsert: true,
-            });
-
-          if (uploadError) {
-            console.warn(`Failed to upload photo for drug_item ${drugItemId}:`, uploadError);
-            continue;
-          }
-
-          const { data: publicUrlData } = await supabase.storage
-            .from(DRUG_PHOTOS_BUCKET)
-            .getPublicUrl(photoPath);
-
-          if (publicUrlData?.publicUrl) {
-            photoUrlUpdates[drugItemId] = publicUrlData.publicUrl;
-          }
-        } catch (err) {
-          console.warn(`Failed to process photo entry ${filename}:`, err);
-        }
-      }
-
-      // Batch update photo_url for all successfully uploaded photos
-      if (Object.keys(photoUrlUpdates).length > 0) {
-        await send({ status: 'updating_photo_urls', message: '更新照片 URL...' });
-        for (const [drugItemId, photoUrl] of Object.entries(photoUrlUpdates)) {
-          const { error: itemError } = await supabase
-            .from('drug_items')
-            .update({ photo_url: photoUrl })
-            .eq('id', drugItemId);
-          if (itemError) {
-            console.warn(`Failed to update photo_url for drug_item ${drugItemId}:`, itemError);
-          }
-        }
-      }
-
-      // Step 5: Update manifest to active and release lock
-      await send({ status: 'finalizing', message: '完成還原...' });
-
-      // 從 data.json 計算照片總大小（O(1) 記憶體計算，無 Storage API 呼叫）
+      // 從 data.json 計算照片總大小
       const totalPhotoSize = dataJsonItems.reduce(
         (sum: number, item: any) => sum + (item.file_size_bytes ?? 0),
         0
@@ -254,7 +197,8 @@ serve(async (req: Request) => {
       }
 
       // Step 7: Log success
-      await safeLog(manifestId!, 'restore', 'manual', 'success', `Successfully restored manifest with ${dataJsonItems.length} items and ${Object.keys(photoUrlUpdates).length} photos`);
+      const photoCount = dataJsonItems.filter((item: any) => item.photo_url).length;
+      await safeLog(manifestId!, 'restore', 'manual', 'success', `Successfully restored manifest with ${dataJsonItems.length} items and ${photoCount} photos (B2 keys restored)`);
 
       await send({ status: 'completed', message: '還原完成' });
     } catch (error: any) {

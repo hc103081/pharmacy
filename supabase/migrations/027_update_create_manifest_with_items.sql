@@ -32,7 +32,7 @@ BEGIN
   ) VALUES (
     p_manifest->>'name',
     p_manifest->>'order_number',
-    (p_manifest->>'delivery_date')::date,
+    NULLIF(p_manifest->>'delivery_date', '')::date,
     p_manifest->>'source_file',
     (p_manifest->>'total_items')::int,
     'active',

@@ -4,7 +4,7 @@ import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 // Deno-native ZIP library (Supabase 官方推薦)
 import { JSZip } from 'https://deno.land/x/jszip/mod.ts';
 
-console.log('archive-manifest boot (v3 - JSZip native)');
+console.log('archive-manifest boot (v4 - Strategy 2: B2 photos stay in place)');
 
 declare const Deno: any;
 
@@ -12,9 +12,15 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+// B2 環境變數 (需在 Supabase Dashboard 設定)
+const B2_KEY_ID = Deno.env.get('B2_KEY_ID')!;
+const B2_APP_KEY = Deno.env.get('B2_APP_KEY')!;
+const B2_BUCKET = Deno.env.get('B2_BUCKET')!;
+const B2_REGION = Deno.env.get('B2_REGION')!;
+const B2_ENDPOINT = `https://s3.${B2_REGION}.backblazeb2.com`;
+
 const ARCHIVED_MANIFESTS_BUCKET = 'archived-manifests';
-const DRUG_PHOTOS_BUCKET = 'drug-photos';
-const MAX_PHOTO_TOTAL_SIZE = 200 * 1024 * 1024; // 200MB
+const MAX_PHOTO_TOTAL_SIZE = 200 * 1024 * 1024; // 200MB (僅計算大小，不實際打包)
 const LOCK_TIMEOUT_HOURS = 1;
 
 // Helper to create SSE formatted message
@@ -38,20 +44,92 @@ async function safeLog(manifestId: string, action: string, trigger: string, stat
   }
 }
 
-// 從 photoUrls 解析出 storage path
-function extractPhotoStoragePath(url: string): string | null {
-  try {
-    const urlObj = new URL(url);
-    const pathname = urlObj.pathname;
-    const parts = pathname.split('/');
-    const bucketIndex = parts.indexOf(DRUG_PHOTOS_BUCKET);
-    if (bucketIndex !== -1 && bucketIndex + 1 < parts.length) {
-      return parts.slice(bucketIndex + 1).join('/');
-    }
-    return null;
-  } catch {
-    return null;
+// AWS Signature V4 for B2 (Deno 相容) - 完整實作
+async function b2HeadObject(key: string): Promise<{ size: number; lastModified: string } | null> {
+  const url = `${B2_ENDPOINT}/${B2_BUCKET}/${encodeURIComponent(key)}`;
+  const now = new Date();
+  const dateStamp = now.toISOString().replace(/[:-]|\.\d{3}/g, '').slice(0, 15) + 'Z';
+  const dateStr = dateStamp.slice(0, 8);
+  const host = new URL(B2_ENDPOINT).host;
+  
+  // HMAC-SHA256 helper
+  async function hmacSha256(key: Uint8Array, data: string): Promise<Uint8Array> {
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+    );
+    return new Uint8Array(await crypto.subtle.sign('HMAC', cryptoKey, new TextEncoder().encode(data)));
   }
+  
+  // 計算 SHA256 hex
+  async function sha256Hex(data: string): Promise<string> {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(data));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  
+  // 簽名流程
+  const canonicalRequest = [
+    'HEAD',
+    `/${B2_BUCKET}/${encodeURIComponent(key)}`,
+    '',
+    `host:${host}`,
+    `x-amz-date:${dateStamp}`,
+    '',
+    'host;x-amz-date',
+    'UNSIGNED-PAYLOAD'
+  ].join('\n');
+  
+  const credentialScope = `${dateStr}/${B2_REGION}/s3/aws4_request`;
+  const hashedCanonicalRequest = await sha256Hex(canonicalRequest);
+  
+  const stringToSign = [
+    'AWS4-HMAC-SHA256',
+    dateStamp,
+    credentialScope,
+    hashedCanonicalRequest
+  ].join('\n');
+  
+  // Derive signing key
+  const kDate = await hmacSha256(new TextEncoder().encode(`AWS4${B2_APP_KEY}`), dateStr);
+  const kRegion = await hmacSha256(kDate, B2_REGION);
+  const kService = await hmacSha256(kRegion, 's3');
+  const kSigning = await hmacSha256(kService, 'aws4_request');
+  
+  const signature = await hmacSha256(kSigning, stringToSign);
+  const signatureHex = Array.from(signature).map(b => b.toString(16).padStart(2, '0')).join('');
+  
+  const authorization = `AWS4-HMAC-SHA256 Credential=${B2_KEY_ID}/${credentialScope}, SignedHeaders=host;x-amz-date, Signature=${signatureHex}`;
+  
+  try {
+    const response = await fetch(url, {
+      method: 'HEAD',
+      headers: {
+        'Authorization': authorization,
+        'x-amz-date': dateStamp,
+        'host': host,
+      },
+    });
+    if (response.ok) {
+      return {
+        size: parseInt(response.headers.get('content-length') || '0'),
+        lastModified: response.headers.get('last-modified') || now.toISOString(),
+      };
+    }
+    console.warn(`B2 HEAD failed for ${key}: ${response.status}`);
+  } catch (err) {
+    console.warn(`B2 HEAD error for ${key}:`, err);
+  }
+  return null;
+}
+
+// 獲取 B2 檔案大小 (帶緩存)
+const b2SizeCache = new Map<string, number>();
+async function getB2FileSize(key: string): Promise<number> {
+  if (b2SizeCache.has(key)) return b2SizeCache.get(key)!;
+  
+  const result = await b2HeadObject(key);
+  const size = result?.size || 100 * 1024; // fallback 100KB
+  b2SizeCache.set(key, size);
+  return size;
 }
 
 serve(async (req: Request) => {
@@ -124,7 +202,7 @@ serve(async (req: Request) => {
       const { data: drugItems, error: itemsError } = await supabase
         .from('drug_items')
         .select('id, manifest_id, page_number, item_order, barcode, product_code, name, expected_quantity, bonus_quantity, actual_quantity, counted_status, photo_url, storage_location, category')
-      .eq('manifest_id', manifestId);
+        .eq('manifest_id', manifestId);
 
       if (itemsError) throw itemsError;
 
@@ -138,25 +216,81 @@ serve(async (req: Request) => {
         return;
       }
 
-      // Step 3: Count photos
-      const photoUrls = drugItems
-        .map((item: any) => item.photo_url)
-        .filter((url: any): url is string => !!url);
+      // Step 3: Count photos (Strategy 2: 照片留在 B2，只記錄 key 和大小)
+      const photoItems = drugItems.filter((item: any) => item.photo_url);
+      const photoCount = photoItems.length;
 
       await send({
         status: 'estimating_photos',
-        message: `找到 ${drugItems.length} 個藥品項目，${photoUrls.length} 個有照片`
+        message: `找到 ${drugItems.length} 個藥品項目，${photoCount} 個有照片 (Strategy 2: 照片留在 B2)`
       });
 
-      const fileSizeMap = new Map<string, number>();
-
-      // Step 4: Create data.json content
-      await send({ status: 'preparing_data', message: '準備資料 JSON...' });
-      const dataJsonItems = drugItems.map((item: any) => {
-        let fileSizeBytes = 0;
-        if (item.photo_url) {
-          fileSizeBytes = fileSizeMap.get(item.photo_url) ?? 0;
+      // Step 4: Create data.json content - 保留 B2 key，不下載照片
+      await send({ status: 'preparing_data', message: '準備資料 JSON (查詢 B2 實際大小)...' });
+      
+      // 從 photo_url 解析 B2 key
+      function extractB2Key(photoUrl: string): string | null {
+        if (!photoUrl) return null;
+        // Supabase URL: https://xxx.supabase.co/storage/v1/object/public/drug-photos/photos/...
+        if (photoUrl.includes('supabase.co')) {
+          try {
+            const url = new URL(photoUrl);
+            const prefix = '/storage/v1/object/public/drug-photos/';
+            if (url.pathname.startsWith(prefix)) {
+              return url.pathname.slice(prefix.length);
+            }
+          } catch {}
+          return null;
         }
+        // B2 public URL: https://bucket.region.backblazeb2.com/file/bucket/photos/...
+        if (photoUrl.includes('backblazeb2.com') || photoUrl.includes('b2.cloud')) {
+          try {
+            const url = new URL(photoUrl);
+            const parts = url.pathname.split('/');
+            const fileIdx = parts.indexOf('file');
+            if (fileIdx !== -1 && fileIdx + 2 < parts.length) {
+              return parts.slice(fileIdx + 2).join('/');
+            }
+            if (url.pathname.startsWith('/photos/')) {
+              return url.pathname.slice(1);
+            }
+          } catch {}
+          return null;
+        }
+        // 已經是 B2 key (相對路徑): photos/...
+        if (photoUrl.startsWith('photos/')) {
+          return photoUrl;
+        }
+        return null;
+      }
+      
+      // 先收集所有 B2 keys，並行查詢大小
+      const photoKeys = drugItems
+        .map(item => extractB2Key(item.photo_url || ''))
+        .filter((k): k is string => !!k);
+      
+      const uniqueKeys = [...new Set(photoKeys)];
+      await send({ status: 'fetching_sizes', message: `查詢 ${uniqueKeys.length} 張照片實際大小...` });
+      
+      // 並行查詢 (限制並發)
+      const sizeMap = new Map<string, number>();
+      const CONCURRENCY = 10;
+      for (let i = 0; i < uniqueKeys.length; i += CONCURRENCY) {
+        const batch = uniqueKeys.slice(i, i + CONCURRENCY);
+        const results = await Promise.all(
+          batch.map(async (key) => ({ key, size: await getB2FileSize(key) }))
+        );
+        for (const { key, size } of results) {
+          sizeMap.set(key, size);
+        }
+      }
+      
+      let totalPhotoSize = 0;
+      const dataJsonItems = drugItems.map((item: any) => {
+        const b2Key = extractB2Key(item.photo_url || '');
+        const fileSizeBytes = b2Key ? (sizeMap.get(b2Key) || 100 * 1024) : 0;
+        totalPhotoSize += fileSizeBytes;
+        
         return {
           id: item.id,
           manifest_id: item.manifest_id,
@@ -171,65 +305,10 @@ serve(async (req: Request) => {
           counted_status: item.counted_status,
           storage_location: item.storage_location ?? null,
           category: item.category ?? null,
-          photo_ext: item.photo_url ? item.photo_url.split('.').pop()?.toLowerCase() || 'jpg' : 'jpg',
+          photo_url: item.photo_url, // 直接保留原本的 photo_url (Supabase URL 或 B2 key)
           file_size_bytes: fileSizeBytes,
         };
       });
-
-      // Step 5: Create ZIP with JSZip
-      await send({ status: 'creating_zip', message: '建立 ZIP 檔案...' });
-      const zip = new JSZip();
-
-      // Add data.json
-      zip.addFile('data.json', new TextEncoder().encode(JSON.stringify(dataJsonItems, null, 2)));
-
-      // 下載照片並加入 ZIP（串列處理）
-      let photoCount = 0;
-      let failedPhotoCount = 0;
-      let totalPhotoSize = 0;
-
-      // 建立 photo_url -> drugItemId 的映射
-      const photoUrlToItemId = new Map<string, string>();
-      for (const item of drugItems) {
-        if ((item as any).photo_url) {
-          photoUrlToItemId.set((item as any).photo_url, item.id);
-        }
-      }
-
-      for (const url of photoUrls) {
-        try {
-          const drugItemId = photoUrlToItemId.get(url) || crypto.randomUUID();
-          const storagePath = extractPhotoStoragePath(url);
-          if (!storagePath) {
-            console.warn(`無法解析 storage path: ${url}`);
-            failedPhotoCount++;
-            continue;
-          }
-
-          const { data: photoBlob, error: downloadError } = await supabase.storage
-            .from(DRUG_PHOTOS_BUCKET)
-            .download(storagePath);
-
-          if (downloadError || !photoBlob) {
-            console.warn(`無法下載照片 ${storagePath}:`, downloadError);
-            failedPhotoCount++;
-            continue;
-          }
-
-          const arrayBuffer = await photoBlob.arrayBuffer();
-          const uint8Array = new Uint8Array(arrayBuffer);
-          const photoExt = url.split('.').pop()?.toLowerCase() || 'jpg';
-          const filename = `photos/${drugItemId}.${photoExt}`;
-
-          zip.addFile(filename, uint8Array);
-          fileSizeMap.set(url, uint8Array.length);
-          totalPhotoSize += uint8Array.length;
-          photoCount++;
-        } catch (err) {
-          console.warn(`無法處理照片 ${url}:`, err);
-          failedPhotoCount++;
-        }
-      }
 
       // 檢查照片總大小
       if (totalPhotoSize > MAX_PHOTO_TOTAL_SIZE) {
@@ -242,29 +321,10 @@ serve(async (req: Request) => {
         return;
       }
 
-      await send({ status: 'creating_zip', message: `照片處理完成：成功 ${photoCount} 張，失敗 ${failedPhotoCount} 張` });
-
-      // 用 fileSizeMap 重新生成 data.json（確保 file_size_bytes 正確）
-      zip.addFile('data.json', new TextEncoder().encode(JSON.stringify(
-        drugItems.map((item: any) => ({
-          id: item.id,
-          manifest_id: item.manifest_id,
-          page_number: item.page_number,
-          item_order: item.item_order,
-          barcode: item.barcode,
-          product_code: item.product_code ?? null,
-          name: item.name,
-          expected_quantity: item.expected_quantity,
-          bonus_quantity: item.bonus_quantity,
-          actual_quantity: item.actual_quantity,
-          counted_status: item.counted_status,
-          storage_location: item.storage_location ?? null,
-          category: item.category ?? null,
-          photo_ext: item.photo_url ? item.photo_url.split('.').pop()?.toLowerCase() || 'jpg' : 'jpg',
-          file_size_bytes: item.photo_url ? (fileSizeMap.get(item.photo_url) ?? 0) : 0,
-        })),
-        null, 2
-      )));
+      // Step 5: Create ZIP (只包含 data.json，不含照片)
+      await send({ status: 'creating_zip', message: '建立 ZIP 檔案 (僅資料)...' });
+      const zip = new JSZip();
+      zip.addFile('data.json', new TextEncoder().encode(JSON.stringify(dataJsonItems, null, 2)));
 
       // 生成 ZIP Uint8Array
       const zipArrayBuffer = await zip.generateAsync({ type: 'uint8array' });
@@ -297,45 +357,18 @@ serve(async (req: Request) => {
           archive_status: 'archived',
           archived_zip_path: zipPath,
           archive_locked_at: null,
-          storage_size_bytes: zipArrayBuffer.length,
+          storage_size_bytes: zipArrayBuffer.byteLength, // ZIP 大小 (不含照片)
           archived_at: new Date().toISOString(),
         })
         .eq('id', manifestId);
 
       if (updateError) throw updateError;
 
-      // Step 8: Cleanup photos from drug-photos bucket (non-critical)
-      await send({ status: 'cleaning_up', message: '清理照片...' });
-      const photoPathsToDelete = photoUrls.map((url: string) => {
-        try {
-          const urlObj = new URL(url);
-          const pathname = urlObj.pathname;
-          const parts = pathname.split('/');
-          const bucketIndex = parts.indexOf(DRUG_PHOTOS_BUCKET);
-          if (bucketIndex !== -1 && bucketIndex + 1 < parts.length) {
-            return parts.slice(bucketIndex + 1).join('/');
-          }
-          return null;
-        } catch (e) {
-          return null;
-        }
-      }).filter((path: any): path is string => !!path);
+      // Step 8: 不刪除 B2 照片 (Strategy 2)
+      await send({ status: 'completed', message: '封存完成 (照片保留在 B2)' });
 
-      if (photoPathsToDelete.length > 0) {
-        const { error: deletePhotosError } = await supabase.storage
-          .from(DRUG_PHOTOS_BUCKET)
-          .remove(photoPathsToDelete);
-
-        if (deletePhotosError) {
-          console.warn('Failed to delete some photos:', deletePhotosError);
-          await safeLog(manifestId!, 'archive', trigger, 'failed', `Failed to delete some photos from storage: ${deletePhotosError.message}`);
-        }
-      }
-
-      // Step 9: Log success
-      await safeLog(manifestId!, 'archive', trigger, 'success', `Successfully archived manifest with ${drugItems.length} items and ${photoCount} photos`);
-
-      await send({ status: 'completed', message: '封存完成' });
+      await safeLog(manifestId!, 'archive', trigger, 'success', `Successfully archived manifest with ${drugItems.length} items and ${photoCount} photos (kept in B2)`);
+      writer.close();
     } catch (error: any) {
       console.error('Archive manifest error:', error);
       try {
@@ -348,7 +381,6 @@ serve(async (req: Request) => {
       }
       await safeLog(manifestId!, 'archive', trigger, 'failed', error.message || 'Unknown error');
       await send({ status: 'error', message: error.message || 'Internal server error' });
-    } finally {
       writer.close();
     }
   })();

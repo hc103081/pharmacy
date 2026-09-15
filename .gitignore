@@ -41,3 +41,22 @@ yarn-error.log*
 next-env.d.ts
 
 log.txt
+
+# MobileSAM models & local dev artifacts
+MobileSAM/
+mobilesam-env/
+MobileSAM_repo/
+public/models/*.onnx
+public/models/*.onnx.data
+public/models/*_fp32.onnx
+public/wasm/*.wasm
+public/workbox-*.js
+public/workers/
+export_onnx.py
+mobile_sam.pt
+check_release.py
+convert_embed.py
+download_checkpoint.py
+embed_weights.py
+export_encoder.py
+export_encoder_embedded.py

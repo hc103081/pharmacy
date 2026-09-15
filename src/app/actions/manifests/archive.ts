@@ -31,6 +31,7 @@ export async function archiveManifest(manifestId: string): Promise<ArchiveRespon
 
 /**
  * 永久刪除清單及其所有關聯數據 (含 Storage 照片)
+ * Strategy 2: B2 照片保留不刪除，僅刪除舊的 Supabase Storage 照片
  */
 export async function deleteManifest(manifestId: string): Promise<ArchiveResponse> {
   try {
@@ -63,23 +64,31 @@ export async function deleteManifest(manifestId: string): Promise<ArchiveRespons
       return { success: false, error: `查詢項目失敗: ${itemsError.message}` };
     }
 
-    // 4. 從 Storage 刪除照片
-    const photosToDelete = items
+    // 4. 刪除舊的 Supabase Storage 照片 (B2 照片保留不刪除)
+    const supabasePhotoUrls = items
       .map(item => item.photo_url)
-      .filter((url): url is string => !!url)
-      .map(url => {
-        const urlObj = new URL(url);
-        const pathWithBucket = urlObj.pathname.replace('/storage/v1/object/public/', '');
-        const pathParts = pathWithBucket.split('/');
-        return pathParts.length > 1 ? pathParts.slice(1).join('/') : null;
-      })
-      .filter((path): path is string => !!path);
+      .filter((url): url is string => !!url && url.startsWith('http'));
 
-    if (photosToDelete.length > 0) {
-      const { error: storageError } = await getSupabaseAdmin().storage
-        .from('drug-photos')
-        .remove(photosToDelete);
-      if (storageError) console.error('Storage delete error:', storageError);
+    if (supabasePhotoUrls.length > 0) {
+      const photosToDelete = supabasePhotoUrls
+        .map(url => {
+          try {
+            const urlObj = new URL(url);
+            const pathWithBucket = urlObj.pathname.replace('/storage/v1/object/public/', '');
+            const pathParts = pathWithBucket.split('/');
+            return pathParts.length > 1 ? pathParts.slice(1).join('/') : null;
+          } catch {
+            return null;
+          }
+        })
+        .filter((path): path is string => !!path);
+
+      if (photosToDelete.length > 0) {
+        const { error: storageError } = await getSupabaseAdmin().storage
+          .from('drug-photos')
+          .remove(photosToDelete);
+        if (storageError) console.error('Supabase Storage delete error:', storageError);
+      }
     }
 
     // 5. 刪除 Manifest (觸發 Cascade Delete 刪除 drug_items)

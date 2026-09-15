@@ -1,41 +1,50 @@
-import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server';
+import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 
-export const dynamic = 'force-dynamic'
-
+/**
+ * 測試專用 API – 模擬條碼搜尋（支援 barcode 和 product_code 雙條碼匹配）
+ */
 export async function POST(request: Request) {
   try {
-    const body = await request.text().catch(() => '{}')
-    const params = (() => {
-      try { return JSON.parse(body) } catch { return {} }
-    })()
+    const { manifestId, barcode } = await request.json();
 
-    const delayMs = Number(params.delay ?? 400)
-    const itemCode = String(params.itemCode ?? '').trim()
-
-    await new Promise((resolve) => setTimeout(resolve, delayMs))
-
-    const result = {
-      ok: true,
-      seen: `[${params.message ?? ''}]>>loop test done`,
-      itemCode,
-      item: itemCode ? drugLookupByCode(itemCode) : null,
-      durationMs: delayMs,
+    if (!manifestId || !barcode) {
+      return NextResponse.json(
+        { ok: false, error: 'manifestId 和 barcode 為必填' },
+        { status: 400 }
+      );
     }
 
-    return NextResponse.json(result)
-  } catch (error) {
-    return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : String(error) },
-      { status: 500 }
-    )
-  }
-}
+    // 在 drug_items 中搜尋 barcode 或 product_code 匹配
+    const { data: items, error } = await getSupabaseAdmin()
+      .from('drug_items')
+      .select('id, name, barcode, product_code, expected_quantity, page_number')
+      .eq('manifest_id', manifestId)
+      .or(`barcode.eq.${barcode},product_code.eq.${barcode}`)
+      .limit(1)
+      .single();
 
-function drugLookupByCode(itemCode: string) {
-  return {
-    itemCode,
-    chineseName: `模擬中文名_${itemCode}`,
-    englishName: `mock-en-${itemCode}`,
-    matched: true,
+    if (error || !items) {
+      return NextResponse.json({ ok: true, found: false, item: null });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      found: true,
+      item: {
+        id: items.id,
+        name: items.name,
+        barcode: items.barcode,
+        product_code: items.product_code,
+        expected_quantity: items.expected_quantity,
+        page_number: items.page_number,
+      },
+    });
+  } catch (err) {
+    console.error('test-lookup-simulated error:', err);
+    return NextResponse.json(
+      { ok: false, error: (err as Error).message },
+      { status: 500 }
+    );
   }
 }

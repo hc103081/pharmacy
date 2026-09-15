@@ -8,10 +8,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed:test": "node scripts/seed-test-data.js",
-    "cleanup:test": "node scripts/cleanup-test-data.js"
+    "seed:test": "ts-node scripts/seed-test-data.ts",
+    "cleanup:test": "ts-node scripts/cleanup-test-data.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1132.0",
+    "@aws-sdk/s3-request-presigner": "^3.1132.0",
     "@google/generative-ai": "^0.24.1",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.1",
@@ -19,6 +21,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^1.17.0",
     "next": "16.2.9",
+    "onnxruntime-web": "^1.30.0",
     "pdfjs-dist": "^6.0.227",
     "react": "19.2.4",
     "react-dom": "19.2.4",

@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 // @ts-expect-error: Deno std module not typed
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 
+// Strategy 2: 清理 Supabase Storage 舊照片 (B2 照片保留不清理)
 // @ts-expect-error: Suppress implicit any for request
 serve(async (_req) => {
   // @ts-expect-error: Deno global not typed
@@ -45,8 +46,8 @@ serve(async (_req) => {
     if (delErr) {
       return new Response(JSON.stringify({ deleted: toDelete.length, error: delErr.message }), { status: 500 });
     }
-    return new Response(JSON.stringify({ deleted: toDelete.length, message: 'Old photos removed' }), { status: 200 });
+    return new Response(JSON.stringify({ deleted: toDelete.length, message: 'Old Supabase photos removed (B2 photos preserved)' }), { status: 200 });
   }
 
-  return new Response(JSON.stringify({ deleted: 0, message: 'No old photos found' }), { status: 200 });
+  return new Response(JSON.stringify({ deleted: 0, message: 'No old Supabase photos found (B2 photos preserved)' }), { status: 200 });
 });

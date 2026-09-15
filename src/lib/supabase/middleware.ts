@@ -30,8 +30,9 @@ export async function updateSession(request: NextRequest): Promise<{ response: N
   } = await supabase.auth.getUser();
 
   // 保護所有路由，未登入導向 /login
+  // /api/ 路由不需要登入（供測試與 Webhook 使用）
   const { pathname } = request.nextUrl;
-  const publicPaths = ['/login', '/auth'];
+  const publicPaths = ['/login', '/auth', '/api/'];
   const isPublic = publicPaths.some((p) => pathname.startsWith(p));
 
   if (!user && !isPublic) {
