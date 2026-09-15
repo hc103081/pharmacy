@@ -9,7 +9,7 @@
  * 4. 更新資料庫 photo_url 為 B2 key，並設定 storage_provider = 'b2'
  * 
  * 使用方式：
- *   npx ts-node scripts/migrate-photos-to-b2.ts
+ *   npx tsx scripts/migrate-photos-to-b2.ts
  * 
  * 環境變數需求：
  *   NEXT_PUBLIC_SUPABASE_URL
@@ -20,7 +20,14 @@
  *   B2_REGION
  */
 
+import { config } from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { createClient } from '@supabase/supabase-js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+config({ path: path.resolve(__dirname, '../.env.local') });
 import { S3Client, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 
 // 環境變數

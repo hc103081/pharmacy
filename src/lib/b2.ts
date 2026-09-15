@@ -6,6 +6,7 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
   ListObjectsV2Command,
+  ListObjectVersionsCommand,
   HeadObjectCommand
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -104,15 +105,41 @@ export async function deleteB2Object(key: string): Promise<void> {
 }
 
 /**
- * 批次刪除檔案
+ * 批次刪除檔案 (包含所有版本)
+ * B2 預設啟用版本控制，需列出所有版本並逐一刪除
  */
 export async function deleteB2Objects(keys: string[]): Promise<void> {
-  // B2 不支援批次刪除 API，需逐個刪除
-  // 為避免過多並發，分批處理
-  const BATCH_SIZE = 10;
-  for (let i = 0; i < keys.length; i += BATCH_SIZE) {
-    const batch = keys.slice(i, i + BATCH_SIZE);
-    await Promise.all(batch.map(key => deleteB2Object(key)));
+  const client = getB2Client();
+  
+  for (const key of keys) {
+    try {
+      // 1. 列出該 key 的所有版本
+      const listVersionsCmd = new ListObjectVersionsCommand({
+        Bucket: B2_BUCKET,
+        Prefix: key,
+      });
+      const versionsResponse = await client.send(listVersionsCmd);
+      
+      const allVersions = [
+        ...(versionsResponse.Versions || []),
+        ...(versionsResponse.DeleteMarkers || []),
+      ].filter(v => v.Key === key && v.VersionId);
+      
+      // 2. 逐一刪除每個版本 (需指定 VersionId)
+      for (const version of allVersions) {
+        const deleteCmd = new DeleteObjectCommand({
+          Bucket: B2_BUCKET,
+          Key: key,
+          VersionId: version.VersionId,
+        });
+        await client.send(deleteCmd);
+      }
+      
+      console.log(`[deleteB2Objects] Deleted ${allVersions.length} version(s) for ${key}`);
+    } catch (err) {
+      console.error(`[deleteB2Objects] Failed to delete ${key}:`, err);
+      // 不拋出錯誤，繼續處理下一個
+    }
   }
 }
 

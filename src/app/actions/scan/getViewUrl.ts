@@ -30,10 +30,10 @@ export async function getPresignedViewUrl(
     return { success: false, error: '未登入或登入已過期' };
   }
 
-  // 2. 驗證 manifest 擁有權
+  // 2. 驗證 manifest 擁有權 + 取得 storage_provider
   const { data: manifest, error: manifestError } = await getSupabaseAdmin()
     .from('manifests')
-    .select('id, user_id')
+    .select('id, user_id, storage_provider')
     .eq('id', manifestId)
     .single();
 
@@ -44,14 +44,33 @@ export async function getPresignedViewUrl(
     return { success: false, error: '無權限存取此清單' };
   }
 
-  // 3. 判斷格式並處理
+  // 3. 判斷儲存來源：優先看 manifest.storage_provider，其次看 photo_url 格式
+  const manifestProvider = manifest.storage_provider || 'supabase';
+  const isB2Provider = manifestProvider === 'b2';
+
+  // 4. 處理邏輯：優先嘗試 B2，失敗才回退 Supabase
   let viewUrl: string;
 
   if (photoKeyOrUrl.startsWith('http')) {
-    // 完整 URL：可能是 Supabase 或 B2
+    // 完整 URL 格式
     if (photoKeyOrUrl.includes('supabase.co')) {
-      // Supabase public URL - 直接使用，不需簽名
-      viewUrl = photoKeyOrUrl;
+      // Supabase URL：若 manifest 是 b2，嘗試轉為 B2 key 查找
+      if (isB2Provider) {
+        const storagePath = photoKeyOrUrl.replace(/.*\/storage\/v1\/object\/public\/drug-photos\//, '');
+        if (storagePath && storagePath !== photoKeyOrUrl) {
+          try {
+            viewUrl = await createPresignedViewUrl(storagePath, expiresIn, responseContentDisposition);
+            return { success: true, viewUrl };
+          } catch {
+            // B2 找不到，回退 Supabase URL
+            viewUrl = photoKeyOrUrl;
+          }
+        } else {
+          viewUrl = photoKeyOrUrl;
+        }
+      } else {
+        viewUrl = photoKeyOrUrl;
+      }
     } else if (photoKeyOrUrl.includes('backblazeb2.com') || photoKeyOrUrl.includes('b2.cloud')) {
       // B2 public URL - 解析 key 後產生 presigned URL
       const extracted = await getB2KeyFromUrl(photoKeyOrUrl);
@@ -65,12 +84,11 @@ export async function getPresignedViewUrl(
       if (extracted) {
         viewUrl = await createPresignedViewUrl(extracted, expiresIn, responseContentDisposition);
       } else {
-        // 兜底：直接回傳原 URL
         viewUrl = photoKeyOrUrl;
       }
     }
   } else {
-    // 相對路徑 - 視為 B2 key，產生 presigned URL
+    // 相對路徑 (photos/...) - 視為 B2 key
     viewUrl = await createPresignedViewUrl(photoKeyOrUrl, expiresIn, responseContentDisposition);
   }
 
