@@ -200,6 +200,51 @@ export async function getB2DownloadAuthorization(
   return downloadUrl + '/file/' + getBucket() + '/' + fileNamePrefix + '?Authorization=' + downloadAuth.authorizationToken;
 }
 
+/**
+ * 取得 B2 原生上傳授權 (用於直接上傳，避開 S3 CORS 問題)
+ * 回傳 { uploadUrl, authorizationToken, bucketId }
+ */
+export async function getB2UploadAuthorization(
+  bucketId: string,
+  expiresIn: number = 3600
+): Promise<{ uploadUrl: string; authorizationToken: string; bucketId: string }> {
+  const auth = Buffer.from(getKeyId() + ':' + getAppKey()).toString('base64');
+
+  const authRes = await fetch('https://api.backblazeb2.com/b2api/v2/b2_authorize_account', {
+    method: 'GET',
+    headers: { 'Authorization': 'Basic ' + auth },
+  });
+  const authData = await authRes.json();
+
+  if (!authData.absoluteMinimumPartSize) {
+    throw new Error('B2 authorize failed: ' + JSON.stringify(authData));
+  }
+
+  const apiUrl = authData.apiUrl;
+  const authorizationToken = authData.authorizationToken;
+
+  const uploadRes = await fetch(apiUrl + '/b2api/v2/b2_get_upload_url', {
+    method: 'POST',
+    headers: {
+      'Authorization': authorizationToken,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ bucketId }),
+  });
+
+  const uploadData = await uploadRes.json();
+
+  if (!uploadRes.ok) {
+    throw new Error('B2 get upload url failed: ' + JSON.stringify(uploadData));
+  }
+
+  return {
+    uploadUrl: uploadData.uploadUrl,
+    authorizationToken: uploadData.authorizationToken,
+    bucketId,
+  };
+}
+
 export async function createPresignedViewUrl(
   key: string,
   expiresIn: number = 3600,
@@ -229,7 +274,7 @@ export async function createPresignedViewUrl(
 }
 
 let cachedBucketId: string | null = null;
-async function getB2BucketId(): Promise<string> {
+export async function getB2BucketId(): Promise<string> {
   if (cachedBucketId) return cachedBucketId;
 
   // 如果有環境變數直接提供 bucketId，優先使用

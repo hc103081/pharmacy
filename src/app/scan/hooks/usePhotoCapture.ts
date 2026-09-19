@@ -5,6 +5,7 @@ import { getPresignedUploadUrl } from '@/app/actions/scan/getUploadUrl';
 import { updateDrugStatus } from '@/app/actions/scan/updatePhoto';
 import { incrementStorageSize } from '@/app/actions/manifests/storage';
 import { compressImage } from '@/lib/imageCompression';
+import { sha1Hash } from '@/lib/crypto'; // 需新增：計算 SHA1
 import type { DrugItem } from '@/types';
 
 interface UsePhotoCaptureOptions {
@@ -108,20 +109,30 @@ export function usePhotoCapture({
 
       // 3. 背景執行上傳流程
       try {
-        // 3.1 向 Server 申請 Presigned Upload URL
+        // 3.1 向 Server 申請 B2 原生上傳授權
         const res = await getPresignedUploadUrl(manifestId, barcode, pageNumber, 'jpg');
-        if (!res.success || !res.uploadUrl || !res.key) {
-          throw new Error(res.error || '取得上傳連結失敗');
+        if (!res.success || !res.uploadUrl || !res.authorizationToken || !res.key) {
+          throw new Error(res.error || '取得上傳授權失敗');
         }
 
         // 3.2 壓縮圖片 (限制 100KB)
         const compressedFile = await compressImage(file);
 
-        // 3.3 直接 PUT 到 B2
+        // 3.3 計算 SHA1 (B2 要求)
+        const fileBuffer = await compressedFile.arrayBuffer();
+        const contentSha1 = await sha1Hash(fileBuffer);
+
+        // 3.4 直接 POST 到 B2 原生上傳端點
+        // B2 原生 API 要求: POST, headers: Authorization, X-Bz-File-Name, Content-Type, X-Bz-Content-Sha1
         const uploadRes = await fetch(res.uploadUrl, {
-          method: 'PUT',
-          body: compressedFile,
-          headers: { 'Content-Type': compressedFile.type || 'image/jpeg' },
+          method: 'POST',
+          body: fileBuffer,
+          headers: {
+            'Authorization': res.authorizationToken,
+            'X-Bz-File-Name': encodeURIComponent(res.key),
+            'Content-Type': compressedFile.type || 'image/jpeg',
+            'X-Bz-Content-Sha1': contentSha1,
+          },
         });
 
         if (!uploadRes.ok) {

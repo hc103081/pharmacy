@@ -2,18 +2,19 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
-import { createPresignedUploadUrl, getPhotoKey } from '@/lib/b2';
+import { getB2UploadAuthorization, getPhotoKey, getB2BucketId } from '@/lib/b2';
 
 export interface GetUploadUrlResponse {
   success: boolean;
   uploadUrl?: string;
+  authorizationToken?: string;
   key?: string;
   publicUrl?: string; // 預覽用 URL (需再呼叫 getViewUrl 取得)
   error?: string;
 }
 
 /**
- * 取得 B2 上傳用 Presigned URL
+ * 取得 B2 原生上傳授權 (避開 S3 CORS 問題)
  * 驗證：用戶登入、manifest 擁有權、manifest 狀態 active
  */
 export async function getPresignedUploadUrl(
@@ -49,12 +50,13 @@ export async function getPresignedUploadUrl(
   // 3. 產生儲存路徑 key
   const key = await getPhotoKey(manifestId, pageNumber, barcode, fileExt);
 
-  // 4. 產生 Presigned URL
+  // 4. 取得 B2 原生上傳授權
   try {
-    const { uploadUrl } = await createPresignedUploadUrl(key, 'image/jpeg', 3600); // 1小時
-    return { success: true, uploadUrl, key };
+    const bucketId = await getB2BucketId();
+    const { uploadUrl, authorizationToken } = await getB2UploadAuthorization(bucketId, 3600);
+    return { success: true, uploadUrl, authorizationToken, key };
   } catch (err) {
-    console.error('Presign upload error:', err);
-    return { success: false, error: '產生上傳連結失敗' };
+    console.error('B2 native upload auth error:', err);
+    return { success: false, error: '產生上傳授權失敗' };
   }
 }
