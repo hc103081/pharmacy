@@ -20,7 +20,7 @@ import { TeachingButton } from '@/components/teaching';
 import { DrugCard, ErrorDrawer, JumpDialog, PhotoPreview, BarcodeSearchBar, CameraModal } from './components';
 import { useBarcodeMatch, usePhotoCapture, usePagePersistence } from './hooks';
 import { useScanKeyboard } from './hooks/useScanKeyboard';
-import { getPresignedViewUrl } from '@/app/actions/scan/getViewUrl';
+import { useImageCache } from './hooks/useImageCache';
 import type { DrugItem, ErrorDrugItem, JumpTarget } from '@/types';
 import { resetDrugStatus } from '@/app/actions/scan/resetDrug';
 import { updateDrugStatus } from '@/app/actions/scan/updatePhoto';
@@ -52,9 +52,11 @@ export default function ScanContent() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [pageInputValue, setPageInputValue] = useState<string>('');
-  const [photoViewUrls, setPhotoViewUrls] = useState<Record<string, string>>({});
   const pageInputRef = useRef<HTMLInputElement>(null);
   const [isStatsExpanded, setIsStatsExpanded] = useState(false);
+  
+  // Image cache hook
+  const imageCache = useImageCache(manifestId);
   const { isKeyboardOpen } = useScanKeyboard();
   const shouldJumpToNextRef = useRef(false);
   const pendingBarcodeRef = useRef<string | null>(null);
@@ -128,6 +130,17 @@ export default function ScanContent() {
       if (pageRes.error) throw pageRes.error;
       const fetchedDrugs: DrugItem[] = pageRes.data || [];
       setDrugs(fetchedDrugs);
+
+      // 預載入首屏圖片 (手機 ~12 項, 桌面 ~24 項)
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
+      const visibleCount = isMobile ? 12 : 24;
+      const firstScreenKeys = fetchedDrugs
+        .slice(0, visibleCount)
+        .map(d => d.photo_url)
+        .filter((k): k is string => !!k && k.trim() !== '');
+      if (firstScreenKeys.length > 0) {
+        imageCache.preloadUrls(firstScreenKeys);
+      }
 
       // 拍照上傳完成後：清除搜尋並滾動到第一個未清點項
       if (shouldJumpToNextRef.current) {
@@ -425,37 +438,6 @@ export default function ScanContent() {
     return () => clearTimeout(timer);
   }, [barcodeInput, drugs, manifestId, currentPage]);
 
-  // Fetch batch presigned view URLs for photos
-  useEffect(() => {
-    if (!manifestId || drugs.length === 0) return;
-
-    const photoItems = drugs.filter(d => d.photo_url);
-    if (photoItems.length === 0) {
-      setPhotoViewUrls({});
-      return;
-    }
-
-    const keys = photoItems.map(d => d.photo_url!);
-    
-    (async () => {
-      try {
-        const res = await getPresignedViewUrl(manifestId, '', 3600, 'inline');
-        // Use the batch function via API
-        const batchRes = await fetch(`/api/scan/batch-view-urls`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ manifestId, keys }),
-        });
-        if (batchRes.ok) {
-          const data = await batchRes.json();
-          setPhotoViewUrls(data.urls || {});
-        }
-      } catch (err) {
-        console.error('Fetch batch view URLs error:', err);
-      }
-    })();
-  }, [manifestId, drugs]);
-
   const handleJumpToDrug = (target: JumpTarget) => {
   const isSamePage = target.page === currentPage;
 
@@ -718,15 +700,13 @@ export default function ScanContent() {
                     const isUploading = uploadingQueue.has(drug.id);
                     const isManuallySelected = manuallySelectedDrugId === drug.id;
                     const shouldShowActionsForCard = isManuallySelected;
-                    const presignedUrl = photoViewUrls[drug.photo_url || ''];
-                    // 只使用有效的 presigned URL (http/https 開頭)，否則不顯示圖片
-                    const photoViewUrl = presignedUrl?.startsWith('http') ? presignedUrl : undefined;
+                    const photoKey = drug.photo_url || '';
 
                     return (
                       <div key={drug.id} className="mb-4">
                         <DrugCard
                           drug={drug}
-                          photoViewUrl={photoViewUrl}
+                          photoKey={photoKey}
                           isMatched={shouldShowActionsForCard}
                           isUploading={isUploading}
                           isLocked={isLocked}
@@ -743,6 +723,9 @@ export default function ScanContent() {
                           onCardClick={(id) => {
                             setManuallySelectedDrugId(id);
                           }}
+                          getImageUrl={imageCache.getUrl}
+                          getImageLoadStatus={imageCache.getLoadStatus}
+                          setImageLoadStatus={imageCache.setLoadStatus}
                         />
                       </div>
                     );
@@ -811,15 +794,13 @@ export default function ScanContent() {
                       const isTopMatch = matchedDrugs[0].id === drug.id;
                       const isUploading = uploadingQueue.has(drug.id);
                       const isDimmed = !isTopMatch;
-                      const presignedUrl = photoViewUrls[drug.photo_url || ''];
-                      // 只使用有效的 presigned URL (http/https 開頭)，否則不顯示圖片
-                      const photoViewUrl = presignedUrl?.startsWith('http') ? presignedUrl : undefined;
+                      const photoKey = drug.photo_url || '';
 
                       return (
                         <div key={drug.id} data-drug-id={drug.id} className={`mb-4 ${isDimmed ? 'opacity-60' : ''}`}>
                           <DrugCard
                             drug={drug}
-                            photoViewUrl={photoViewUrl}
+                            photoKey={photoKey}
                             isMatched={isTopMatch}
                             isUploading={isUploading}
                             isLocked={isLocked}
@@ -836,6 +817,9 @@ export default function ScanContent() {
                             onCardClick={(id) => {
                               setManuallySelectedDrugId(id);
                             }}
+                            getImageUrl={imageCache.getUrl}
+                            getImageLoadStatus={imageCache.getLoadStatus}
+                            setImageLoadStatus={imageCache.setLoadStatus}
                           />
                         </div>
                       );
@@ -1062,15 +1046,13 @@ export default function ScanContent() {
                     const isUploading = uploadingQueue.has(drug.id);
                     const isManuallySelected = manuallySelectedDrugId === drug.id;
                     const shouldShowActionsForCard = isManuallySelected;
-                    const presignedUrl = photoViewUrls[drug.photo_url || ''];
-                      // 只使用有效的 presigned URL (http/https 開頭)，否則不顯示圖片
-                      const photoViewUrl = presignedUrl?.startsWith('http') ? presignedUrl : undefined;
+                    const photoKey = drug.photo_url || '';
 
                     return (
                       <div key={drug.id}>
                         <DrugCard
                           drug={drug}
-                          photoViewUrl={photoViewUrl}
+                          photoKey={photoKey}
                           isMatched={shouldShowActionsForCard}
                           isUploading={isUploading}
                           isLocked={isLocked}
@@ -1087,6 +1069,9 @@ export default function ScanContent() {
                           onCardClick={(id) => {
                             setManuallySelectedDrugId(id);
                           }}
+                          getImageUrl={imageCache.getUrl}
+                          getImageLoadStatus={imageCache.getLoadStatus}
+                          setImageLoadStatus={imageCache.setLoadStatus}
                         />
                       </div>
                     );
@@ -1155,15 +1140,13 @@ export default function ScanContent() {
                       const isTopMatch = matchedDrugs[0].id === drug.id;
                       const isUploading = uploadingQueue.has(drug.id);
                       const isDimmed = !isTopMatch;
-                      const presignedUrl = photoViewUrls[drug.photo_url || ''];
-                      // 只使用有效的 presigned URL (http/https 開頭)，否則不顯示圖片
-                      const photoViewUrl = presignedUrl?.startsWith('http') ? presignedUrl : undefined;
+                      const photoKey = drug.photo_url || '';
 
                       return (
                         <div key={drug.id} data-drug-id={drug.id} className={`mb-4 ${isDimmed ? 'opacity-60' : ''}`}>
                           <DrugCard
                             drug={drug}
-                            photoViewUrl={photoViewUrl}
+                            photoKey={photoKey}
                             isMatched={isTopMatch}
                             isUploading={isUploading}
                             isLocked={isLocked}
@@ -1180,6 +1163,9 @@ export default function ScanContent() {
                             onCardClick={(id) => {
                               setManuallySelectedDrugId(id);
                             }}
+                            getImageUrl={imageCache.getUrl}
+                            getImageLoadStatus={imageCache.getLoadStatus}
+                            setImageLoadStatus={imageCache.setLoadStatus}
                           />
                         </div>
                       );

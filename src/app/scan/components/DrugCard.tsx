@@ -1,12 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Camera, CheckCircle2, AlertCircle, Loader2, Search, RotateCcw, SkipForward } from 'lucide-react';
 import type { DrugItem } from '@/types';
+import type { ImageLoadStatus } from '@/app/scan/hooks/useImageCache';
 
 interface DrugCardProps {
   drug: DrugItem;
-  photoViewUrl?: string; // B2 presigned view URL for photo preview
+  photoKey?: string; // B2 key (relative path) for fetching presigned URL
   isMatched: boolean;
   isUploading: boolean;
   isLocked: boolean;
@@ -21,11 +22,15 @@ interface DrugCardProps {
   onFilterByBarcode?: (barcode: string) => void;
   onResetDrug?: (drugId: string) => void;
   onCardClick?: (drugId: string) => void;
+  // Image cache functions
+  getImageUrl?: (key: string) => Promise<string | null>;
+  getImageLoadStatus?: (key: string) => ImageLoadStatus;
+  setImageLoadStatus?: (key: string, status: ImageLoadStatus) => void;
 }
 
 export default function DrugCard({
   drug,
-  photoViewUrl,
+  photoKey,
   isMatched,
   isUploading,
   isLocked,
@@ -40,6 +45,9 @@ export default function DrugCard({
   onFilterByBarcode,
   onResetDrug,
   onCardClick,
+  getImageUrl,
+  getImageLoadStatus,
+  setImageLoadStatus,
 }: DrugCardProps) {
   const isCompleted = drug.counted_status === 'completed';
   const isError = drug.counted_status === 'error';
@@ -68,6 +76,67 @@ const isNoBarcode = !drug.barcode?.trim() && !drug.product_code?.trim();
 
   // 是否處於「有誤」後等待選擇拍照或跳過的狀態
   const isPendingPhotoChoice = selectedStatus === 'pending_photo' || selectedStatus === 'pending_skip';
+
+  // === 圖片懶加載邏輯 ===
+  const imgContainerRef = useRef<HTMLDivElement>(null);
+  const [resolvedImageUrl, setResolvedImageUrl] = useState<string | null>(null);
+  const loadStatus = photoKey ? (getImageLoadStatus?.(photoKey) || 'idle') : 'idle';
+  const hasPhoto = !!photoKey && !!photoKey.trim();
+
+  // 觸發圖片載入
+  const triggerImageLoad = useCallback(async () => {
+    if (!hasPhoto || !getImageUrl || !photoKey) return;
+    
+    // 避免重複觸發
+    if (loadStatus !== 'idle' || resolvedImageUrl) return;
+    
+    setImageLoadStatus?.(photoKey, 'loading');
+    try {
+      const url = await getImageUrl(photoKey);
+      if (url) {
+        setResolvedImageUrl(url);
+        setImageLoadStatus?.(photoKey, 'loaded');
+      } else {
+        setImageLoadStatus?.(photoKey, 'error');
+      }
+    } catch {
+      setImageLoadStatus?.(photoKey, 'error');
+    }
+  }, [hasPhoto, getImageUrl, photoKey, loadStatus, resolvedImageUrl, setImageLoadStatus]);
+
+  // IntersectionObserver 懶加載
+  useEffect(() => {
+    if (!hasPhoto || !imgContainerRef.current || loadStatus !== 'idle') return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            triggerImageLoad();
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { rootMargin: '100px 0px', threshold: 0.01 }
+    );
+    
+    observer.observe(imgContainerRef.current);
+    return () => observer.disconnect();
+  }, [hasPhoto, loadStatus, triggerImageLoad]);
+
+  // 當 loadStatus 從外部變為 loaded 時，獲取 URL
+  useEffect(() => {
+    if (loadStatus === 'loaded' && !resolvedImageUrl && hasPhoto && getImageUrl && photoKey) {
+      getImageUrl(photoKey).then((url) => {
+        if (url) setResolvedImageUrl(url);
+      });
+    }
+  }, [loadStatus, resolvedImageUrl, hasPhoto, getImageUrl, photoKey]);
+
+  // 圖片錯誤處理
+  const handleImageError = useCallback(() => {
+    if (photoKey) setImageLoadStatus?.(photoKey, 'error');
+  }, [photoKey, setImageLoadStatus]);
 
   return (
     <div
@@ -196,29 +265,59 @@ const isNoBarcode = !drug.barcode?.trim() && !drug.product_code?.trim();
 </div>
     </div>
 
-        {/* 照片縮圖 / 上傳中動畫 */}
-        {isUploading ? (
-          <div
-            className={`w-11 h-11 lg:w-12 lg:h-12 rounded-lg overflow-hidden border shrink-0 shadow-inner bg-slate-900 relative ${isMatched ? 'border-[#00f2fe]' : 'border-slate-700'}`}
-          >
-            {photoViewUrl && <img src={photoViewUrl} alt="Thumbnail" className="w-full h-full object-cover opacity-30" />}
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+        {/* 照片縮圖 / 上傳中動畫 / 佔位符 */}
+        <div
+          ref={imgContainerRef}
+          className={`relative w-11 h-11 lg:w-12 lg:h-12 rounded-lg overflow-hidden border shrink-0 shadow-inner bg-slate-900 ${isMatched ? 'border-[#00f2fe]' : 'border-slate-700'}`}
+        >
+          {/* 上傳中覆蓋層 (最高優先級) */}
+          {isUploading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm z-10">
               <div className="relative w-6 h-6">
                 <div className="absolute inset-0 rounded-full border-2 border-[#00f2fe]/30" />
                 <div className="absolute inset-0 rounded-full border-2 border-t-[#00f2fe] border-r-transparent border-b-transparent border-l-transparent animate-spin" />
                 <div className="absolute inset-1 rounded-full bg-[#00f2fe]/20 animate-ping opacity-50" />
               </div>
             </div>
-          </div>
-        ) : photoViewUrl ? (
-          <div
-            onClick={() => onPreviewPhoto(photoViewUrl!)}
-            className={`w-11 h-11 lg:w-12 lg:h-12 rounded-lg overflow-hidden border cursor-pointer transition-all shrink-0 shadow-inner bg-slate-900 ${isMatched ? 'border-[#00f2fe] hover:scale-110' : 'border-slate-700 hover:border-[#00f2fe]'}`}
-            title="點擊預覽照片"
-          >
-            <img src={photoViewUrl} alt="Thumbnail" className="w-full h-full object-cover" />
-          </div>
-        ) : null}
+          )}
+
+          {/* Idle 狀態：無照片或未開始載入 */}
+          {!isUploading && loadStatus === 'idle' && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-900 text-slate-600">
+              <Camera className="w-5 h-5 opacity-50" />
+            </div>
+          )}
+
+          {/* Loading 狀態：灰色背景 + 藍色轉圈 */}
+          {!isUploading && loadStatus === 'loading' && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
+              <Loader2 className="w-5 h-5 text-[#00f2fe] animate-spin" />
+            </div>
+          )}
+
+          {/* Loaded 狀態：圖片淡入動畫 */}
+          {!isUploading && loadStatus === 'loaded' && resolvedImageUrl && (
+            <div
+              onClick={() => onPreviewPhoto(resolvedImageUrl)}
+              className="absolute inset-0 cursor-pointer"
+              title="點擊預覽照片"
+            >
+              <img
+                src={resolvedImageUrl}
+                alt="Thumbnail"
+                className="w-full h-full object-cover animate-in fade-in duration-300"
+                onError={handleImageError}
+              />
+            </div>
+          )}
+
+          {/* Error 狀態：破圖圖標 */}
+          {!isUploading && loadStatus === 'error' && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-800 text-slate-500">
+              <AlertCircle className="w-5 h-5" />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 底部操作區 */}
