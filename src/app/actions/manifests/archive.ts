@@ -1,7 +1,8 @@
 'use server';
 
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
-import { deleteB2Objects, getB2KeyFromUrl } from '@/lib/b2';
+import { deleteB2Objects } from '@/lib/b2';
+import { extractB2KeyFromUrl } from '@/lib/b2-utils';
 
 interface ArchiveResponse {
   success: boolean;
@@ -120,7 +121,7 @@ export async function deleteManifest(manifestId: string): Promise<ArchiveRespons
           // 相對路徑直接用
           if (url.startsWith('photos/')) return url;
           // B2 public URL 解析 key
-          return getB2KeyFromUrl(url);
+          return extractB2KeyFromUrl(url);
         })
         .filter((key): key is string => !!key);
 

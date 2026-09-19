@@ -2,7 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
-import { createPresignedViewUrl, getB2KeyFromUrl } from '@/lib/b2';
+import { createPresignedViewUrl } from '@/lib/b2';
+import { extractB2KeyFromUrl } from '@/lib/b2-utils';
 
 export interface GetViewUrlResponse {
   success: boolean;
@@ -73,14 +74,14 @@ export async function getPresignedViewUrl(
       }
     } else if (photoKeyOrUrl.includes('backblazeb2.com') || photoKeyOrUrl.includes('b2.cloud')) {
       // B2 public URL - 解析 key 後產生 presigned URL
-      const extracted = await getB2KeyFromUrl(photoKeyOrUrl);
+      const extracted = extractB2KeyFromUrl(photoKeyOrUrl);
       if (!extracted) {
         return { success: false, error: '無法解析 B2 照片路徑' };
       }
       viewUrl = await createPresignedViewUrl(extracted, expiresIn, responseContentDisposition);
     } else {
       // 未知域名，嘗試當作 B2 key 解析
-      const extracted = await getB2KeyFromUrl(photoKeyOrUrl);
+      const extracted = extractB2KeyFromUrl(photoKeyOrUrl);
       if (extracted) {
         viewUrl = await createPresignedViewUrl(extracted, expiresIn, responseContentDisposition);
       } else {

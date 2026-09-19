@@ -197,7 +197,7 @@ export async function getB2DownloadAuthorization(
     throw new Error('B2 download auth failed: ' + JSON.stringify(downloadAuth));
   }
 
-  return downloadUrl + '/file/' + getBucket() + '/' + fileNamePrefix + '?Authorization=' + downloadAuth.authorizationToken;
+  return downloadUrl + '/file/' + getBucket() + '/' + encodeURIComponent(fileNamePrefix) + '?Authorization=' + downloadAuth.authorizationToken;
 }
 
 /**
@@ -318,39 +318,3 @@ export async function checkB2ObjectExists(key: string): Promise<boolean> {
   }
 }
 
-export async function getPhotoKey(
-  manifestId: string,
-  pageNumber: number,
-  barcode: string,
-  fileExt: string = 'jpg'
-): Promise<string> {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const timestamp = Date.now();
-  const safeBarcode = barcode.replace(/[^a-zA-Z0-9_-]/g, '_');
-  return 'photos/' + year + '/' + month + '/' + day + '/' + manifestId + '/' + pageNumber + '/' + safeBarcode + '_' + timestamp + '.' + fileExt;
-}
-
-export async function getB2KeyFromUrl(url: string): Promise<string | null> {
-  try {
-    const urlObj = new URL(url);
-    const pathname = urlObj.pathname;
-    const parts = pathname.split('/');
-    const fileIndex = parts.indexOf('file');
-    if (fileIndex !== -1 && fileIndex + 2 < parts.length) {
-      return parts.slice(fileIndex + 2).join('/');
-    }
-    if (pathname.startsWith('/photos/')) {
-      return pathname.slice(1);
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-export async function checkIsB2Key(photoUrl: string): Promise<boolean> {
-  return !photoUrl.startsWith('http');
-}

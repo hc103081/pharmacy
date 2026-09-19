@@ -2,7 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
-import { getB2UploadAuthorization, getPhotoKey, getB2BucketId } from '@/lib/b2';
+import { getB2UploadAuthorization, getB2BucketId } from '@/lib/b2';
+import { generatePhotoKey } from '@/lib/b2-utils';
 
 export interface GetUploadUrlResponse {
   success: boolean;
@@ -48,7 +49,7 @@ export async function getPresignedUploadUrl(
   }
 
   // 3. 產生儲存路徑 key
-  const key = await getPhotoKey(manifestId, pageNumber, barcode, fileExt);
+  const key = generatePhotoKey(manifestId, pageNumber, barcode, fileExt);
 
   // 4. 取得 B2 原生上傳授權
   try {
