@@ -6,6 +6,7 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
   ListObjectsV2Command,
+  ListObjectsV2CommandOutput,
   ListObjectVersionsCommand,
   HeadObjectCommand
 } from '@aws-sdk/client-s3';
@@ -155,6 +156,40 @@ export async function listB2Objects(
     size: obj.Size || 0,
     lastModified: obj.LastModified || new Date(),
   }));
+}
+
+/**
+ * 列出所有具有指定前綴的 B2 物件（支援分頁）
+ * 適合用於統計整個 Bucket 或特定前綴下的總用量
+ */
+export async function listB2ObjectsWithPrefix(
+  prefix: string = '',
+  maxKeys: number = 1000
+): Promise<Array<{ key: string; size: number; lastModified: Date }>> {
+  const client = getB2Client();
+  const allObjects: Array<{ key: string; size: number; lastModified: Date }> = [];
+  let continuationToken: string | undefined = undefined;
+
+  do {
+    const command = new ListObjectsV2Command({
+      Bucket: getBucket(),
+      Prefix: prefix,
+      MaxKeys: maxKeys,
+      ContinuationToken: continuationToken,
+    });
+
+    const response: ListObjectsV2CommandOutput = await client.send(command);
+    const objects = (response.Contents || []).map((obj) => ({
+      key: obj.Key!,
+      size: obj.Size || 0,
+      lastModified: obj.LastModified || new Date(),
+    }));
+    allObjects.push(...objects);
+
+    continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
+  } while (continuationToken);
+
+  return allObjects;
 }
 
 export async function getB2DownloadAuthorization(
