@@ -823,6 +823,8 @@ export default function ScanContent() {
                           getImageUrl={imageCache.getUrl}
                           getImageLoadStatus={imageCache.getLoadStatus}
                           setImageLoadStatus={imageCache.setLoadStatus}
+                          getImageLoadProgress={imageCache.getImageLoadProgress}
+                          downloadImageWithProgress={imageCache.downloadImageWithProgress}
                         />
                       </div>
                     );
