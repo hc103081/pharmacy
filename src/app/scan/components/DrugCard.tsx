@@ -163,29 +163,45 @@ export default function DrugCard({
 
   // 觸發圖片載入（使用新的下載進度 API）
   const triggerImageLoad = useCallback(async () => {
-    if (!hasPhoto || !downloadImageWithProgress || !photoKey) return;
+    console.log('[DrugCard] triggerImageLoad called', { hasPhoto, photoKey, loadProgress: loadProgress.status, resolvedImageUrl: !!resolvedImageUrl });
+    
+    if (!hasPhoto || !downloadImageWithProgress || !photoKey) {
+      console.log('[DrugCard] triggerImageLoad: early return - missing deps');
+      return;
+    }
 
     // 避免重複觸發：如果已經在載入中，或已有圖片 URL，不再觸發
     // 允許在 error 狀態下重試
-    if ((loadProgress.status === 'fetching_url' || loadProgress.status === 'downloading') || resolvedImageUrl) return;
+    if ((loadProgress.status === 'fetching_url' || loadProgress.status === 'downloading') || resolvedImageUrl) {
+      console.log('[DrugCard] triggerImageLoad: early return - already loading or has url', { loadProgress: loadProgress.status, resolvedImageUrl: !!resolvedImageUrl });
+      return;
+    }
 
     try {
+      console.log('[DrugCard] Starting downloadImageWithProgress...');
       const url = await downloadImageWithProgress(photoKey);
+      console.log('[DrugCard] downloadImageWithProgress result:', url ? 'success' : 'null/failed');
       if (url) {
         setResolvedImageUrl(url);
       }
-    } catch {
-      // 錯誤狀態由 hook 內部處理，這裡不需要額外處理
+    } catch (err) {
+      console.error('[DrugCard] downloadImageWithProgress error:', err);
     }
   }, [hasPhoto, downloadImageWithProgress, photoKey, loadProgress.status, resolvedImageUrl]);
 
   // IntersectionObserver 懶加載
   useEffect(() => {
-    if (!hasPhoto || !imgContainerRef.current) return;
+    console.log('[DrugCard] IntersectionObserver effect triggered', { hasPhoto, hasRef: !!imgContainerRef.current });
+    
+    if (!hasPhoto || !imgContainerRef.current) {
+      console.log('[DrugCard] IntersectionObserver: early return - missing deps');
+      return;
+    }
 
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
+          console.log('[DrugCard] IntersectionObserver callback', { isIntersecting: entry.isIntersecting });
           if (entry.isIntersecting) {
             triggerImageLoad();
             observer.unobserve(entry.target);
@@ -200,6 +216,7 @@ export default function DrugCard({
     // Fallback: 如果元素已經在視窗內，立即觸發（處理快速滾動或已可見情況）
     const element = imgContainerRef.current;
     if (element && isElementInViewport(element)) {
+      console.log('[DrugCard] Element already in viewport, triggering load');
       triggerImageLoad();
     }
     
@@ -235,11 +252,20 @@ export default function DrugCard({
 
   // 掛載時直接觸發載入（最可靠的 fallback，不依賴 IntersectionObserver）
   useEffect(() => {
-    if (!hasPhoto || !photoKey || !downloadImageWithProgress) return;
-    if (resolvedImageUrl) return; // 已有圖片
+    console.log('[DrugCard] Mount effect triggered', { hasPhoto, photoKey, hasDownloadFn: !!downloadImageWithProgress, resolvedImageUrl: !!resolvedImageUrl });
+    
+    if (!hasPhoto || !photoKey || !downloadImageWithProgress) {
+      console.log('[DrugCard] Mount effect: early return - missing deps');
+      return;
+    }
+    if (resolvedImageUrl) {
+      console.log('[DrugCard] Mount effect: already has image');
+      return;
+    }
     
     // 稍微延遲確保 layout 完成，避免 viewport 檢查失效
     const timer = setTimeout(() => {
+      console.log('[DrugCard] Mount effect: calling triggerImageLoad');
       triggerImageLoad();
     }, 50);
     
