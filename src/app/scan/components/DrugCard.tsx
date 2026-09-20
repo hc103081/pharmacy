@@ -165,8 +165,9 @@ export default function DrugCard({
   const triggerImageLoad = useCallback(async () => {
     if (!hasPhoto || !downloadImageWithProgress || !photoKey) return;
 
-    // 避免重複觸發：如果已經在載入中或已完成，不再觸發
-    if (loadProgress.status !== 'idle' || resolvedImageUrl) return;
+    // 避免重複觸發：如果已經在載入中，或已有圖片 URL，不再觸發
+    // 允許在 error 狀態下重試
+    if ((loadProgress.status === 'fetching_url' || loadProgress.status === 'downloading') || resolvedImageUrl) return;
 
     try {
       const url = await downloadImageWithProgress(photoKey);
@@ -198,14 +199,21 @@ export default function DrugCard({
     return () => observer.disconnect();
   }, [hasPhoto, loadProgress.status, triggerImageLoad]);
 
-  // 當 loadProgress 從外部變為 loaded 時，獲取 URL（相容舊 API）
+  // 當 loadProgress.status === 'loaded' 但 resolvedImageUrl 為空時，重新下載圖片以建立 objectUrl
+  // 這處理：快取命中但 blob URL 遺失、組件重渲染導致 state 重置等情況
   useEffect(() => {
-    if (loadStatus === 'loaded' && !resolvedImageUrl && hasPhoto && getImageUrl && photoKey) {
+    if (loadProgress.status === 'loaded' && !resolvedImageUrl && hasPhoto && photoKey && downloadImageWithProgress) {
+      downloadImageWithProgress(photoKey).then((url) => {
+        if (url) setResolvedImageUrl(url);
+      });
+    }
+    // 相容舊 API：loadStatus === 'loaded' 但無 resolvedImageUrl
+    else if (loadStatus === 'loaded' && !resolvedImageUrl && hasPhoto && getImageUrl && photoKey) {
       getImageUrl(photoKey).then((url) => {
         if (url) setResolvedImageUrl(url);
       });
     }
-  }, [loadStatus, resolvedImageUrl, hasPhoto, getImageUrl, photoKey]);
+  }, [loadProgress.status, loadStatus, resolvedImageUrl, hasPhoto, photoKey, downloadImageWithProgress, getImageUrl]);
 
   // 圖片錯誤處理
   const handleImageError = useCallback(() => {
