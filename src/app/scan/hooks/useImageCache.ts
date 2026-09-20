@@ -301,7 +301,12 @@ export function useImageCache(manifestId: string | null) {
   
   // === 圖片下載進度追蹤 ===
   const downloadImageWithProgress = useCallback(async (key: string): Promise<string | null> => {
-    if (!manifestId || !key) return null;
+    console.log(`[ImageCache] downloadImageWithProgress START: ${key}`);
+    
+    if (!manifestId || !key) {
+      console.log(`[ImageCache] downloadImageWithProgress: missing manifestId or key`);
+      return null;
+    }
     
     // 初始化進度狀態
     const updateProgress = (progress: Partial<ImageLoadProgress>) => {
@@ -317,6 +322,8 @@ export function useImageCache(manifestId: string | null) {
     updateProgress({ status: 'fetching_url', progress: 0 });
     
     const url = await getUrl(key);
+    console.log(`[ImageCache] getUrl result for ${key}:`, url ? 'success' : 'null');
+    
     if (!url) {
       updateProgress({ status: 'error', progress: 0 });
       return null;
@@ -326,7 +333,10 @@ export function useImageCache(manifestId: string | null) {
     updateProgress({ status: 'downloading', progress: 0, loadedBytes: 0, totalBytes: 0 });
     
     try {
+      console.log(`[ImageCache] Fetching image from presigned URL: ${key}`);
       const response = await fetch(url);
+      console.log(`[ImageCache] Fetch response for ${key}:`, response.status, response.ok);
+      
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
@@ -344,7 +354,10 @@ export function useImageCache(manifestId: string | null) {
       
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          console.log(`[ImageCache] Read complete for ${key}, total bytes: ${loadedBytes}`);
+          break;
+        }
         
         chunks.push(value);
         loadedBytes += value.length;
@@ -353,13 +366,14 @@ export function useImageCache(manifestId: string | null) {
         const progress = totalBytes > 0 ? Math.round((loadedBytes / totalBytes) * 100) : 0;
         updateProgress({ 
           status: 'downloading', 
-          progress: Math.min(progress, 99), // 保留 100% 給完成狀態
+          progress: Math.min(progress, 99), 
           loadedBytes, 
           totalBytes 
         });
       }
       
       // 3. 完成：轉換為 blob + ObjectURL (狀態: loaded)
+      console.log(`[ImageCache] Creating blob for ${key}, chunks: ${chunks.length}, bytes: ${loadedBytes}`);
       const blob = new Blob(chunks as BlobPart[]);
       const objectUrl = URL.createObjectURL(blob);
       
@@ -370,6 +384,7 @@ export function useImageCache(manifestId: string | null) {
         totalBytes: totalBytes || loadedBytes 
       });
       
+      console.log(`[ImageCache] downloadImageWithProgress SUCCESS: ${key}`);
       return objectUrl;
     } catch (err) {
       console.error(`[ImageCache] Download failed for ${key}:`, err);
