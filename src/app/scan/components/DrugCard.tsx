@@ -181,7 +181,7 @@ export default function DrugCard({
 
   // IntersectionObserver 懶加載
   useEffect(() => {
-    if (!hasPhoto || !imgContainerRef.current || loadProgress.status !== 'idle') return;
+    if (!hasPhoto || !imgContainerRef.current) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -196,8 +196,26 @@ export default function DrugCard({
     );
 
     observer.observe(imgContainerRef.current);
+    
+    // Fallback: 如果元素已經在視窗內，立即觸發（處理快速滾動或已可見情況）
+    const element = imgContainerRef.current;
+    if (element && isElementInViewport(element)) {
+      triggerImageLoad();
+    }
+    
     return () => observer.disconnect();
-  }, [hasPhoto, loadProgress.status, triggerImageLoad]);
+  }, [hasPhoto, triggerImageLoad]);
+
+  // 輔助函數：檢查元素是否在視窗內
+  function isElementInViewport(el: HTMLElement): boolean {
+    const rect = el.getBoundingClientRect();
+    return (
+      rect.top <= (window.innerHeight || document.documentElement.clientHeight) &&
+      rect.bottom >= 0 &&
+      rect.left <= (window.innerWidth || document.documentElement.clientWidth) &&
+      rect.right >= 0
+    );
+  }
 
   // 當 loadProgress.status === 'loaded' 但 resolvedImageUrl 為空時，重新下載圖片以建立 objectUrl
   // 這處理：快取命中但 blob URL 遺失、組件重渲染導致 state 重置等情況
