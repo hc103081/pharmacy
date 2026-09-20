@@ -21,6 +21,16 @@ interface CachedUrlEntry {
 
 type ImageLoadStatus = 'idle' | 'loading' | 'loaded' | 'error';
 
+/**
+ * 圖片下載進度狀態
+ */
+export interface ImageLoadProgress {
+  status: 'idle' | 'fetching_url' | 'downloading' | 'loaded' | 'error';
+  progress: number; // 0-100
+  loadedBytes?: number;
+  totalBytes?: number;
+}
+
 interface PendingRequest {
   promise: Promise<string | null>;
   resolve: (value: string | null) => void;
@@ -38,6 +48,9 @@ export function useImageCache(manifestId: string | null) {
   
   // === 載入狀態 ===
   const [loadStatus, setLoadStatusState] = useState<Map<string, ImageLoadStatus>>(new Map());
+  
+  // === 下載進度狀態 ===
+  const [loadProgress, setLoadProgressState] = useState<Map<string, ImageLoadProgress>>(new Map());
   
   // === 請求隊列 (並發控制) ===
   const pendingRequests = useRef<Map<string, PendingRequest>>(new Map());
@@ -286,6 +299,90 @@ export function useImageCache(manifestId: string | null) {
     });
   }, []);
   
+  // === 圖片下載進度追蹤 ===
+  const downloadImageWithProgress = useCallback(async (key: string): Promise<string | null> => {
+    if (!manifestId || !key) return null;
+    
+    // 初始化進度狀態
+    const updateProgress = (progress: Partial<ImageLoadProgress>) => {
+      setLoadProgressState(prev => {
+        const next = new Map(prev);
+        const current = next.get(key) || { status: 'idle' as const, progress: 0 };
+        next.set(key, { ...current, ...progress });
+        return next;
+      });
+    };
+    
+    // 1. 獲取 presigned URL (狀態: fetching_url)
+    updateProgress({ status: 'fetching_url', progress: 0 });
+    
+    const url = await getUrl(key);
+    if (!url) {
+      updateProgress({ status: 'error', progress: 0 });
+      return null;
+    }
+    
+    // 2. 下載圖片並追蹤進度 (狀態: downloading)
+    updateProgress({ status: 'downloading', progress: 0, loadedBytes: 0, totalBytes: 0 });
+    
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      const contentLength = response.headers.get('content-length');
+      const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
+      let loadedBytes = 0;
+      
+      if (!response.body) {
+        throw new Error('Response body is null');
+      }
+      
+      const reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        chunks.push(value);
+        loadedBytes += value.length;
+        
+        // 更新進度
+        const progress = totalBytes > 0 ? Math.round((loadedBytes / totalBytes) * 100) : 0;
+        updateProgress({ 
+          status: 'downloading', 
+          progress: Math.min(progress, 99), // 保留 100% 給完成狀態
+          loadedBytes, 
+          totalBytes 
+        });
+      }
+      
+      // 3. 完成：轉換為 blob + ObjectURL (狀態: loaded)
+      const blob = new Blob(chunks as BlobPart[]);
+      const objectUrl = URL.createObjectURL(blob);
+      
+      updateProgress({ 
+        status: 'loaded', 
+        progress: 100, 
+        loadedBytes, 
+        totalBytes: totalBytes || loadedBytes 
+      });
+      
+      return objectUrl;
+    } catch (err) {
+      console.error(`[ImageCache] Download failed for ${key}:`, err);
+      updateProgress({ status: 'error', progress: 0 });
+      return null;
+    }
+  }, [manifestId, getUrl]);
+  
+  // === 獲取下載進度狀態 ===
+  const getImageLoadProgress = useCallback((key: string): ImageLoadProgress => {
+    return loadProgress.get(key) || { status: 'idle', progress: 0 };
+  }, [loadProgress]);
+  
   // === 緩存統計 (調試用) ===
   const getCacheStats = useCallback(() => {
     let lsCount = 0;
@@ -331,6 +428,8 @@ export function useImageCache(manifestId: string | null) {
     getLoadStatus,
     setLoadStatus,
     getCacheStats,
+    downloadImageWithProgress,
+    getImageLoadProgress,
   };
 }
 
