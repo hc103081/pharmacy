@@ -233,6 +233,19 @@ export default function DrugCard({
     }
   }, [loadProgress.status, loadStatus, resolvedImageUrl, hasPhoto, photoKey, downloadImageWithProgress, getImageUrl]);
 
+  // 掛載時直接觸發載入（最可靠的 fallback，不依賴 IntersectionObserver）
+  useEffect(() => {
+    if (!hasPhoto || !photoKey || !downloadImageWithProgress) return;
+    if (resolvedImageUrl) return; // 已有圖片
+    
+    // 稍微延遲確保 layout 完成，避免 viewport 檢查失效
+    const timer = setTimeout(() => {
+      triggerImageLoad();
+    }, 50);
+    
+    return () => clearTimeout(timer);
+  }, [hasPhoto, photoKey, downloadImageWithProgress, resolvedImageUrl, triggerImageLoad]);
+
   // 圖片錯誤處理
   const handleImageError = useCallback(() => {
     if (photoKey) setImageLoadStatus?.(photoKey, 'error');
