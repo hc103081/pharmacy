@@ -29,6 +29,7 @@ export interface ImageLoadProgress {
   progress: number; // 0-100
   loadedBytes?: number;
   totalBytes?: number;
+  objectUrl?: string; // 圖片 blob URL，載入完成時設定
 }
 
 interface PendingRequest {
@@ -75,11 +76,8 @@ export function useImageCache(manifestId: string | null) {
             validCount++;
           }
         });
-        
-        console.log(`[ImageCache] Restored ${validCount} valid entries from localStorage`);
       }
     } catch (err) {
-      console.warn('[ImageCache] Failed to restore from localStorage:', err);
       // 損壞的緩存清理
       localStorage.removeItem(CACHE_KEY);
     }
@@ -105,9 +103,8 @@ export function useImageCache(manifestId: string | null) {
       });
       
       localStorage.setItem(CACHE_KEY, JSON.stringify(entries));
-      console.log(`[ImageCache] Persisted ${count} entries to localStorage`);
     } catch (err) {
-      console.warn('[ImageCache] Failed to persist to localStorage:', err);
+      // 忽略持久化錯誤
     }
   }, []);
   
@@ -128,14 +125,12 @@ export function useImageCache(manifestId: string | null) {
     // 1. 檢查記憶體緩存
     const memEntry = memoryCache.current.get(key);
     if (memEntry && memEntry.expiresAt > now) {
-      console.log(`[ImageCache] Memory cache HIT: ${key}`);
       return memEntry.url;
     }
     
     // 2. 檢查是否有進行中的請求 (請求去重)
     const existingPending = pendingRequests.current.get(key);
     if (existingPending) {
-      console.log(`[ImageCache] Deduplicated request: ${key}`);
       return existingPending.promise;
     }
     
@@ -159,7 +154,6 @@ export function useImageCache(manifestId: string | null) {
           return;
         }
         
-        console.log(`[ImageCache] Fetching presigned URL: ${key}`);
         setLoadStatusState(prev => {
           const next = new Map(prev);
           next.set(key, 'loading');
@@ -198,13 +192,11 @@ export function useImageCache(manifestId: string | null) {
           // 持久化 (防抖)
           persistToLocalStorage();
           
-          console.log(`[ImageCache] Fetched and cached: ${key}`);
           resolveFn!(url);
         } else {
           throw new Error('No URL returned from API');
         }
       } catch (err) {
-        console.error(`[ImageCache] Fetch failed for ${key}:`, err);
         setLoadStatusState(prev => {
           const next = new Map(prev);
           next.set(key, 'error');
@@ -243,11 +235,8 @@ export function useImageCache(manifestId: string | null) {
     });
     
     if (uncachedKeys.length === 0) {
-      console.log('[ImageCache] Preload: all keys cached');
       return;
     }
-    
-    console.log(`[ImageCache] Preloading ${uncachedKeys.length} URLs`);
     
     // 批量請求
     fetch('/api/scan/batch-view-urls', {
@@ -277,11 +266,9 @@ export function useImageCache(manifestId: string | null) {
         if (cachedCount > 0) {
           persistToLocalStorage();
         }
-        
-        console.log(`[ImageCache] Preloaded ${cachedCount}/${uncachedKeys.length} URLs`);
       })
       .catch(err => {
-        console.error('[ImageCache] Preload failed:', err);
+        // 忽略預載入錯誤
       });
   }, [manifestId, persistToLocalStorage]);
   
@@ -301,10 +288,7 @@ export function useImageCache(manifestId: string | null) {
   
   // === 圖片下載進度追蹤 ===
   const downloadImageWithProgress = useCallback(async (key: string): Promise<string | null> => {
-    console.log(`[ImageCache] downloadImageWithProgress START: ${key}`);
-    
     if (!manifestId || !key) {
-      console.log(`[ImageCache] downloadImageWithProgress: missing manifestId or key`);
       return null;
     }
     
@@ -322,7 +306,6 @@ export function useImageCache(manifestId: string | null) {
     updateProgress({ status: 'fetching_url', progress: 0 });
     
     const url = await getUrl(key);
-    console.log(`[ImageCache] getUrl result for ${key}:`, url ? 'success' : 'null');
     
     if (!url) {
       updateProgress({ status: 'error', progress: 0 });
@@ -333,9 +316,7 @@ export function useImageCache(manifestId: string | null) {
     updateProgress({ status: 'downloading', progress: 0, loadedBytes: 0, totalBytes: 0 });
     
     try {
-      console.log(`[ImageCache] Fetching image from presigned URL: ${key}`);
       const response = await fetch(url);
-      console.log(`[ImageCache] Fetch response for ${key}:`, response.status, response.ok);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -355,7 +336,6 @@ export function useImageCache(manifestId: string | null) {
       while (true) {
         const { done, value } = await reader.read();
         if (done) {
-          console.log(`[ImageCache] Read complete for ${key}, total bytes: ${loadedBytes}`);
           break;
         }
         
@@ -373,23 +353,20 @@ export function useImageCache(manifestId: string | null) {
       }
       
       // 3. 完成：轉換為 blob + ObjectURL
-      console.log(`[ImageCache] Creating blob for ${key}, chunks: ${chunks.length}, bytes: ${loadedBytes}`);
       const blob = new Blob(chunks as BlobPart[]);
       const objectUrl = URL.createObjectURL(blob);
       
-      // 只有在 objectUrl 真正建立後，才更新為 loaded 狀態
-      // 這避免了進度條跑完但圖片還未就緒的問題
+      // 將 objectUrl 直接存入進度狀態，作為單一真相來源
       updateProgress({ 
         status: 'loaded', 
         progress: 100, 
         loadedBytes, 
-        totalBytes: totalBytes || loadedBytes 
+        totalBytes: totalBytes || loadedBytes,
+        objectUrl
       });
       
-      console.log(`[ImageCache] downloadImageWithProgress SUCCESS: ${key}`);
       return objectUrl;
     } catch (err) {
-      console.error(`[ImageCache] Download failed for ${key}:`, err);
       updateProgress({ status: 'error', progress: 0 });
       return null;
     }
@@ -431,7 +408,6 @@ export function useImageCache(manifestId: string | null) {
       });
       
       if (cleaned > 0) {
-        console.log(`[ImageCache] Cleaned ${cleaned} expired entries`);
         persistToLocalStorage();
       }
     }, 5 * 60 * 1000); // 每 5 分鐘

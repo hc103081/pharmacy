@@ -5,6 +5,11 @@ import { Camera, CheckCircle2, AlertCircle, Loader2, Search, RotateCcw, SkipForw
 import type { DrugItem } from '@/types';
 import type { ImageLoadStatus, ImageLoadProgress } from '@/app/scan/hooks/useImageCache';
 
+// 使用 loadProgress.objectUrl 作為單一真相來源，避免 state 競態條件
+function getImageUrlFromProgress(loadProgress: ImageLoadProgress): string | null {
+  return loadProgress.status === 'loaded' && loadProgress.objectUrl ? loadProgress.objectUrl : null;
+}
+
 interface DrugCardProps {
   drug: DrugItem;
   photoKey?: string; // B2 key (relative path) for fetching presigned URL
@@ -154,54 +159,44 @@ export default function DrugCard({
 
   // === 圖片懶加載邏輯（支援進度條） ===
   const imgContainerRef = useRef<HTMLDivElement>(null);
-  const [resolvedImageUrl, setResolvedImageUrl] = useState<string | null>(null);
   const hasPhoto = !!photoKey && !!photoKey.trim();
 
   // 優先使用新的進度 API，回退到舊的狀態 API
   const loadProgress = photoKey && getImageLoadProgress ? getImageLoadProgress(photoKey) : { status: 'idle' as const, progress: 0 };
   const loadStatus = photoKey && getImageLoadStatus ? getImageLoadStatus(photoKey) : 'idle';
 
+  // 從 loadProgress 直接取得 objectUrl，作為單一真相來源
+  const imageUrl = getImageUrlFromProgress(loadProgress);
+
   // 觸發圖片載入（使用新的下載進度 API）
   const triggerImageLoad = useCallback(async () => {
-    console.log('[DrugCard] triggerImageLoad called', { hasPhoto, photoKey, loadProgress: loadProgress.status, resolvedImageUrl: !!resolvedImageUrl });
-    
     if (!hasPhoto || !downloadImageWithProgress || !photoKey) {
-      console.log('[DrugCard] triggerImageLoad: early return - missing deps');
       return;
     }
 
     // 避免重複觸發：如果已經在載入中，或已有圖片 URL，不再觸發
     // 允許在 error 狀態下重試
-    if ((loadProgress.status === 'fetching_url' || loadProgress.status === 'downloading') || resolvedImageUrl) {
-      console.log('[DrugCard] triggerImageLoad: early return - already loading or has url', { loadProgress: loadProgress.status, resolvedImageUrl: !!resolvedImageUrl });
+    if ((loadProgress.status === 'fetching_url' || loadProgress.status === 'downloading') || imageUrl) {
       return;
     }
 
     try {
-      console.log('[DrugCard] Starting downloadImageWithProgress...');
-      const url = await downloadImageWithProgress(photoKey);
-      console.log('[DrugCard] downloadImageWithProgress result:', url ? 'success' : 'null/failed');
-      if (url) {
-        setResolvedImageUrl(url);
-      }
+      await downloadImageWithProgress(photoKey);
+      // imageUrl 會透過 loadProgress.objectUrl 自動更新，無需手動 setState
     } catch (err) {
-      console.error('[DrugCard] downloadImageWithProgress error:', err);
+      // 錯誤會在 loadProgress 中體現
     }
-  }, [hasPhoto, downloadImageWithProgress, photoKey, loadProgress.status, resolvedImageUrl]);
+  }, [hasPhoto, downloadImageWithProgress, photoKey, loadProgress.status, imageUrl]);
 
   // IntersectionObserver 懶加載
   useEffect(() => {
-    console.log('[DrugCard] IntersectionObserver effect triggered', { hasPhoto, hasRef: !!imgContainerRef.current });
-    
     if (!hasPhoto || !imgContainerRef.current) {
-      console.log('[DrugCard] IntersectionObserver: early return - missing deps');
       return;
     }
 
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          console.log('[DrugCard] IntersectionObserver callback', { isIntersecting: entry.isIntersecting });
           if (entry.isIntersecting) {
             triggerImageLoad();
             observer.unobserve(entry.target);
@@ -216,7 +211,6 @@ export default function DrugCard({
     // Fallback: 如果元素已經在視窗內，立即觸發（處理快速滾動或已可見情況）
     const element = imgContainerRef.current;
     if (element && isElementInViewport(element)) {
-      console.log('[DrugCard] Element already in viewport, triggering load');
       triggerImageLoad();
     }
     
@@ -234,43 +228,22 @@ export default function DrugCard({
     );
   }
 
-  // 當 loadProgress.status === 'loaded' 但 resolvedImageUrl 為空時，重新下載圖片以建立 objectUrl
-  // 這處理：快取命中但 blob URL 遺失、組件重渲染導致 state 重置等情況
-  useEffect(() => {
-    if (loadProgress.status === 'loaded' && !resolvedImageUrl && hasPhoto && photoKey && downloadImageWithProgress) {
-      downloadImageWithProgress(photoKey).then((url) => {
-        if (url) setResolvedImageUrl(url);
-      });
-    }
-    // 相容舊 API：loadStatus === 'loaded' 但無 resolvedImageUrl
-    else if (loadStatus === 'loaded' && !resolvedImageUrl && hasPhoto && getImageUrl && photoKey) {
-      getImageUrl(photoKey).then((url) => {
-        if (url) setResolvedImageUrl(url);
-      });
-    }
-  }, [loadProgress.status, loadStatus, resolvedImageUrl, hasPhoto, photoKey, downloadImageWithProgress, getImageUrl]);
-
   // 掛載時直接觸發載入（最可靠的 fallback，不依賴 IntersectionObserver）
   useEffect(() => {
-    console.log('[DrugCard] Mount effect triggered', { hasPhoto, photoKey, hasDownloadFn: !!downloadImageWithProgress, resolvedImageUrl: !!resolvedImageUrl });
-    
     if (!hasPhoto || !photoKey || !downloadImageWithProgress) {
-      console.log('[DrugCard] Mount effect: early return - missing deps');
       return;
     }
-    if (resolvedImageUrl) {
-      console.log('[DrugCard] Mount effect: already has image');
+    if (imageUrl) {
       return;
     }
     
     // 稍微延遲確保 layout 完成，避免 viewport 檢查失效
     const timer = setTimeout(() => {
-      console.log('[DrugCard] Mount effect: calling triggerImageLoad');
       triggerImageLoad();
     }, 50);
     
     return () => clearTimeout(timer);
-  }, [hasPhoto, photoKey, downloadImageWithProgress, resolvedImageUrl, triggerImageLoad]);
+  }, [hasPhoto, photoKey, downloadImageWithProgress, imageUrl, triggerImageLoad]);
 
   // 圖片錯誤處理
   const handleImageError = useCallback(() => {
@@ -448,35 +421,18 @@ export default function DrugCard({
             </div>
           )}
 
-          {/* Loaded 狀態：圖片淡入動畫 - 只有當圖片真正載入完成才顯示，避免閃爍 */}
-          {!isUploading && loadProgress.status === 'loaded' && resolvedImageUrl && (
+          {/* Loaded 狀態：圖片淡入動畫 - 直接使用 loadProgress.objectUrl，避免競態條件 */}
+          {!isUploading && loadProgress.status === 'loaded' && imageUrl && (
             <div
-              onClick={() => onPreviewPhoto(resolvedImageUrl)}
+              onClick={() => onPreviewPhoto(imageUrl)}
               className="absolute inset-0 cursor-pointer"
               title="點擊預覽照片"
             >
               <img
-                src={resolvedImageUrl}
+                src={imageUrl}
                 alt="Thumbnail"
                 className="w-full h-full object-cover animate-in fade-in duration-300"
                 onError={handleImageError}
-                onLoad={() => {
-                  // 圖片真正載入完成後才標記為完全就緒，避免閃爍
-                }}
-              />
-            </div>
-          )}
-
-          {/* 過渡狀態：loaded 但圖片 URL 尚未就緒，繼續顯示進度條 99% */}
-          {!isUploading && loadProgress.status === 'loaded' && !resolvedImageUrl && (
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
-              <CircularProgress
-                progress={99}
-                size={32}
-                strokeWidth={4}
-                strokeColor="#00f2fe"
-                bgColor="#00f2fe30"
-                showText={true}
               />
             </div>
           )}
