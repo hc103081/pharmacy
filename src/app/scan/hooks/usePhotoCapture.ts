@@ -24,8 +24,8 @@ interface UsePhotoCaptureReturn {
   optimisticUrls: Map<string, string>;
   uploadErrors: Map<string, string>;
   triggerCamera: () => void;
-  handleFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
-  handleCameraFile: (file: File) => Promise<void>;
+  handleFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  handleCameraFile: (file: File) => void;
   showCameraModal: boolean;
   setShowCameraModal: (open: boolean) => void;
   cameraError: string | null;
@@ -188,18 +188,22 @@ export function usePhotoCapture({
   );
 
   const handleCameraFile = useCallback(
-    async (file: File) => {
+    (file: File) => {
       if (!matchingItem) return;
-      await uploadToB2(file, matchingItem.id, matchingItem.barcode, matchingItem.page_number);
+      // 立即關閉相機 Modal，背景非同步上傳
+      setShowCameraModal(false);
+      // 背景上傳，不 await，讓 UI 立即響應
+      uploadToB2(file, matchingItem.id, matchingItem.barcode, matchingItem.page_number);
     },
     [matchingItem, uploadToB2]
   );
 
   const handleFileUpload = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
+    (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file || !matchingItem) return;
-      await uploadToB2(file, matchingItem.id, matchingItem.barcode, matchingItem.page_number);
+      // 背景上傳，不 await
+      uploadToB2(file, matchingItem.id, matchingItem.barcode, matchingItem.page_number);
     },
     [matchingItem, uploadToB2]
   );
