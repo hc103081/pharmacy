@@ -30,6 +30,7 @@ import { TeachingButton } from '@/components/teaching';
 import { useManifestOperations } from './hooks/useManifestOperations';
 import { DeleteConfirmDialog } from './components/DeleteConfirmDialog';
 import { OperationProgressModal } from './components/OperationProgressModal';
+import { B2UsageModal } from './components/B2UsageModal';
 import { Toaster, toast } from 'sonner';
 
 /** 格式化儲存容量大小 */
@@ -65,6 +66,11 @@ export default function ManifestsPage() {
     storageQuotaError: string | null;
   } | null>(null);
   const [gdriveLoading, setGdriveLoading] = useState(false);
+  
+  // B2 容量 Modal 狀態
+  const [b2UsageModalOpen, setB2UsageModalOpen] = useState(false);
+  const [b2UsageManifestId, setB2UsageManifestId] = useState<string | null>(null);
+
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // 檢查 Google Drive 連線狀態 - 可重用的函式
@@ -324,6 +330,34 @@ export default function ManifestsPage() {
             </Link>
             <h1 className="text-xl lg:text-2xl font-bold text-white">選擇清點清單</h1>
             <TeachingButton module="manifest-management" variant="inline" className="ml-3" />
+            {/* B2 容量按鈕 */}
+            {gdriveConnected !== null && (
+              <button
+                onClick={() => {
+                  if (manifests.length > 0) {
+                    // 預設選擇第一個清單，或是可以後續改為讓使用者選擇
+                    const firstManifest = manifests[0];
+                    setB2UsageManifestId(firstManifest.id);
+                    setB2UsageModalOpen(true);
+                  }
+                }}
+                disabled={manifests.length === 0}
+                aria-label={manifests.length > 0 ? '查看 B2 容量總覽' : '無可用清單，無法查看 B2 容量'}
+                className={`
+                  flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center
+                  transition-all duration-200 ease-out
+                  active:scale-95
+                  mr-2
+                  ${manifests.length > 0
+                    ? 'bg-slate-800 text-[#00f2fe] border border-[#00f2fe]/30 hover:bg-[#00f2fe]/10 hover:scale-105 hover:shadow-[0_0_12px_rgba(0,242,254,0.4)] cursor-pointer'
+                    : 'bg-slate-700 text-slate-500 border border-slate-600 cursor-not-allowed'
+                  }
+                `}
+              >
+                <HardDrive className="w-4 h-4" />
+              </button>
+            )}
+            
             {/* Google Drive 狀態圓形按鈕 */}
             {gdriveConnected !== null && (
               <div className="relative ml-auto" data-gdrive-dropdown>
@@ -800,6 +834,13 @@ export default function ManifestsPage() {
             status={operationProgress?.status ?? 'archiving'}
             message={operationProgress?.message ?? ''}
             progress={operationProgress?.progress}
+          />
+
+          {/* B2 容量總覽 Modal */}
+          <B2UsageModal
+            isOpen={b2UsageModalOpen}
+            onClose={() => setB2UsageModalOpen(false)}
+            manifestId={b2UsageManifestId || ''}
           />
 
           {/* Toast 通知 */}
