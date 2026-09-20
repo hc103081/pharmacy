@@ -115,7 +115,7 @@ export function usePhotoCapture({
           throw new Error(res.error || '取得上傳授權失敗');
         }
 
-        // 3.2 壓縮圖片 (限制 100KB)
+        // 3.2 縮放圖片至長邊 1920px (原為限制 100KB，現改為解析度縮放以保留更多細節)
         const compressedFile = await compressImage(file);
 
         // 3.3 計算 SHA1 (B2 要求)
