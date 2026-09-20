@@ -448,7 +448,7 @@ export default function DrugCard({
             </div>
           )}
 
-          {/* Loaded 狀態：圖片淡入動畫 */}
+          {/* Loaded 狀態：圖片淡入動畫 - 只有當圖片真正載入完成才顯示，避免閃爍 */}
           {!isUploading && loadProgress.status === 'loaded' && resolvedImageUrl && (
             <div
               onClick={() => onPreviewPhoto(resolvedImageUrl)}
@@ -460,6 +460,23 @@ export default function DrugCard({
                 alt="Thumbnail"
                 className="w-full h-full object-cover animate-in fade-in duration-300"
                 onError={handleImageError}
+                onLoad={() => {
+                  // 圖片真正載入完成後才標記為完全就緒，避免閃爍
+                }}
+              />
+            </div>
+          )}
+
+          {/* 過渡狀態：loaded 但圖片 URL 尚未就緒，繼續顯示進度條 99% */}
+          {!isUploading && loadProgress.status === 'loaded' && !resolvedImageUrl && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
+              <CircularProgress
+                progress={99}
+                size={32}
+                strokeWidth={4}
+                strokeColor="#00f2fe"
+                bgColor="#00f2fe30"
+                showText={true}
               />
             </div>
           )}

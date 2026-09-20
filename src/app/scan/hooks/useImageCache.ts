@@ -372,11 +372,13 @@ export function useImageCache(manifestId: string | null) {
         });
       }
       
-      // 3. 完成：轉換為 blob + ObjectURL (狀態: loaded)
+      // 3. 完成：轉換為 blob + ObjectURL
       console.log(`[ImageCache] Creating blob for ${key}, chunks: ${chunks.length}, bytes: ${loadedBytes}`);
       const blob = new Blob(chunks as BlobPart[]);
       const objectUrl = URL.createObjectURL(blob);
       
+      // 只有在 objectUrl 真正建立後，才更新為 loaded 狀態
+      // 這避免了進度條跑完但圖片還未就緒的問題
       updateProgress({ 
         status: 'loaded', 
         progress: 100, 
