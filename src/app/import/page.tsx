@@ -254,7 +254,8 @@ export default function ImportPage() {
       
       if (!result.success || !result.data) {
         setStatus('error');
-        setMessage(`OCR 辨識失敗: ${result.error}`);
+        // ⭐ 關鍵修復：顯示後端真實錯誤
+        setMessage(`OCR 辨識失敗: ${result.error || '未知錯誤'}`);
         setOcrProgress(null);
         return;
       }
@@ -269,9 +270,12 @@ export default function ImportPage() {
       setStatus('idle');
       setMessage('');
       setOcrProgress(null);
-    } catch {
+    } catch (error: unknown) {  // ⭐ 捕獲 error 參數
+      console.error('[handleOcrImages] 錯誤:', error);  // ⭐ 印出完整錯誤到 Console
       setStatus('error');
-      setMessage('OCR 辨識過程中發生錯誤');
+      // ⭐ 顯示真實錯誤訊息
+      const errMsg = error instanceof Error ? error.message : 'OCR 辨識過程中發生錯誤';
+      setMessage(`OCR 辨識失敗: ${errMsg}`);
       setOcrProgress(null);
     }
   };

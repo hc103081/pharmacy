@@ -410,38 +410,8 @@ async function processSingleBatchWithGemini(urls: string[], batchIndex: number):
       }
       
       if (validation.warning) {
-        console.log(`[OCR 驗證] 第 ${pageNum}/${totalPages} 頁項目數 ${pageItems.length} (預期 44)，自動重試...`);
-        
-        // 重試
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        const retryResult = await processSingleBatchWithGemini(urls, batchIndex);
-        
-        if (retryResult.success && retryResult.items) {
-          // 重新分組檢查重試結果
-          const retryPagesMap = new Map<number, PageItem[]>();
-          for (const retryItem of retryResult.items) {
-            const rp = retryItem.page_number ?? 0;
-            if (!retryPagesMap.has(rp)) retryPagesMap.set(rp, []);
-            retryPagesMap.get(rp)!.push(retryItem);
-          }
-          
-          const retryPageItems = retryPagesMap.get(pageNum) || [];
-          const retryValidation = validatePageItemCount(retryPageItems, pageNum, totalPages);
-          
-          if (retryValidation.warning && !retryValidation.error) {
-            console.log(`[OCR 驗證] 重試後仍不足，第 ${pageNum} 頁缺 ${retryValidation.warning.missing_count} 項`);
-            allWarnings.push(retryValidation.warning);
-          } else {
-            console.log(`[OCR 驗證] 重試成功，第 ${pageNum} 頁項目數 ${retryPageItems.length}`);
-            // 替換該頁項目
-            const otherPages = items.filter(i => (i.page_number ?? 0) !== pageNum);
-            items.length = 0;
-            items.push(...otherPages, ...retryPageItems);
-          }
-        } else {
-          // 重試失敗，保留原警告
-          allWarnings.push(validation.warning);
-        }
+        console.log(`[OCR 驗證] 第 ${pageNum}/${totalPages} 頁項目數 ${pageItems.length} (預期 44)，記錄警告`);
+        allWarnings.push(validation.warning);
       }
     }
 
@@ -641,12 +611,15 @@ export async function processImagesWithGemini({ urls }: { urls: string[] }): Pro
       
       let result = await processBatchForImages({ urls: batch, batchIndex });
       
-      // 重試邏輯：最多重試 MAX_RETRIES 次
+      // 重試邏輯：最多重試 MAX_RETRIES 次，支援 503 指數退避
       let retryCount = 0;
       while ((!result.success || !result.items) && retryCount < MAX_RETRIES) {
         retryCount++;
-        console.log(`批次 ${batchIndex + 1} OCR 失敗，重試 ${retryCount}/${MAX_RETRIES}...`);
-        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // 逐次遞增延遲
+        const is503 = result.error?.includes('503') || result.error?.includes('high demand');
+        const delay = is503 ? 5000 * retryCount : 1000 * retryCount;  // 503 等更久：5s→10s→15s
+        
+        console.log(`批次 ${batchIndex + 1} OCR ${is503 ? '503過載' : '失敗'}，${delay}ms 後重試 ${retryCount}/${MAX_RETRIES}...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
         result = await processBatchForImages({ urls: batch, batchIndex });
       }
       
