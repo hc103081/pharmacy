@@ -95,7 +95,8 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
         if (!encoderSession) throw new Error('Encoder not initialized');
         const { imageBitmap } = e.data;
         const inputTensor = preprocessImage(imageBitmap);
-        const results = await encoderSession.run({ images: inputTensor });
+        // ONNX 模型輸入名稱為 'input_image'，非 'images'
+        const results = await encoderSession.run({ input_image: inputTensor });
         const embedding = results.image_embeddings;
         const float32Data = embedding.data as Float32Array;
 

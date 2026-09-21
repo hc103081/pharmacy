@@ -387,74 +387,97 @@ export default function CameraModalAI({
               </button>
             )}
 
-            {/* 底部 AI 計數操作列 - Sticky Bottom Bar (只在照片預覽模式顯示) */}
-            {isAIModeEnabled && aiState.isEncoderReady && aiState.items.length > 0 && (
-              <div className="absolute bottom-0 left-0 right-0 p-4 bg-[#162a56]/95 backdrop-blur border-t border-blue-500/30 z-20 pointer-events-auto pb-safe">
-                <div className="max-w-4xl mx-auto flex flex-col gap-3">
-                  <div className="flex items-center justify-between text-center">
-                    <span className="text-slate-400 text-sm">AI 偵測顆粒數</span>
-                    <span className="text-4xl font-bold font-mono text-[#00f2fe] drop-shadow-[0_0_15px_rgba(0,242,254,0.5)]">
-                      {aiState.totalCount}
-                    </span>
-                    <span className="text-slate-400 text-sm">顆</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={undo}
-                      disabled={aiState.historyIndex <= 0}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-800 text-slate-300 disabled:opacity-40 hover:bg-slate-700 transition-colors"
-                    >
-                      <RotateCcw className="w-4 h-4" /> 復原
-                    </button>
-                    <button
-                      onClick={clearAll}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-800 text-red-400 border border-red-500/30 hover:bg-red-500/10 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" /> 清空全部
-                    </button>
-                    <button
-                      onClick={() => {
-                        const count = adoptCount();
-                        window.aiAdoptedCount = count;
-                      }}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#00f2fe] text-slate-900 font-bold shadow-[0_0_10px_rgba(0,242,254,0.4)] hover:bg-[#00f2fe]/90 active:scale-95 transition-all"
-                    >
-                      <CheckCircle2 className="w-4 h-4" /> 採用 AI 結果 ({aiState.totalCount})
-                    </button>
+            {/* 底部操作區 - 照片預覽模式專用 */}
+            {isAIModeEnabled && aiState.isEncoderReady && aiState.items.length > 0 ? (
+              <>
+                <div className="absolute bottom-0 left-0 right-0 p-4 bg-[#162a56]/95 backdrop-blur border-t border-blue-500/30 z-20 pointer-events-auto pb-safe">
+                  <div className="max-w-4xl mx-auto flex flex-col gap-3">
+                    <div className="flex items-center justify-between text-center">
+                      <span className="text-slate-400 text-sm">AI 偵測顆粒數</span>
+                      <span className="text-4xl font-bold font-mono text-[#00f2fe] drop-shadow-[0_0_15px_rgba(0,242,254,0.5)]">
+                        {aiState.totalCount}
+                      </span>
+                      <span className="text-slate-400 text-sm">顆</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={undo}
+                        disabled={aiState.historyIndex <= 0}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-800 text-slate-300 disabled:opacity-40 hover:bg-slate-700 transition-colors"
+                      >
+                        <RotateCcw className="w-4 h-4" /> 復原
+                      </button>
+                      <button
+                        onClick={clearAll}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-800 text-red-400 border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" /> 清空全部
+                      </button>
+                      <button
+                        onClick={() => {
+                          const count = adoptCount();
+                          window.aiAdoptedCount = count;
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#00f2fe] text-slate-900 font-bold shadow-[0_0_10px_rgba(0,242,254,0.4)] hover:bg-[#00f2fe]/90 active:scale-95 transition-all"
+                      >
+                        <CheckCircle2 className="w-4 h-4" /> 採用 AI 結果 ({aiState.totalCount})
+                      </button>
+                    </div>
+                    {/* AI 模式下的操作按鈕：重拍 / 確認使用 */}
+                    <div className="flex gap-2 pt-2 border-t border-slate-700/50">
+                      <button
+                        onClick={() => {
+                          setPhotoUrl(null);
+                          onAIDispose();
+                          dispose();
+                          startCamera();
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors active:scale-95"
+                      >
+                        <RotateCcw className="w-4 h-4" /> 重拍
+                      </button>
+                      <button
+                        onClick={() => onClose()}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#00f2fe] text-slate-900 font-bold shadow-[0_0_10px_rgba(0,242,254,0.4)] hover:bg-[#00f2fe]/90 active:scale-95 transition-all"
+                      >
+                        <CheckCircle2 className="w-4 h-4" /> 確認使用
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-
-            {/* 原有的操作按鈕區 - 照片預覽模式專用 */}
-            <div className={`absolute bottom-0 left-0 right-0 p-4 flex gap-2 ${isAIModeEnabled && aiState.items.length > 0 ? 'pb-24' : ''}`}>
-              <button
-                onClick={() => {
-                  setPhotoUrl(null);
-                  if (isAIModeEnabled) {
-                    onAIDispose();
-                    dispose();
-                  }
-                  startCamera();
-                }}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors active:scale-95"
-              >
-                <RotateCcw className="w-4 h-4" /> 重拍
-              </button>
-              <button
-                onClick={() => {
-                  onClose();
-                }}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#00f2fe] text-slate-900 font-bold shadow-[0_0_10px_rgba(0,242,254,0.4)] hover:bg-[#00f2fe]/90 active:scale-95 transition-all"
+              </>
+            ) : (
+              <>
+                {/* 非 AI 模式、AI 未就緒、或無結果：顯示基本操作按鈕 */}
+                <div className="absolute bottom-0 left-0 right-0 p-4 flex gap-2">
+                  <button
+                    onClick={() => {
+                      setPhotoUrl(null);
+                      if (isAIModeEnabled) {
+                        onAIDispose();
+                        dispose();
+                      }
+                      startCamera();
+                    }}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors active:scale-95"
+                  >
+                    <RotateCcw className="w-4 h-4" /> 重拍
+                  </button>
+                  <button
+                    onClick={() => {
+                      onClose();
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#00f2fe] text-slate-900 font-bold shadow-[0_0_10px_rgba(0,242,254,0.4)] hover:bg-[#00f2fe]/90 active:scale-95 transition-all"
               >
                 <CheckCircle2 className="w-4 h-4" /> 確認使用
               </button>
             </div>
-          </div>
-        ) : (
-          // 相機預覽模式
-          <div className="relative w-full h-[70vh] max-h-[70vh]">
-            <video
+          </>
+        )}
+      </div>
+      ) : (
+        <div className="relative w-full h-[70vh] max-h-[70vh]">
+          <video
               ref={videoRef}
               autoPlay
               muted
