@@ -64,3 +64,34 @@ src/
 ├── lib/               # Supabase 客戶端
 └── types/             # 共用型別定義
 ```
+
+## 基礎設施與流量架構
+
+### 照片儲存
+- **物件儲存**：Backblaze B2 (`pharmacy-drug-photos` bucket)
+- **自訂域名**：`b2.hc103081.dpdns.org`
+- **DNS/代理**：Cloudflare（NS 指向 Cloudflare，**開啟 Proxied / 橙色雲朵**）
+
+### 零成本流量原理
+Backblaze B2 與 Cloudflare 屬於 **Bandwidth Alliance** 合作夥伴：
+- B2 → Cloudflare 方向的下載流量：**完全免費、無上限**
+- 前端透過 Presigned URL 直接對 `b2.hc103081.dpdns.org` 下載照片
+- 經 Cloudflare 代理後，**不計入 B2 原生 1 GB/月免費額度**，也無超量費用
+
+### 驗證方式
+```bash
+# 確認域名解析走 Cloudflare
+dig b2.hc103081.dpdns.org +short
+# 應回傳 Cloudflare IP (104.x.x.x / 172.64.x.x 等)
+
+# 檢查 Response Header
+curl -I "https://b2.hc103081.dpdns.org/...presigned-url..."
+# 應見到：cf-ray, cf-cache-status, server: cloudflare
+```
+
+### 圖片加載優化（已實作）
+- **兩級快取**：記憶體 + localStorage（Presigned URL 有效期 1 小時）
+- **懶加載**：IntersectionObserver 只載入可視區圖片
+- **下載去重**：同一張圖片多元件同時觸發時，只發 1 次網路請求
+- **Blob URL 顯示**：下載後轉為 `blob:` URL，預覽大圖不重複消耗流量
+

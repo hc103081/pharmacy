@@ -115,7 +115,7 @@ export function useImageCache(manifestId: string | null) {
       if (next) next();
     }
   }, []);
-  
+
   // === 核心：獲取 presigned URL (含緩存/請求/重試) ===
   const getUrl = useCallback(async (key: string): Promise<string | null> => {
     if (!manifestId || !key) return null;
@@ -164,6 +164,7 @@ export function useImageCache(manifestId: string | null) {
         const res = await fetch('/api/scan/batch-view-urls', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({ manifestId, keys: [key] }),
         });
         
@@ -242,6 +243,7 @@ export function useImageCache(manifestId: string | null) {
     fetch('/api/scan/batch-view-urls', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ manifestId, keys: uncachedKeys }),
     })
       .then(res => res.json())
@@ -286,10 +288,19 @@ export function useImageCache(manifestId: string | null) {
     });
   }, []);
   
-  // === 圖片下載進度追蹤 ===
+  // === 圖片下載去重：避免同一張圖片被多個組件同時下載 ===
+  const pendingDownloads = useRef<Map<string, Promise<string | null>>>(new Map());
+  
+  // === 圖片下載進度追蹤 (含去重) ===
   const downloadImageWithProgress = useCallback(async (key: string): Promise<string | null> => {
     if (!manifestId || !key) {
       return null;
+    }
+    
+    // 去重：如果已有相同 key 的下載正在進行，直接返回該 Promise
+    const existingDownload = pendingDownloads.current.get(key);
+    if (existingDownload) {
+      return existingDownload;
     }
     
     // 初始化進度狀態
@@ -302,74 +313,83 @@ export function useImageCache(manifestId: string | null) {
       });
     };
     
-    // 1. 獲取 presigned URL (狀態: fetching_url)
-    updateProgress({ status: 'fetching_url', progress: 0 });
-    
-    const url = await getUrl(key);
-    
-    if (!url) {
-      updateProgress({ status: 'error', progress: 0 });
-      return null;
-    }
-    
-    // 2. 下載圖片並追蹤進度 (狀態: downloading)
-    updateProgress({ status: 'downloading', progress: 0, loadedBytes: 0, totalBytes: 0 });
-    
-    try {
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      
-      const contentLength = response.headers.get('content-length');
-      const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
-      let loadedBytes = 0;
-      
-      if (!response.body) {
-        throw new Error('Response body is null');
-      }
-      
-      const reader = response.body.getReader();
-      const chunks: Uint8Array[] = [];
-      
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          break;
+    // 創建下載 Promise 並存入去重 Map
+    const downloadPromise = (async () => {
+      try {
+        // 1. 獲取 presigned URL (狀態: fetching_url)
+        updateProgress({ status: 'fetching_url', progress: 0 });
+        
+        const url = await getUrl(key);
+        
+        if (!url) {
+          updateProgress({ status: 'error', progress: 0 });
+          return null;
         }
         
-        chunks.push(value);
-        loadedBytes += value.length;
+        // 2. 下載圖片並追蹤進度 (狀態: downloading)
+        updateProgress({ status: 'downloading', progress: 0, loadedBytes: 0, totalBytes: 0 });
         
-        // 更新進度
-        const progress = totalBytes > 0 ? Math.round((loadedBytes / totalBytes) * 100) : 0;
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const contentLength = response.headers.get('content-length');
+        const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
+        let loadedBytes = 0;
+        
+        if (!response.body) {
+          throw new Error('Response body is null');
+        }
+        
+        const reader = response.body.getReader();
+        const chunks: Uint8Array[] = [];
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            break;
+          }
+          
+          chunks.push(value);
+          loadedBytes += value.length;
+          
+          // 更新進度
+          const progress = totalBytes > 0 ? Math.round((loadedBytes / totalBytes) * 100) : 0;
+          updateProgress({ 
+            status: 'downloading', 
+            progress: Math.min(progress, 99), 
+            loadedBytes, 
+            totalBytes 
+          });
+        }
+        
+        // 3. 完成：轉換為 blob + ObjectURL
+        const blob = new Blob(chunks as BlobPart[]);
+        const objectUrl = URL.createObjectURL(blob);
+        
+        // 將 objectUrl 直接存入進度狀態，作為單一真相來源
         updateProgress({ 
-          status: 'downloading', 
-          progress: Math.min(progress, 99), 
+          status: 'loaded', 
+          progress: 100, 
           loadedBytes, 
-          totalBytes 
+          totalBytes: totalBytes || loadedBytes,
+          objectUrl
         });
+        
+        return objectUrl;
+      } catch (err) {
+        updateProgress({ status: 'error', progress: 0 });
+        return null;
+      } finally {
+        // 清理去重 Map
+        pendingDownloads.current.delete(key);
       }
-      
-      // 3. 完成：轉換為 blob + ObjectURL
-      const blob = new Blob(chunks as BlobPart[]);
-      const objectUrl = URL.createObjectURL(blob);
-      
-      // 將 objectUrl 直接存入進度狀態，作為單一真相來源
-      updateProgress({ 
-        status: 'loaded', 
-        progress: 100, 
-        loadedBytes, 
-        totalBytes: totalBytes || loadedBytes,
-        objectUrl
-      });
-      
-      return objectUrl;
-    } catch (err) {
-      updateProgress({ status: 'error', progress: 0 });
-      return null;
-    }
+    })();
+    
+    pendingDownloads.current.set(key, downloadPromise);
+    return downloadPromise;
   }, [manifestId, getUrl]);
   
   // === 獲取下載進度狀態 ===

@@ -1,0 +1,21 @@
+name = "b2-proxy"
+main = "b2-proxy.js"
+compatibility_date = "2024-09-21"
+compatibility_flags = ["nodejs_compat"]
+
+# 部署到自訂域名 b2.hc103081.dpdns.org
+# 需先在 Cloudflare Dashboard 添加 Custom Domain
+# 或使用 workers.dev 子域名測試
+
+[build]
+command = ""
+
+# 環境變數（生產環境建議用 Secrets 存敏感資訊）
+[vars]
+B2_S3_ENDPOINT = "s3.us-west-004.backblazeb2.com"
+B2_BUCKET = "pharmacy-drug-photos"
+
+# 針對自訂域名的路由規則（在 Dashboard 設定或這裡）
+# routes = [
+#   { pattern = "b2.hc103081.dpdns.org/*", zone_name = "dpdns.org" }
+# ]
