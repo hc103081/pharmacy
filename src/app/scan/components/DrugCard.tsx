@@ -205,6 +205,17 @@ export default function DrugCard({
     hasTriggeredLoadRef.current = false;
   }, [photoKey]);
 
+  // 輔助函數：檢查元素是否在視窗內
+  function isElementInViewport(el: HTMLElement): boolean {
+    const rect = el.getBoundingClientRect();
+    return (
+      rect.top <= (window.innerHeight || document.documentElement.clientHeight) &&
+      rect.bottom >= 0 &&
+      rect.left <= (window.innerWidth || document.documentElement.clientWidth) &&
+      rect.right >= 0
+    );
+  }
+
   // IntersectionObserver 懶加載
   useEffect(() => {
     if (!hasPhoto || !imgContainerRef.current) {
@@ -233,17 +244,6 @@ export default function DrugCard({
     
     return () => observer.disconnect();
   }, [hasPhoto]); // triggerImageLoad 已穩定，不需放入 deps
-
-  // 輔助函數：檢查元素是否在視窗內
-  function isElementInViewport(el: HTMLElement): boolean {
-    const rect = el.getBoundingClientRect();
-    return (
-      rect.top <= (window.innerHeight || document.documentElement.clientHeight) &&
-      rect.bottom >= 0 &&
-      rect.left <= (window.innerWidth || document.documentElement.clientWidth) &&
-      rect.right >= 0
-    );
-  }
 
   // 掛載時直接觸發載入（最可靠的 fallback，不依賴 IntersectionObserver）
   useEffect(() => {
