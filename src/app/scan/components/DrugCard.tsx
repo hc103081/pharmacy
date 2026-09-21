@@ -168,25 +168,42 @@ export default function DrugCard({
   // 從 loadProgress 直接取得 objectUrl，作為單一真相來源
   const imageUrl = getImageUrlFromProgress(loadProgress);
 
+  // 使用 ref 追蹤是否已經觸發過載入，避免因 triggerImageLoad 依賴變更導致重複執行
+  const hasTriggeredLoadRef = useRef(false);
+
   // 觸發圖片載入（使用新的下載進度 API）
+  // 只依賴穩定值，不依賴 loadProgress/imageUrl 等下載期間會變的值
   const triggerImageLoad = useCallback(async () => {
     if (!hasPhoto || !downloadImageWithProgress || !photoKey) {
       return;
     }
 
-    // 避免重複觸發：如果已經在載入中，或已有圖片 URL，不再觸發
-    // 允許在 error 狀態下重試
-    if ((loadProgress.status === 'fetching_url' || loadProgress.status === 'downloading') || imageUrl) {
+    // 避免重複觸發：使用 ref 檢查
+    if (hasTriggeredLoadRef.current) {
       return;
     }
 
+    hasTriggeredLoadRef.current = true;
+
     try {
       await downloadImageWithProgress(photoKey);
-      // imageUrl 會透過 loadProgress.objectUrl 自動更新，無需手動 setState
     } catch (err) {
-      // 錯誤會在 loadProgress 中體現
+      // 錯誤會在 loadProgress 中體現，重置 ref 允許重試
+      hasTriggeredLoadRef.current = false;
     }
-  }, [hasPhoto, downloadImageWithProgress, photoKey, loadProgress.status, imageUrl]);
+  }, [hasPhoto, downloadImageWithProgress, photoKey]);
+
+  // 當圖片載入成功時，標記已觸發，避免 IntersectionObserver 重複觸發
+  useEffect(() => {
+    if (imageUrl) {
+      hasTriggeredLoadRef.current = true;
+    }
+  }, [imageUrl]);
+
+  // photoKey 變更時重置 ref（例如篩選視圖切換藥品）
+  useEffect(() => {
+    hasTriggeredLoadRef.current = false;
+  }, [photoKey]);
 
   // IntersectionObserver 懶加載
   useEffect(() => {
@@ -215,7 +232,7 @@ export default function DrugCard({
     }
     
     return () => observer.disconnect();
-  }, [hasPhoto, triggerImageLoad]);
+  }, [hasPhoto]); // triggerImageLoad 已穩定，不需放入 deps
 
   // 輔助函數：檢查元素是否在視窗內
   function isElementInViewport(el: HTMLElement): boolean {
@@ -243,7 +260,7 @@ export default function DrugCard({
     }, 50);
     
     return () => clearTimeout(timer);
-  }, [hasPhoto, photoKey, downloadImageWithProgress, imageUrl, triggerImageLoad]);
+  }, [hasPhoto, photoKey, downloadImageWithProgress, imageUrl]); // triggerImageLoad 已穩定，不需放入 deps
 
   // 圖片錯誤處理
   const handleImageError = useCallback(() => {
