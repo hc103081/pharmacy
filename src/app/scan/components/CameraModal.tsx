@@ -6,7 +6,7 @@ import { X, Camera as CameraIcon, RefreshCw } from 'lucide-react';
 interface CameraModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCapture: (file: File) => Promise<void>; // Callback to handle the captured file
+  onCapture: (file: File) => void | Promise<void>; // Callback to handle the captured file (fire-and-forget)
   onError: (message: string) => void; // Callback for errors
   onCheckingSupport: (isSupported: boolean | null) => void; // Callback to update support status
   frontCamera?: boolean; // Initial camera preference

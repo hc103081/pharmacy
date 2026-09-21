@@ -21,6 +21,17 @@ interface CachedUrlEntry {
 
 type ImageLoadStatus = 'idle' | 'loading' | 'loaded' | 'error';
 
+/**
+ * 圖片下載進度狀態
+ */
+export interface ImageLoadProgress {
+  status: 'idle' | 'fetching_url' | 'downloading' | 'loaded' | 'error';
+  progress: number; // 0-100
+  loadedBytes?: number;
+  totalBytes?: number;
+  objectUrl?: string; // 圖片 blob URL，載入完成時設定
+}
+
 interface PendingRequest {
   promise: Promise<string | null>;
   resolve: (value: string | null) => void;
@@ -38,6 +49,9 @@ export function useImageCache(manifestId: string | null) {
   
   // === 載入狀態 ===
   const [loadStatus, setLoadStatusState] = useState<Map<string, ImageLoadStatus>>(new Map());
+  
+  // === 下載進度狀態 ===
+  const [loadProgress, setLoadProgressState] = useState<Map<string, ImageLoadProgress>>(new Map());
   
   // === 請求隊列 (並發控制) ===
   const pendingRequests = useRef<Map<string, PendingRequest>>(new Map());
@@ -62,11 +76,8 @@ export function useImageCache(manifestId: string | null) {
             validCount++;
           }
         });
-        
-        console.log(`[ImageCache] Restored ${validCount} valid entries from localStorage`);
       }
     } catch (err) {
-      console.warn('[ImageCache] Failed to restore from localStorage:', err);
       // 損壞的緩存清理
       localStorage.removeItem(CACHE_KEY);
     }
@@ -92,9 +103,8 @@ export function useImageCache(manifestId: string | null) {
       });
       
       localStorage.setItem(CACHE_KEY, JSON.stringify(entries));
-      console.log(`[ImageCache] Persisted ${count} entries to localStorage`);
     } catch (err) {
-      console.warn('[ImageCache] Failed to persist to localStorage:', err);
+      // 忽略持久化錯誤
     }
   }, []);
   
@@ -105,7 +115,7 @@ export function useImageCache(manifestId: string | null) {
       if (next) next();
     }
   }, []);
-  
+
   // === 核心：獲取 presigned URL (含緩存/請求/重試) ===
   const getUrl = useCallback(async (key: string): Promise<string | null> => {
     if (!manifestId || !key) return null;
@@ -115,14 +125,12 @@ export function useImageCache(manifestId: string | null) {
     // 1. 檢查記憶體緩存
     const memEntry = memoryCache.current.get(key);
     if (memEntry && memEntry.expiresAt > now) {
-      console.log(`[ImageCache] Memory cache HIT: ${key}`);
       return memEntry.url;
     }
     
     // 2. 檢查是否有進行中的請求 (請求去重)
     const existingPending = pendingRequests.current.get(key);
     if (existingPending) {
-      console.log(`[ImageCache] Deduplicated request: ${key}`);
       return existingPending.promise;
     }
     
@@ -146,7 +154,6 @@ export function useImageCache(manifestId: string | null) {
           return;
         }
         
-        console.log(`[ImageCache] Fetching presigned URL: ${key}`);
         setLoadStatusState(prev => {
           const next = new Map(prev);
           next.set(key, 'loading');
@@ -157,6 +164,7 @@ export function useImageCache(manifestId: string | null) {
         const res = await fetch('/api/scan/batch-view-urls', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({ manifestId, keys: [key] }),
         });
         
@@ -185,13 +193,11 @@ export function useImageCache(manifestId: string | null) {
           // 持久化 (防抖)
           persistToLocalStorage();
           
-          console.log(`[ImageCache] Fetched and cached: ${key}`);
           resolveFn!(url);
         } else {
           throw new Error('No URL returned from API');
         }
       } catch (err) {
-        console.error(`[ImageCache] Fetch failed for ${key}:`, err);
         setLoadStatusState(prev => {
           const next = new Map(prev);
           next.set(key, 'error');
@@ -230,16 +236,14 @@ export function useImageCache(manifestId: string | null) {
     });
     
     if (uncachedKeys.length === 0) {
-      console.log('[ImageCache] Preload: all keys cached');
       return;
     }
-    
-    console.log(`[ImageCache] Preloading ${uncachedKeys.length} URLs`);
     
     // 批量請求
     fetch('/api/scan/batch-view-urls', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ manifestId, keys: uncachedKeys }),
     })
       .then(res => res.json())
@@ -264,11 +268,9 @@ export function useImageCache(manifestId: string | null) {
         if (cachedCount > 0) {
           persistToLocalStorage();
         }
-        
-        console.log(`[ImageCache] Preloaded ${cachedCount}/${uncachedKeys.length} URLs`);
       })
       .catch(err => {
-        console.error('[ImageCache] Preload failed:', err);
+        // 忽略預載入錯誤
       });
   }, [manifestId, persistToLocalStorage]);
   
@@ -285,6 +287,115 @@ export function useImageCache(manifestId: string | null) {
       return next;
     });
   }, []);
+  
+  // === 圖片下載去重：避免同一張圖片被多個組件同時下載 ===
+  const pendingDownloads = useRef<Map<string, Promise<string | null>>>(new Map());
+  
+  // === 圖片下載進度追蹤 (含去重) ===
+  const downloadImageWithProgress = useCallback(async (key: string): Promise<string | null> => {
+    if (!manifestId || !key) {
+      return null;
+    }
+    
+    // 去重：如果已有相同 key 的下載正在進行，直接返回該 Promise
+    const existingDownload = pendingDownloads.current.get(key);
+    if (existingDownload) {
+      return existingDownload;
+    }
+    
+    // 初始化進度狀態
+    const updateProgress = (progress: Partial<ImageLoadProgress>) => {
+      setLoadProgressState(prev => {
+        const next = new Map(prev);
+        const current = next.get(key) || { status: 'idle' as const, progress: 0 };
+        next.set(key, { ...current, ...progress });
+        return next;
+      });
+    };
+    
+    // 創建下載 Promise 並存入去重 Map
+    const downloadPromise = (async () => {
+      try {
+        // 1. 獲取 presigned URL (狀態: fetching_url)
+        updateProgress({ status: 'fetching_url', progress: 0 });
+        
+        const url = await getUrl(key);
+        
+        if (!url) {
+          updateProgress({ status: 'error', progress: 0 });
+          return null;
+        }
+        
+        // 2. 下載圖片並追蹤進度 (狀態: downloading)
+        updateProgress({ status: 'downloading', progress: 0, loadedBytes: 0, totalBytes: 0 });
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const contentLength = response.headers.get('content-length');
+        const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
+        let loadedBytes = 0;
+        
+        if (!response.body) {
+          throw new Error('Response body is null');
+        }
+        
+        const reader = response.body.getReader();
+        const chunks: Uint8Array[] = [];
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            break;
+          }
+          
+          chunks.push(value);
+          loadedBytes += value.length;
+          
+          // 更新進度
+          const progress = totalBytes > 0 ? Math.round((loadedBytes / totalBytes) * 100) : 0;
+          updateProgress({ 
+            status: 'downloading', 
+            progress: Math.min(progress, 99), 
+            loadedBytes, 
+            totalBytes 
+          });
+        }
+        
+        // 3. 完成：轉換為 blob + ObjectURL
+        const blob = new Blob(chunks as BlobPart[]);
+        const objectUrl = URL.createObjectURL(blob);
+        
+        // 將 objectUrl 直接存入進度狀態，作為單一真相來源
+        updateProgress({ 
+          status: 'loaded', 
+          progress: 100, 
+          loadedBytes, 
+          totalBytes: totalBytes || loadedBytes,
+          objectUrl
+        });
+        
+        return objectUrl;
+      } catch (err) {
+        updateProgress({ status: 'error', progress: 0 });
+        return null;
+      } finally {
+        // 清理去重 Map
+        pendingDownloads.current.delete(key);
+      }
+    })();
+    
+    pendingDownloads.current.set(key, downloadPromise);
+    return downloadPromise;
+  }, [manifestId, getUrl]);
+  
+  // === 獲取下載進度狀態 ===
+  const getImageLoadProgress = useCallback((key: string): ImageLoadProgress => {
+    return loadProgress.get(key) || { status: 'idle', progress: 0 };
+  }, [loadProgress]);
   
   // === 緩存統計 (調試用) ===
   const getCacheStats = useCallback(() => {
@@ -317,7 +428,6 @@ export function useImageCache(manifestId: string | null) {
       });
       
       if (cleaned > 0) {
-        console.log(`[ImageCache] Cleaned ${cleaned} expired entries`);
         persistToLocalStorage();
       }
     }, 5 * 60 * 1000); // 每 5 分鐘
@@ -331,6 +441,8 @@ export function useImageCache(manifestId: string | null) {
     getLoadStatus,
     setLoadStatus,
     getCacheStats,
+    downloadImageWithProgress,
+    getImageLoadProgress,
   };
 }
 

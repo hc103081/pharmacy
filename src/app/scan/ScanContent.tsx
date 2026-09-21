@@ -13,9 +13,9 @@ import {
   ChevronDown,
   X,
   Camera as CameraIcon,
-  RefreshCw
+  RefreshCw,
+  AlertTriangle
 } from 'lucide-react';
-import Link from 'next/link';
 import { TeachingButton } from '@/components/teaching';
 import { DrugCard, ErrorDrawer, JumpDialog, PhotoPreview, BarcodeSearchBar, CameraModal } from './components';
 import { useBarcodeMatch, usePhotoCapture, usePagePersistence } from './hooks';
@@ -54,6 +54,10 @@ export default function ScanContent() {
   const [pageInputValue, setPageInputValue] = useState<string>('');
   const pageInputRef = useRef<HTMLInputElement>(null);
   const [isStatsExpanded, setIsStatsExpanded] = useState(false);
+
+  // 導航確認 Modal 狀態
+  const [showNavConfirm, setShowNavConfirm] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
   
   // Image cache hook
   const imageCache = useImageCache(manifestId);
@@ -352,7 +356,11 @@ export default function ScanContent() {
     cameraError,
     setCameraError,
     checkingCameraSupport,
-    setCheckingCameraSupport
+    setCheckingCameraSupport,
+    // 新增：佇列持久化相關
+    hasPendingUploads,
+    pendingUploadsCount,
+    restorePendingUploads,
   } = usePhotoCapture({
     manifestId,
     matchingItem,
@@ -362,6 +370,95 @@ export default function ScanContent() {
     onRefresh: refreshStatsOnly,
     onResetInput: onResetInputForCamera,
   });
+
+  // ==================== 導航攔截與恢復邏輯 ====================
+
+  // 統一導航函數：若有待上傳則顯示確認 Modal，否則直接執行導航
+  const safeNavigate = useCallback((navigateFn: () => void) => {
+    if (hasPendingUploads) {
+      setPendingNavigation(() => navigateFn);
+      setShowNavConfirm(true);
+    } else {
+      navigateFn();
+    }
+  }, [hasPendingUploads]);
+
+  // 確認導航：執行暫存的導航動作
+  const confirmNavigation = useCallback(() => {
+    if (pendingNavigation) {
+      pendingNavigation();
+      setPendingNavigation(null);
+    }
+    setShowNavConfirm(false);
+  }, [pendingNavigation]);
+
+  // 取消導航
+  const cancelNavigation = useCallback(() => {
+    setPendingNavigation(null);
+    setShowNavConfirm(false);
+  }, []);
+
+  // beforeunload 事件：關閉分頁/重新整理時攔截
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasPendingUploads) {
+        e.preventDefault();
+        e.returnValue = '有照片正在上傳中，離開頁面將導致上傳中斷。確定要離開嗎？';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasPendingUploads]);
+
+  // 頁面載入時自動恢復上傳
+  useEffect(() => {
+    if (hasPendingUploads) {
+      const restore = async () => {
+        const tasks = await restorePendingUploads();
+        if (tasks && tasks.length > 0) {
+          showToast(`發現 ${tasks.length} 張照片未上傳完成，請逐一重新拍照上傳`);
+        }
+      };
+      restore();
+    }
+  }, [hasPendingUploads, restorePendingUploads, showToast]);
+
+  // ==================== 導航確認 Modal 元件 ====================
+  const NavigationConfirmModal = () => {
+    if (!showNavConfirm) return null;
+
+    return (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="relative w-full max-w-md mx-4 bg-[#162a56] border border-[#00f2fe]/30 rounded-2xl shadow-[0_0_30px_rgba(0,242,254,0.15)] overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="p-6 text-center">
+            <div className="w-14 h-14 mx-auto mb-4 bg-[#00f2fe]/10 border border-[#00f2fe]/30 rounded-full flex items-center justify-center">
+              <AlertTriangle className="w-7 h-7 text-[#00f2fe]" />
+            </div>
+            <h3 className="text-lg font-bold text-white mb-2">照片正在上傳中</h3>
+            <p className="text-slate-300 mb-1">目前有 <span className="font-bold text-[#00f2fe]">{pendingUploadsCount}</span> 張照片尚未完成上傳</p>
+            <p className="text-slate-400 text-sm mt-1">離開頁面將導致上傳中斷，需重新拍照</p>
+          </div>
+          <div className="flex border-t border-[#00f2fe]/20">
+            <button
+              onClick={cancelNavigation}
+              className="flex-1 py-3 text-slate-300 font-medium hover:bg-slate-800 transition-colors active:scale-[0.98]"
+            >
+              取消離開
+            </button>
+            <div className="w-px bg-[#00f2fe]/20" />
+            <button
+              onClick={confirmNavigation}
+              className="flex-1 py-3 text-white font-bold bg-[#ff4b5c]/20 border-l border-[#ff4b5c]/30 hover:bg-[#ff4b5c]/30 transition-colors active:scale-[0.98]"
+            >
+              確定離開
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // 恢復上次的頁碼
   useEffect(() => {
@@ -566,7 +663,7 @@ export default function ScanContent() {
                   if (barcodeInput) {
                     clearBarcodeAndJumpToPending();
                   } else {
-                    router.push('/manifests');
+                    safeNavigate(() => router.push('/manifests'));
                   }
                 }}
                 className="p-2 rounded-full transition-all active:scale-95 hover:bg-slate-800 text-slate-400 shrink-0"
@@ -593,13 +690,13 @@ export default function ScanContent() {
             </div>
   
             <div className="flex items-center gap-2 shrink-0">
-              <Link
-                href={`/summary/${manifestId}`}
-                className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-950/50 text-slate-300 rounded-xl border border-slate-800 hover:bg-slate-800 transition-all text-xs font-medium"
+              <button
+                onClick={() => safeNavigate(() => router.push(`/summary/${manifestId}`))}
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-950/50 text-slate-300 rounded-xl border border-slate-800 hover:bg-slate-800 transition-all text-xs font-medium active:scale-95"
               >
                 <FileText className="w-3.5 h-3.5" />
                 <span>預覽</span>
-              </Link>
+              </button>
               <button
                 onClick={() => setIsErrorDrawerOpen(true)}
                 className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border transition-all text-xs font-medium ${
@@ -726,6 +823,8 @@ export default function ScanContent() {
                           getImageUrl={imageCache.getUrl}
                           getImageLoadStatus={imageCache.getLoadStatus}
                           setImageLoadStatus={imageCache.setLoadStatus}
+                          getImageLoadProgress={imageCache.getImageLoadProgress}
+                          downloadImageWithProgress={imageCache.downloadImageWithProgress}
                         />
                       </div>
                     );
@@ -820,6 +919,8 @@ export default function ScanContent() {
                             getImageUrl={imageCache.getUrl}
                             getImageLoadStatus={imageCache.getLoadStatus}
                             setImageLoadStatus={imageCache.setLoadStatus}
+                            getImageLoadProgress={imageCache.getImageLoadProgress}
+                            downloadImageWithProgress={imageCache.downloadImageWithProgress}
                           />
                         </div>
                       );
@@ -892,7 +993,7 @@ export default function ScanContent() {
           <div className="p-4 border-b border-blue-500/20">
             <div className="flex items-center gap-3 mb-3">
               <button
-                onClick={() => router.push('/manifests')}
+                onClick={() => safeNavigate(() => router.push('/manifests'))}
                 className="p-2 rounded-full transition-all active:scale-95 hover:bg-slate-800 text-slate-400 shrink-0"
                 title="返回清單列表"
               >
@@ -911,13 +1012,13 @@ export default function ScanContent() {
             </div>
   
             <div className="flex items-center gap-2">
-              <Link
-                href={`/summary/${manifestId}`}
-                className="flex items-center gap-1 px-3 py-1.5 bg-slate-950/50 text-slate-300 rounded-xl border border-slate-800 hover:bg-slate-800 transition-all text-xs font-medium flex-1 justify-center"
+              <button
+                onClick={() => safeNavigate(() => router.push(`/summary/${manifestId}`))}
+                className="flex items-center gap-1 px-3 py-1.5 bg-slate-950/50 text-slate-300 rounded-xl border border-slate-800 hover:bg-slate-800 transition-all text-xs font-medium flex-1 justify-center active:scale-95"
               >
                 <FileText className="w-3.5 h-3.5" />
                 <span>預覽結果</span>
-              </Link>
+              </button>
               <button
                 onClick={() => setIsErrorDrawerOpen(true)}
                 className={`flex items-center gap-1 px-3 py-1.5 rounded-xl border transition-all text-xs font-medium flex-1 justify-center ${
@@ -1072,6 +1173,8 @@ export default function ScanContent() {
                           getImageUrl={imageCache.getUrl}
                           getImageLoadStatus={imageCache.getLoadStatus}
                           setImageLoadStatus={imageCache.setLoadStatus}
+                          getImageLoadProgress={imageCache.getImageLoadProgress}
+                          downloadImageWithProgress={imageCache.downloadImageWithProgress}
                         />
                       </div>
                     );
@@ -1166,6 +1269,8 @@ export default function ScanContent() {
                             getImageUrl={imageCache.getUrl}
                             getImageLoadStatus={imageCache.getLoadStatus}
                             setImageLoadStatus={imageCache.setLoadStatus}
+                            getImageLoadProgress={imageCache.getImageLoadProgress}
+                            downloadImageWithProgress={imageCache.downloadImageWithProgress}
                           />
                         </div>
                       );
@@ -1187,6 +1292,7 @@ export default function ScanContent() {
         onCheckingSupport={setCheckingCameraSupport}
       />
     )}
+    <NavigationConfirmModal />
     </>
   );
 }

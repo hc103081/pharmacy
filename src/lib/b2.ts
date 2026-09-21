@@ -6,6 +6,7 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
   ListObjectsV2Command,
+  ListObjectsV2CommandOutput,
   ListObjectVersionsCommand,
   HeadObjectCommand
 } from '@aws-sdk/client-s3';
@@ -77,6 +78,29 @@ function getBucket() { return getConfig().bucket; }
 function getKeyId() { return getConfig().keyId; }
 function getAppKey() { return getConfig().appKey; }
 function getRegion() { return getConfig().region; }
+
+/**
+ * 取得 Cloudflare CDN 主機名 (若已設定)
+ * 用於將 B2 S3 端點 hostname 替換為 CDN 域名
+ */
+function getCdnHost(): string | undefined {
+  return process.env.NEXT_PUBLIC_B2_CDN_HOST;
+}
+
+/**
+ * 將 URL 的 hostname 替換為 CDN 主機名 (若已設定)
+ */
+function replaceWithCdnHost(url: string): string {
+  const cdnHost = getCdnHost();
+  if (!cdnHost) return url;
+  try {
+    const u = new URL(url);
+    u.hostname = cdnHost;
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
 
 /**
  * 建立 Presigned PUT URL
@@ -157,6 +181,40 @@ export async function listB2Objects(
   }));
 }
 
+/**
+ * 列出所有具有指定前綴的 B2 物件（支援分頁）
+ * 適合用於統計整個 Bucket 或特定前綴下的總用量
+ */
+export async function listB2ObjectsWithPrefix(
+  prefix: string = '',
+  maxKeys: number = 1000
+): Promise<Array<{ key: string; size: number; lastModified: Date }>> {
+  const client = getB2Client();
+  const allObjects: Array<{ key: string; size: number; lastModified: Date }> = [];
+  let continuationToken: string | undefined = undefined;
+
+  do {
+    const command = new ListObjectsV2Command({
+      Bucket: getBucket(),
+      Prefix: prefix,
+      MaxKeys: maxKeys,
+      ContinuationToken: continuationToken,
+    });
+
+    const response: ListObjectsV2CommandOutput = await client.send(command);
+    const objects = (response.Contents || []).map((obj) => ({
+      key: obj.Key!,
+      size: obj.Size || 0,
+      lastModified: obj.LastModified || new Date(),
+    }));
+    allObjects.push(...objects);
+
+    continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
+  } while (continuationToken);
+
+  return allObjects;
+}
+
 export async function getB2DownloadAuthorization(
   bucketId: string,
   fileNamePrefix: string,
@@ -197,7 +255,9 @@ export async function getB2DownloadAuthorization(
     throw new Error('B2 download auth failed: ' + JSON.stringify(downloadAuth));
   }
 
-  return downloadUrl + '/file/' + getBucket() + '/' + encodeURIComponent(fileNamePrefix) + '?Authorization=' + downloadAuth.authorizationToken;
+  const url = downloadUrl + '/file/' + getBucket() + '/' + encodeURIComponent(fileNamePrefix) + '?Authorization=' + downloadAuth.authorizationToken;
+  // 將 hostname 替換為 Cloudflare CDN 域名 (若已設定)
+  return replaceWithCdnHost(url);
 }
 
 /**
@@ -250,19 +310,9 @@ export async function createPresignedViewUrl(
   expiresIn: number = 3600,
   responseContentDisposition?: 'inline' | 'attachment'
 ): Promise<string> {
-  try {
-    const bucketId = await getB2BucketId();
-    const nativeUrl = await getB2DownloadAuthorization(bucketId, key, expiresIn);
-
-    if (responseContentDisposition) {
-      throw new Error('Use presigned for disposition');
-    }
-    return nativeUrl;
-  } catch (nativeErr: unknown) {
-    const msg = nativeErr instanceof Error ? nativeErr.message : String(nativeErr);
-    console.log('[createPresignedViewUrl] B2 native auth failed, fallback to S3 presigned:', msg);
-  }
-
+  // 直接使用 S3 兼容端點生成預簽名 URL
+  // B2 原生下載端點 (f004.backblazeb2.com/file/...) 預設不支援 CORS，會導致瀏覽器阻擋
+  // S3 端點 (s3.{region}.backblazeb2.com) 支援 CORS 配置，可正常在瀏覽器中載入圖片
   const client = getB2Client();
   const command = new GetObjectCommand({
     Bucket: getBucket(),
@@ -270,7 +320,10 @@ export async function createPresignedViewUrl(
     ...(responseContentDisposition && { ResponseContentDisposition: responseContentDisposition }),
   });
 
-  return getSignedUrl(client, command, { expiresIn });
+  const signedUrl = await getSignedUrl(client, command, { expiresIn });
+  // 將 hostname 替換為 Cloudflare CDN 域名 (若已設定 NEXT_PUBLIC_B2_CDN_HOST)
+  // CF 端需設定「忽略查詢字串」快取規則，以便忽略簽名參數進行快取
+  return replaceWithCdnHost(signedUrl);
 }
 
 let cachedBucketId: string | null = null;

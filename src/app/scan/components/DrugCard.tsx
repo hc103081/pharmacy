@@ -3,7 +3,12 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Camera, CheckCircle2, AlertCircle, Loader2, Search, RotateCcw, SkipForward } from 'lucide-react';
 import type { DrugItem } from '@/types';
-import type { ImageLoadStatus } from '@/app/scan/hooks/useImageCache';
+import type { ImageLoadStatus, ImageLoadProgress } from '@/app/scan/hooks/useImageCache';
+
+// 使用 loadProgress.objectUrl 作為單一真相來源，避免 state 競態條件
+function getImageUrlFromProgress(loadProgress: ImageLoadProgress): string | null {
+  return loadProgress.status === 'loaded' && loadProgress.objectUrl ? loadProgress.objectUrl : null;
+}
 
 interface DrugCardProps {
   drug: DrugItem;
@@ -22,10 +27,83 @@ interface DrugCardProps {
   onFilterByBarcode?: (barcode: string) => void;
   onResetDrug?: (drugId: string) => void;
   onCardClick?: (drugId: string) => void;
-  // Image cache functions
+  // Image cache functions (legacy)
   getImageUrl?: (key: string) => Promise<string | null>;
   getImageLoadStatus?: (key: string) => ImageLoadStatus;
   setImageLoadStatus?: (key: string, status: ImageLoadStatus) => void;
+  // New progress-based image loading
+  getImageLoadProgress?: (key: string) => ImageLoadProgress;
+  downloadImageWithProgress?: (key: string) => Promise<string | null>;
+}
+
+// === CircularProgress SVG Component ===
+function CircularProgress({
+  progress,
+  size = 32,
+  strokeWidth = 4,
+  strokeColor = '#00f2fe',
+  bgColor = '#00f2fe30',
+  showText = true,
+  className = '',
+}: {
+  progress: number; // 0-100
+  size?: number;
+  strokeWidth?: number;
+  strokeColor?: string;
+  bgColor?: string;
+  showText?: boolean;
+  className?: string;
+}) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - progress / 100);
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      className={`transform -rotate-90 ${className}`}
+      style={{ filter: 'drop-shadow(0 0 6px rgba(0,242,254,0.6))' }}
+      aria-label={`載入進度 ${progress}%`}
+    >
+      {/* 背景圓環 */}
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        stroke={bgColor}
+        strokeWidth={strokeWidth}
+      />
+      {/* 進度圓環 */}
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        strokeDasharray={circumference}
+        strokeDashoffset={offset}
+        strokeLinecap="round"
+        className="transition-all duration-300 ease-out"
+      />
+      {showText && progress > 0 && progress < 100 && (
+        <text
+          x={size / 2}
+          y={size / 2 + 3}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontSize={size * 0.3}
+          fontWeight="bold"
+          fill={strokeColor}
+          className="pointer-events-none"
+        >
+          {Math.round(progress)}%
+        </text>
+      )}
+    </svg>
+  );
 }
 
 export default function DrugCard({
@@ -48,6 +126,8 @@ export default function DrugCard({
   getImageUrl,
   getImageLoadStatus,
   setImageLoadStatus,
+  getImageLoadProgress,
+  downloadImageWithProgress,
 }: DrugCardProps) {
   const isCompleted = drug.counted_status === 'completed';
   const isError = drug.counted_status === 'error';
@@ -58,9 +138,9 @@ export default function DrugCard({
   }
 
   // 判斷是否缺少任一條碼（國際條碼或商品代碼）
-// 判斷是否缺少所有條碼（國際條碼與商品代碼同時缺失）
-// 判斷是否缺少條碼：僅在 barcode 與 product_code 皆缺失時視為缺失
-const isNoBarcode = !drug.barcode?.trim() && !drug.product_code?.trim();
+  // 判斷是否缺少所有條碼（國際條碼與商品代碼同時缺失）
+  // 判斷是否缺少條碼：僅在 barcode 與 product_code 皆缺失時視為缺失
+  const isNoBarcode = !drug.barcode?.trim() && !drug.product_code?.trim();
   const isEmptyStorage = !drug.storage_location || drug.storage_location.trim() === '';
 
   // 手動選取的無條碼卡片，操作區顯示優先於篩選隱藏邏輯
@@ -77,37 +157,71 @@ const isNoBarcode = !drug.barcode?.trim() && !drug.product_code?.trim();
   // 是否處於「有誤」後等待選擇拍照或跳過的狀態
   const isPendingPhotoChoice = selectedStatus === 'pending_photo' || selectedStatus === 'pending_skip';
 
-  // === 圖片懶加載邏輯 ===
+  // === 圖片懶加載邏輯（支援進度條） ===
   const imgContainerRef = useRef<HTMLDivElement>(null);
-  const [resolvedImageUrl, setResolvedImageUrl] = useState<string | null>(null);
-  const loadStatus = photoKey ? (getImageLoadStatus?.(photoKey) || 'idle') : 'idle';
   const hasPhoto = !!photoKey && !!photoKey.trim();
 
-  // 觸發圖片載入
+  // 優先使用新的進度 API，回退到舊的狀態 API
+  const loadProgress = photoKey && getImageLoadProgress ? getImageLoadProgress(photoKey) : { status: 'idle' as const, progress: 0 };
+  const loadStatus = photoKey && getImageLoadStatus ? getImageLoadStatus(photoKey) : 'idle';
+
+  // 從 loadProgress 直接取得 objectUrl，作為單一真相來源
+  const imageUrl = getImageUrlFromProgress(loadProgress);
+
+  // 使用 ref 追蹤是否已經觸發過載入，避免因 triggerImageLoad 依賴變更導致重複執行
+  const hasTriggeredLoadRef = useRef(false);
+
+  // 觸發圖片載入（使用新的下載進度 API）
+  // 只依賴穩定值，不依賴 loadProgress/imageUrl 等下載期間會變的值
   const triggerImageLoad = useCallback(async () => {
-    if (!hasPhoto || !getImageUrl || !photoKey) return;
-    
-    // 避免重複觸發
-    if (loadStatus !== 'idle' || resolvedImageUrl) return;
-    
-    setImageLoadStatus?.(photoKey, 'loading');
-    try {
-      const url = await getImageUrl(photoKey);
-      if (url) {
-        setResolvedImageUrl(url);
-        setImageLoadStatus?.(photoKey, 'loaded');
-      } else {
-        setImageLoadStatus?.(photoKey, 'error');
-      }
-    } catch {
-      setImageLoadStatus?.(photoKey, 'error');
+    if (!hasPhoto || !downloadImageWithProgress || !photoKey) {
+      return;
     }
-  }, [hasPhoto, getImageUrl, photoKey, loadStatus, resolvedImageUrl, setImageLoadStatus]);
+
+    // 避免重複觸發：使用 ref 檢查
+    if (hasTriggeredLoadRef.current) {
+      return;
+    }
+
+    hasTriggeredLoadRef.current = true;
+
+    try {
+      await downloadImageWithProgress(photoKey);
+    } catch (err) {
+      // 錯誤會在 loadProgress 中體現，重置 ref 允許重試
+      hasTriggeredLoadRef.current = false;
+    }
+  }, [hasPhoto, downloadImageWithProgress, photoKey]);
+
+  // 當圖片載入成功時，標記已觸發，避免 IntersectionObserver 重複觸發
+  useEffect(() => {
+    if (imageUrl) {
+      hasTriggeredLoadRef.current = true;
+    }
+  }, [imageUrl]);
+
+  // photoKey 變更時重置 ref（例如篩選視圖切換藥品）
+  useEffect(() => {
+    hasTriggeredLoadRef.current = false;
+  }, [photoKey]);
+
+  // 輔助函數：檢查元素是否在視窗內
+  function isElementInViewport(el: HTMLElement): boolean {
+    const rect = el.getBoundingClientRect();
+    return (
+      rect.top <= (window.innerHeight || document.documentElement.clientHeight) &&
+      rect.bottom >= 0 &&
+      rect.left <= (window.innerWidth || document.documentElement.clientWidth) &&
+      rect.right >= 0
+    );
+  }
 
   // IntersectionObserver 懶加載
   useEffect(() => {
-    if (!hasPhoto || !imgContainerRef.current || loadStatus !== 'idle') return;
-    
+    if (!hasPhoto || !imgContainerRef.current) {
+      return;
+    }
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -119,19 +233,34 @@ const isNoBarcode = !drug.barcode?.trim() && !drug.product_code?.trim();
       },
       { rootMargin: '100px 0px', threshold: 0.01 }
     );
-    
-    observer.observe(imgContainerRef.current);
-    return () => observer.disconnect();
-  }, [hasPhoto, loadStatus, triggerImageLoad]);
 
-  // 當 loadStatus 從外部變為 loaded 時，獲取 URL
-  useEffect(() => {
-    if (loadStatus === 'loaded' && !resolvedImageUrl && hasPhoto && getImageUrl && photoKey) {
-      getImageUrl(photoKey).then((url) => {
-        if (url) setResolvedImageUrl(url);
-      });
+    observer.observe(imgContainerRef.current);
+    
+    // Fallback: 如果元素已經在視窗內，立即觸發（處理快速滾動或已可見情況）
+    const element = imgContainerRef.current;
+    if (element && isElementInViewport(element)) {
+      triggerImageLoad();
     }
-  }, [loadStatus, resolvedImageUrl, hasPhoto, getImageUrl, photoKey]);
+    
+    return () => observer.disconnect();
+  }, [hasPhoto]); // triggerImageLoad 已穩定，不需放入 deps
+
+  // 掛載時直接觸發載入（最可靠的 fallback，不依賴 IntersectionObserver）
+  useEffect(() => {
+    if (!hasPhoto || !photoKey || !downloadImageWithProgress) {
+      return;
+    }
+    if (imageUrl) {
+      return;
+    }
+    
+    // 稍微延遲確保 layout 完成，避免 viewport 檢查失效
+    const timer = setTimeout(() => {
+      triggerImageLoad();
+    }, 50);
+    
+    return () => clearTimeout(timer);
+  }, [hasPhoto, photoKey, downloadImageWithProgress, imageUrl]); // triggerImageLoad 已穩定，不需放入 deps
 
   // 圖片錯誤處理
   const handleImageError = useCallback(() => {
@@ -258,12 +387,12 @@ const isNoBarcode = !drug.barcode?.trim() && !drug.product_code?.trim();
             </div>
 
             {isError && drug.actual_quantity !== undefined && (
-        <div className="mt-0.5">
-          <span className="text-sm font-bold text-[#ff4b5c]">實際: {drug.actual_quantity}</span>
+              <div className="mt-0.5">
+                <span className="text-sm font-bold text-[#ff4b5c]">實際: {drug.actual_quantity}</span>
+              </div>
+            )}
+          </div>
         </div>
-      )}
-</div>
-    </div>
 
         {/* 照片縮圖 / 上傳中動畫 / 佔位符 */}
         <div
@@ -282,28 +411,42 @@ const isNoBarcode = !drug.barcode?.trim() && !drug.product_code?.trim();
           )}
 
           {/* Idle 狀態：無照片或未開始載入 */}
-          {!isUploading && loadStatus === 'idle' && (
+          {!isUploading && loadProgress.status === 'idle' && (
             <div className="absolute inset-0 flex items-center justify-center bg-slate-900 text-slate-600">
               <Camera className="w-5 h-5 opacity-50" />
             </div>
           )}
 
-          {/* Loading 狀態：灰色背景 + 藍色轉圈 */}
-          {!isUploading && loadStatus === 'loading' && (
+          {/* Fetching URL 階段：簡單轉圈 (size=28) */}
+          {!isUploading && loadProgress.status === 'fetching_url' && (
             <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
               <Loader2 className="w-5 h-5 text-[#00f2fe] animate-spin" />
             </div>
           )}
 
-          {/* Loaded 狀態：圖片淡入動畫 */}
-          {!isUploading && loadStatus === 'loaded' && resolvedImageUrl && (
+          {/* Downloading 階段：環形進度條 (size=32, strokeWidth=4) */}
+          {!isUploading && loadProgress.status === 'downloading' && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
+              <CircularProgress
+                progress={loadProgress.progress}
+                size={32}
+                strokeWidth={4}
+                strokeColor="#00f2fe"
+                bgColor="#00f2fe30"
+                showText={true}
+              />
+            </div>
+          )}
+
+          {/* Loaded 狀態：圖片淡入動畫 - 直接使用 loadProgress.objectUrl，避免競態條件 */}
+          {!isUploading && loadProgress.status === 'loaded' && imageUrl && (
             <div
-              onClick={() => onPreviewPhoto(resolvedImageUrl)}
+              onClick={() => onPreviewPhoto(imageUrl)}
               className="absolute inset-0 cursor-pointer"
               title="點擊預覽照片"
             >
               <img
-                src={resolvedImageUrl}
+                src={imageUrl}
                 alt="Thumbnail"
                 className="w-full h-full object-cover animate-in fade-in duration-300"
                 onError={handleImageError}
@@ -312,9 +455,16 @@ const isNoBarcode = !drug.barcode?.trim() && !drug.product_code?.trim();
           )}
 
           {/* Error 狀態：破圖圖標 */}
-          {!isUploading && loadStatus === 'error' && (
+          {!isUploading && loadProgress.status === 'error' && (
             <div className="absolute inset-0 flex items-center justify-center bg-slate-800 text-slate-500">
               <AlertCircle className="w-5 h-5" />
+            </div>
+          )}
+
+          {/* 相容舊 API：loading 狀態（當沒有使用新進度 API 時） */}
+          {!isUploading && !getImageLoadProgress && loadStatus === 'loading' && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
+              <Loader2 className="w-5 h-5 text-[#00f2fe] animate-spin" />
             </div>
           )}
         </div>
@@ -389,79 +539,79 @@ const isNoBarcode = !drug.barcode?.trim() && !drug.product_code?.trim();
               </div>
             </div>
           ) : (
-  /* 未確認：只顯示「正確/有誤」按鈕（不在這裡顯示拍照按鈕） */
-  <div className="flex flex-col gap-2 flex-1 bg-slate-950/50 p-3 rounded-xl border border-slate-700">
-    <div className="flex items-center gap-2">
-      <button
-        onClick={() => {
-          onStatusSelect('correct');
-          onActualQuantityChange(String(drug.expected_quantity));
-          onTriggerCamera();
-        }}
-        disabled={isLocked}
-        className={`flex-1 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 ${
-          selectedStatus === 'correct'
-            ? 'bg-[#00f2fe] text-slate-900 shadow-[0_0_10px_rgba(0,242,254,0.4)]'
-            : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-        } ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
-      >
-        正確
-      </button>
-      <button
-        onClick={() => onStatusSelect('incorrect')}
-        disabled={isLocked}
-        className={`flex-1 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 ${
-          selectedStatus === 'incorrect' || isPendingPhotoChoice
-            ? 'bg-[#ff4b5c] text-white shadow-[0_0_10px_rgba(255,75,92,0.4)]'
-            : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-        } ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
-      >
-        有誤
-      </button>
-    </div>
-    {selectedStatus === 'incorrect' && (
-      <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
-        <label className="text-xs font-bold text-slate-500 shrink-0">實際數量:</label>
-        <input
-          type="number"
-          value={actualQuantity}
-          onChange={(e) => onActualQuantityChange(e.target.value)}
-          disabled={isLocked}
-          autoFocus
-          className={`flex-1 bg-transparent text-right font-mono text-lg text-[#00f2fe] outline-none border-b border-dashed border-slate-600 focus:border-[#00f2fe] transition-colors py-1 ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
-          placeholder="0"
-        />
-      </div>
-    )}
-    {selectedStatus === 'incorrect' && actualQuantity && !isPendingPhotoChoice && (
-      <div className="flex items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
-        <button
-          onClick={() => {
-            onStatusSelect('pending_photo');
-            onTriggerCamera();
-          }}
-          disabled={isUploading || isLocked}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 bg-[#00f2fe] text-slate-900 shadow-[0_0_10px_rgba(0,242,254,0.4)] hover:bg-[#00f2fe]/90 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Camera className="w-4 h-4" />
-          拍照確認
-        </button>
-        <button
-          onClick={() => {
-            onStatusSelect('pending_skip');
-            onActualQuantityChange('');
-            onSkipPhoto();
-          }}
-          disabled={isUploading || isLocked}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 bg-slate-800 text-slate-300 border border-slate-600 hover:bg-slate-700 hover:border-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <SkipForward className="w-4 h-4" />
-          跳過拍照
-        </button>
-      </div>
-    )}
-  </div>
-)}
+            /* 未確認：只顯示「正確/有誤」按鈕（不在這裡顯示拍照按鈕） */
+            <div className="flex flex-col gap-2 flex-1 bg-slate-950/50 p-3 rounded-xl border border-slate-700">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    onStatusSelect('correct');
+                    onActualQuantityChange(String(drug.expected_quantity));
+                    onTriggerCamera();
+                  }}
+                  disabled={isLocked}
+                  className={`flex-1 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 ${
+                    selectedStatus === 'correct'
+                      ? 'bg-[#00f2fe] text-slate-900 shadow-[0_0_10px_rgba(0,242,254,0.4)]'
+                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                  } ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  正確
+                </button>
+                <button
+                  onClick={() => onStatusSelect('incorrect')}
+                  disabled={isLocked}
+                  className={`flex-1 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 ${
+                    selectedStatus === 'incorrect' || isPendingPhotoChoice
+                      ? 'bg-[#ff4b5c] text-white shadow-[0_0_10px_rgba(255,75,92,0.4)]'
+                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                  } ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  有誤
+                </button>
+              </div>
+              {selectedStatus === 'incorrect' && (
+                <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <label className="text-xs font-bold text-slate-500 shrink-0">實際數量:</label>
+                  <input
+                    type="number"
+                    value={actualQuantity}
+                    onChange={(e) => onActualQuantityChange(e.target.value)}
+                    disabled={isLocked}
+                    autoFocus
+                    className={`flex-1 bg-transparent text-right font-mono text-lg text-[#00f2fe] outline-none border-b border-dashed border-slate-600 focus:border-[#00f2fe] transition-colors py-1 ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    placeholder="0"
+                  />
+                </div>
+              )}
+              {selectedStatus === 'incorrect' && actualQuantity && !isPendingPhotoChoice && (
+                <div className="flex items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <button
+                    onClick={() => {
+                      onStatusSelect('pending_photo');
+                      onTriggerCamera();
+                    }}
+                    disabled={isUploading || isLocked}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 bg-[#00f2fe] text-slate-900 shadow-[0_0_10px_rgba(0,242,254,0.4)] hover:bg-[#00f2fe]/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Camera className="w-4 h-4" />
+                    拍照確認
+                  </button>
+                  <button
+                    onClick={() => {
+                      onStatusSelect('pending_skip');
+                      onActualQuantityChange('');
+                      onSkipPhoto();
+                    }}
+                    disabled={isUploading || isLocked}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 bg-slate-800 text-slate-300 border border-slate-600 hover:bg-slate-700 hover:border-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <SkipForward className="w-4 h-4" />
+                    跳過拍照
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       ) : isLocked ? (
         /* 鎖定狀態 */
