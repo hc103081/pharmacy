@@ -313,21 +313,21 @@ export default function CameraModalAI({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
       <div className="relative w-full max-w-4xl max-h-[90vh] mx-4" ref={containerRef}>
-        {/* 關閉按鈕 - 與切換鏡頭按鈕水平對齊，避免重疊 */}
-        <button
-          onClick={onClose}
-          className="absolute top-2 right-2 z-10 p-2 bg-slate-900/80 rounded-full text-slate-300 hover:text-white transition-colors"
-        >
-          <X className="w-6 h-6" />
-        </button>
-
-        {/* AI 模式指示器 */}
-        {isAIModeEnabled && (
-          <div className="absolute top-4 left-4 z-10 px-3 py-1 bg-[#00f2fe]/20 border border-[#00f2fe]/50 rounded-full text-xs font-bold text-[#00f2fe] flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#00f2fe] animate-pulse" />
-            AI 計數模式
-          </div>
-        )}
+        {/* 左上：關閉按鈕 + AI 模式指示器 (關閉在左，AI 指示器在右) */}
+        <div className="absolute top-2 left-2 z-10 flex items-center gap-2">
+          <button
+            onClick={onClose}
+            className="p-2 bg-slate-900/80 rounded-full text-slate-300 hover:text-white transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          {isAIModeEnabled && (
+            <div className="px-3 py-1 bg-[#00f2fe]/20 border border-[#00f2fe]/50 rounded-full text-xs font-bold text-[#00f2fe] flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-[#00f2fe] animate-pulse" />
+              AI 計數模式
+            </div>
+          )}
+        </div>
 
         {photoUrl ? (
           // 照片預覽模式
@@ -507,29 +507,14 @@ export default function CameraModalAI({
                 <button
                   onClick={handleCapture}
                   disabled={isLoading}
-                  className="relative w-14 h-14 rounded-full border-4 border-white hover:border-white/80 transition-colors active:scale-95"
+                  className="relative w-14 h-14 rounded-full border-4 border-[#00f2fe] hover:border-[#00f2fe]/80 bg-[#00f2fe]/10 transition-colors active:scale-95"
                 >
                   <div className="absolute inset-0">
-                    <div className="w-full h-full rounded-full bg-white opacity-0 transition-opacity duration-200" />
+                    <div className="w-full h-full rounded-full bg-[#00f2fe] opacity-0 transition-opacity duration-200" />
                   </div>
-                  <Camera className="h-6 w-6 text-white" />
+                  <Camera className="h-6 w-6 text-[#00f2fe]" />
                 </button>
               </div>
-            </div>
-
-            {/* 底部：從相簿選擇 */}
-            <div className="absolute bottom-0 left-0 right-0 p-4">
-              <label className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors active:scale-95 cursor-pointer">
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={handleFileInput}
-                  className="hidden"
-                />
-                <Camera className="w-4 h-4" />
-                <span className="text-sm font-bold">從相簿選擇</span>
-              </label>
             </div>
           </div>
         )}

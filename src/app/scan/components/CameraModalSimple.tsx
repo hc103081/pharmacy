@@ -212,14 +212,6 @@ export default function CameraModalSimple({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
       <div className="relative w-full max-w-4xl max-h-[90vh] mx-4">
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 z-10 p-2 bg-slate-900/80 rounded-full text-slate-300 hover:text-white transition-colors"
-        >
-          <X className="w-6 h-6" />
-        </button>
-
         {/* Camera preview mode */}
         <div className="relative w-full h-[70vh] max-h-[70vh]">
           <video
@@ -249,12 +241,12 @@ export default function CameraModalSimple({
               <button
                 onClick={handleCapture}
                 disabled={isLoading}
-                className="relative w-14 h-14 rounded-full border-4 border-white hover:border-white/80 transition-colors active:scale-95 disabled:opacity-70"
+                className="relative w-14 h-14 rounded-full border-4 border-[#00f2fe] hover:border-[#00f2fe]/80 bg-[#00f2fe]/10 transition-colors active:scale-95 disabled:opacity-70"
               >
                 <div className="absolute inset-0">
-                  <div className="w-full h-full rounded-full bg-white opacity-0 transition-opacity duration-200" />
+                  <div className="w-full h-full rounded-full bg-[#00f2fe] opacity-0 transition-opacity duration-200" />
                 </div>
-                <CameraIcon className="h-6 w-6 text-white" />
+                <CameraIcon className="h-6 w-6 text-[#00f2fe]" />
               </button>
             </div>
 
@@ -267,26 +259,6 @@ export default function CameraModalSimple({
                 <X className="h-5 w-5 text-slate-300 hover:text-white" />
               </button>
             </div>
-          </div>
-
-          {/* Bottom: Select from gallery */}
-          <div className="absolute bottom-0 left-0 right-0 p-4">
-            <label className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors active:scale-95 cursor-pointer">
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    handleFileSelect(file);
-                  }
-                }}
-                className="hidden"
-              />
-              <CameraIcon className="w-4 h-4" />
-              <span className="text-sm font-bold">從相簿選擇</span>
-            </label>
           </div>
         </div>
       </div>
