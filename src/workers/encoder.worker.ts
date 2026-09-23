@@ -59,28 +59,39 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
       }
 
       case 'INIT_ENCODER': {
-        const { modelUrl, wasmConfig } = e.data;
+        const { modelUrl, encoderDataUrl, wasmConfig } = e.data;
         ort.env.wasm.numThreads = wasmConfig.numThreads;
         ort.env.wasm.simd = wasmConfig.simd;
 
+        console.log('[Worker] INIT_ENCODER 收到 modelUrl:', modelUrl, 'encoderDataUrl:', encoderDataUrl);
+
         try {
-          // 先嘗試 WebGPU (Encoder 模型權重已內嵌，無需 externalData)
+          // 先嘗試 WebGPU (優先使用 externalData 版本)
           try {
             console.log('[Worker] 嘗試 WebGPU 建立 Encoder session...');
-            encoderSession = await ort.InferenceSession.create(modelUrl, {
+            const options: ort.InferenceSession.SessionOptions = {
               executionProviders: ['webgpu'],
               graphOptimizationLevel: 'all',
-            });
+            };
+            if (encoderDataUrl) {
+              options.externalData = [{ data: encoderDataUrl, path: 'mobile_sam_encoder_fp32.onnx.data' }];
+              console.log('[Worker] 使用 externalData:', encoderDataUrl);
+            }
+            encoderSession = await ort.InferenceSession.create(modelUrl, options);
             console.log('[Worker] WebGPU 成功');
             self.postMessage({ type: 'ENCODER_READY' } satisfies WorkerResponse);
           } catch (webgpuErr: unknown) {
             // WebGPU 失敗，降級 WASM
             console.warn('[Worker] WebGPU 失敗，降級 WASM:', (webgpuErr as Error).message);
             try {
-              encoderSession = await ort.InferenceSession.create(modelUrl, {
+              const options: ort.InferenceSession.SessionOptions = {
                 executionProviders: ['wasm'],
                 graphOptimizationLevel: 'all',
-              });
+              };
+              if (encoderDataUrl) {
+                options.externalData = [{ data: encoderDataUrl, path: 'mobile_sam_encoder_fp32.onnx.data' }];
+              }
+              encoderSession = await ort.InferenceSession.create(modelUrl, options);
               console.log('[Worker] WASM 成功');
               self.postMessage({ type: 'ENCODER_READY' } satisfies WorkerResponse);
             } catch (wasmErr: unknown) {

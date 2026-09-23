@@ -135,17 +135,43 @@ export class ModelLoader {
     this.state.encoderStage = 'initializing';
     this.notify();
 
-    // 使用本地模型檔案 (同源，無 CORS，載入極快)
-    const modelUrl = `${MODEL_BASE}/mobile_sam_encoder.onnx`;
+    // 優先使用 fp32 版本 (含 external data，適合 web 串流載入)
+    const modelUrl = `${MODEL_BASE}/mobile_sam_encoder_fp32.onnx`;
+    const modelDataUrl = `${MODEL_BASE}/mobile_sam_encoder_fp32.onnx.data`;
+
+    // 先驗證檔案可存取
+    try {
+      const testRes = await fetch(modelUrl, { method: 'HEAD' });
+      console.log('[ModelLoader] Encoder 模型檔案 HEAD 請求:', testRes.status, testRes.headers.get('content-length'));
+      if (!testRes.ok) throw new Error(`Encoder 模型檔案不可存取: ${testRes.status}`);
+      
+      const dataRes = await fetch(modelDataUrl, { method: 'HEAD' });
+      console.log('[ModelLoader] Encoder data 檔案 HEAD 請求:', dataRes.status, dataRes.headers.get('content-length'));
+      if (!dataRes.ok) throw new Error(`Encoder data 檔案不可存取: ${dataRes.status}`);
+    } catch (e) {
+      console.error('[ModelLoader] Encoder 模型檔案預檢失敗，嘗試備用檔案:', e);
+      // 備用：使用單一檔案版本
+      const fallbackUrl = `${MODEL_BASE}/mobile_sam_encoder.onnx`;
+      try {
+        const fallbackRes = await fetch(fallbackUrl, { method: 'HEAD' });
+        console.log('[ModelLoader] 備用 Encoder 檔案 HEAD 請求:', fallbackRes.status);
+        if (fallbackRes.ok) {
+          console.log('[ModelLoader] 使用備用 Encoder 檔案');
+          // 這裡不拋錯，繼續使用備用檔案
+        }
+      } catch {}
+    }
 
     // 修正線程數：非 crossOriginIsolated 環境限制為 1
     const isCrossOriginIsolated = typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated;
     const numThreads = isCrossOriginIsolated ? (navigator.hardwareConcurrency || 4) : 1;
 
-    console.log('[ModelLoader] 送出 INIT_ENCODER (local), numThreads:', numThreads);
+    console.log('[ModelLoader] 送出 INIT_ENCODER (local fp32), modelUrl:', modelUrl, 'modelDataUrl:', modelDataUrl, 'numThreads:', numThreads);
     this.worker.postMessage({
       type: 'INIT_ENCODER',
       modelUrl: modelUrl,
+      // encoder data URL 傳給 worker 用於 externalData
+      encoderDataUrl: modelDataUrl,
       wasmConfig: { numThreads, simd: true },
     } satisfies WorkerMessage);
     console.log('[ModelLoader] postMessage 完成');
