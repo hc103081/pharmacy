@@ -3,6 +3,10 @@
 import * as ort from 'onnxruntime-web';
 import type { WorkerMessage, WorkerResponse } from '@/types/ai-count';
 
+// 設定 WASM 檔案路徑：使用 jsdelivr CDN 但指定版本避免快取問題
+// 若 localhost 有 COOP/COEP 標頭，可直接使用 CDN；否則需將檔案放在 public 資料夾
+ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/';
+
 let encoderSession: ort.InferenceSession | null = null;
 let decoderSession: ort.InferenceSession | null = null;
 

@@ -30,6 +30,18 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ['192.168.1.111'],
   // 強制使用 Webpack (Next.js 16+ 預設 Turbopack)
   turbopack: {},
+  // COOP/COEP 標頭：允許 onnxruntime-web WASM 執行緒 (SharedArrayBuffer) 在 localhost 運作
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
+        ],
+      },
+    ];
+  },
 };
 
 export default withPWA(nextConfig);
