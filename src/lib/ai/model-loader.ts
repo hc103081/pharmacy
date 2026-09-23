@@ -2,7 +2,8 @@
 
 import type { ModelLoadState, WorkerMessage, WorkerResponse } from '@/types/ai-count';
 
-const SUPABASE_STORAGE_BASE = 'https://epjyodyjdssgjqrzgtnc.supabase.co/storage/v1/object/public/models';
+// 使用本地模型檔案 (public/models/)，避免跨域下載與手機網路逾時
+const MODEL_BASE = '/models';
 
 export class ModelLoader {
   private worker: Worker;
@@ -116,8 +117,8 @@ export class ModelLoader {
 
     this.worker.postMessage({
       type: 'INIT_DECODER',
-      modelUrl: `${SUPABASE_STORAGE_BASE}/mobile_sam_decoder.onnx`,
-      decoderDataUrl: `${SUPABASE_STORAGE_BASE}/mobile_sam_decoder.onnx.data`,
+      modelUrl: `${MODEL_BASE}/mobile_sam_decoder.onnx`,
+      decoderDataUrl: `${MODEL_BASE}/mobile_sam_decoder.onnx.data`,
       wasmConfig: { numThreads: navigator.hardwareConcurrency || 4, simd: true },
     } satisfies WorkerMessage);
 
@@ -134,14 +135,14 @@ export class ModelLoader {
     this.state.encoderStage = 'initializing';
     this.notify();
 
-    // 使用 Supabase Storage URL，直接傳給 Worker (避免雙重下載)
-    const modelUrl = `${SUPABASE_STORAGE_BASE}/mobile_sam_encoder.onnx`;
+    // 使用本地模型檔案 (同源，無 CORS，載入極快)
+    const modelUrl = `${MODEL_BASE}/mobile_sam_encoder.onnx`;
 
     // 修正線程數：非 crossOriginIsolated 環境限制為 1
     const isCrossOriginIsolated = typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated;
     const numThreads = isCrossOriginIsolated ? (navigator.hardwareConcurrency || 4) : 1;
 
-    console.log('[ModelLoader] 送出 INIT_ENCODER (URL), numThreads:', numThreads);
+    console.log('[ModelLoader] 送出 INIT_ENCODER (local), numThreads:', numThreads);
     this.worker.postMessage({
       type: 'INIT_ENCODER',
       modelUrl: modelUrl,
@@ -160,21 +161,22 @@ export class ModelLoader {
         return;
       }
       const elapsed = Date.now() - pollStart;
-      // 估算進度：下載(0-90%) + 初始化(90-99%)
-      const progress = Math.min(99, Math.floor(elapsed / 200));
+      // 估算進度：本地載入較快，1分鐘內線性增長到 99%
+      const progress = Math.min(99, Math.floor((elapsed / ENCODER_TIMEOUT_MS) * 99));
       this.state.encoderProgress = progress;
       this.state.encoderStage = progress < 90 ? 'downloading' : 'initializing';
       this.notify();
     }, 200);
 
-    // 等待 Worker 完成 (120 秒逾時，因為 27MB 模型下載需要時間)
+    // 等待 Worker 完成 (60 秒逾時，本地載入通常幾秒內完成)
+    const ENCODER_TIMEOUT_MS = 60000; // 1 分鐘
     try {
       await Promise.race([
         new Promise<void>(resolve => {
           this.encoderReadyResolver = resolve;
         }),
         new Promise<void>((_, reject) => 
-          setTimeout(() => reject(new Error('Encoder 初始化逾時 (120秒)')), 120000)
+          setTimeout(() => reject(new Error(`Encoder 初始化逾時 (${ENCODER_TIMEOUT_MS / 1000}秒)`)), ENCODER_TIMEOUT_MS)
         ),
       ]);
     } catch (err) {
@@ -184,6 +186,9 @@ export class ModelLoader {
       this.state.errorMessage = err instanceof Error ? err.message : 'Unknown error';
       this.notify();
       throw err;
+    } finally {
+      // 確保清理
+      clearInterval(pollInterval);
     }
 
     // 確保進度到 100%
