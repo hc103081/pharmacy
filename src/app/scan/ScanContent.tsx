@@ -639,7 +639,9 @@ export default function ScanContent() {
                   )}
                   
                   <div className="mt-2 pt-2 border-t border-slate-700 text-xs text-slate-500">
-                    {modelState.encoder === 'loading' ? (
+                    {!aiState.isAIModeEnabled ? (
+                      <span className="text-slate-500">AI 模式已關閉</span>
+                    ) : modelState.encoder === 'loading' ? (
                       <span className="text-blue-400 animate-pulse flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full bg-[#00f2fe] animate-pulse" />
                         模型載入中...
@@ -651,7 +653,7 @@ export default function ScanContent() {
                     ) : modelState.encoder === 'error' ? (
                       <span className="text-red-400">載入失敗: {modelState.errorMessage}</span>
                     ) : (
-                      <span>未啟用</span>
+                      <span className="text-yellow-400">待初始化...</span>
                     )}
                   </div>
                 </div>
@@ -1018,7 +1020,9 @@ export default function ScanContent() {
                   )}
                   
                   <div className="mt-2 pt-2 border-t border-slate-700 text-xs text-slate-500">
-                    {modelState.encoder === 'loading' ? (
+                    {!aiState.isAIModeEnabled ? (
+                      <span className="text-slate-500">AI 模式已關閉</span>
+                    ) : modelState.encoder === 'loading' ? (
                       <span className="text-blue-400 animate-pulse flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full bg-[#00f2fe] animate-pulse" />
                         模型載入中...
@@ -1030,7 +1034,7 @@ export default function ScanContent() {
                     ) : modelState.encoder === 'error' ? (
                       <span className="text-red-400">載入失敗: {modelState.errorMessage}</span>
                     ) : (
-                      <span>未啟用</span>
+                      <span className="text-yellow-400">待初始化...</span>
                     )}
                   </div>
                 </div>
