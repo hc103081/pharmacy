@@ -128,7 +128,16 @@ export class ModelLoader {
   }
 
   async initEncoder(): Promise<void> {
-    if (this.state.encoder !== 'idle') return;
+    // 允許從 error 狀態重試
+    if (this.state.encoder === 'loading' || this.state.encoder === 'ready') return;
+    
+    // 重置錯誤狀態，準備重試
+    if (this.state.encoder === 'error') {
+      this.state.encoder = 'idle';
+      this.state.errorMessage = undefined;
+      this.notify();
+    }
+    
     await this.ensureWorkerReady();
     this.state.encoder = 'loading';
     this.state.encoderProgress = 0;
