@@ -61,3 +61,6 @@ export interface Manifest {
   gdrive_file_id?: string;
   archived_at?: string;
 }
+
+// Query 系統類型
+export * from './query';

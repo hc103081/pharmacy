@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
 import { TeachingProvider } from "@/components/teaching/TeachingContext";
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,12 +15,21 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "PhamaCount - ?亙??箄皜?蝟餌絞",
-  description: "?訾????暺?蝞∠?蝟餌絞嚗?湔?蝣潭????抒?摮???撠?",
-};
+// Create a client
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
-import { TeachingModal } from '@/components/teaching/TeachingModal';
+export const metadata: Metadata = {
+  title: "PhamaCount - 藥局智能清點系統",
+  description: "智能藥品清點與數位化管理系統",
+};
 
 export default function RootLayout({
   children,
@@ -32,8 +42,10 @@ export default function RootLayout({
       <body className="h-dvh flex flex-col overflow-hidden">
         <AuthProvider>
           <TeachingProvider>
-            {children}
-            <TeachingModal />
+            <QueryClientProvider client={queryClient}>
+              {children}
+              <TeachingModal />
+            </QueryClientProvider>
           </TeachingProvider>
         </AuthProvider>
       </body>
