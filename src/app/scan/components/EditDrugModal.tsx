@@ -212,8 +212,9 @@ export default function EditDrugModal({
             </div>
           </div>
 
-          {/* 數量欄位 */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {/* 數量、儲位與類別 */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {/* 預期數量 */}
             <div className="space-y-2">
               <label htmlFor="edit-expected_quantity" className="block text-xs font-medium text-slate-300 mb-1.5">預期數量 *</label>
               <input
@@ -231,6 +232,8 @@ export default function EditDrugModal({
                   />
               {errors.expected_quantity && <p className="mt-1 text-xs text-[#ff4b5c]">{errors.expected_quantity}</p>}
             </div>
+            
+            {/* 倉庫數量 */}
             <div className="space-y-2">
               <label htmlFor="edit-warehouse_quantity" className="block text-xs font-medium text-slate-300 mb-1.5">倉庫數量</label>
               <input
@@ -248,10 +251,8 @@ export default function EditDrugModal({
                   />
               {errors.warehouse_quantity && <p className="mt-1 text-xs text-[#ff4b5c]">{errors.warehouse_quantity}</p>}
             </div>
-          </div>
-
-          {/* 儲位與類別 */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            
+            {/* 儲位 */}
             <div className="space-y-2">
               <label htmlFor="edit-storage_location" className="block text-xs font-medium text-slate-300 mb-1.5">儲位</label>
               <input
@@ -268,6 +269,8 @@ export default function EditDrugModal({
                     maxLength={10}
                   />
             </div>
+            
+            {/* 類別 */}
             <div className="space-y-2">
               <label htmlFor="edit-category" className="block text-xs font-medium text-slate-300 mb-1.5">類別</label>
               <input
