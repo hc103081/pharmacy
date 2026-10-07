@@ -158,56 +158,52 @@ export default function EditDrugModal({
         </div>
 
         {/* Form */}
-        <form id="edit-drug-form" onSubmit={handleSubmit} className="p-4 space-y-4 min-w-0 max-w-[520px] mx-auto">
+        <form id="edit-drug-form" onSubmit={handleSubmit} className="p-6 space-y-5">
           {/* 藥品名稱 */}
-          <div>
-            <label htmlFor="edit-name" className="block text-xs font-bold text-slate-400 mb-1.5">藥品名稱 *</label>
+          <div className="space-y-2">
+            <label htmlFor="edit-name" className="block text-sm font-medium text-slate-300 mb-2">藥品名稱 *</label>
             <input
               id="edit-name"
               type="text"
               value={formData.name}
               onChange={e => handleChange('name', e.target.value)}
-              className={`w-full px-3 py-2.5 bg-slate-900 border rounded-xl text-white placeholder-slate-600 transition-all
-                focus:outline-none focus:border-[#00f2fe] focus:ring-2 focus:ring-[#00f2fe]/20
-                ${errors.name ? 'border-[#ff4b5c] focus:border-[#ff4b5c] focus:ring-[#ff4b5c]/20' : 'border-slate-700'}
-              `}
+              className={`w-full px-4 py-3 bg-slate-900/80 backdrop-blur-sm border border-slate-600 rounded-xl text-white placeholder-slate-400 transition-all
+                focus:outline-none focus:border-[#00f2fe] focus:ring-2 focus:ring-[#00f2fe]/30 bg-slate-800
+                ${errors.name ? 'border-[#ff4b5c] focus:border-[#ff4b5c] focus:ring-[#ff4b5c]/30' : ''}`}
               placeholder="輸入藥品名稱"
               disabled={isLoading}
               autoComplete="off"
             />
-            {errors.name && <p className="mt-1 text-xs text-[#ff4b5c]">{errors.name}</p>}
+            {errors.name && <p className="mt-1.5 text-xs text-[#ff4b5c]">{errors.name}</p>}
           </div>
 
           {/* 條碼與商品代碼 */}
-          <div className="flex gap-6 max-w-[480px] mx-auto items-start">
-            <div className="w-2/5 pr-3 border-r border-slate-700/50 min-w-0">
-              <label htmlFor="edit-barcode" className="block text-xs font-bold text-slate-400 mb-1.5">條碼 *</label>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <label htmlFor="edit-barcode" className="block text-sm font-medium text-slate-300 mb-2">條碼 *</label>
               <input
                 id="edit-barcode"
                 type="text"
                 value={formData.barcode}
                 onChange={e => handleChange('barcode', e.target.value)}
-                className={`w-full px-3 py-2.5 bg-slate-900 border rounded-xl text-white placeholder-slate-600 transition-all
-                  focus:outline-none focus:border-[#00f2fe] focus:ring-2 focus:ring-[#00f2fe]/20
-                  ${errors.barcode ? 'border-[#ff4b5c] focus:border-[#ff4b5c] focus:ring-[#ff4b5c]/20' : 'border-slate-700'}
-                `}
+                className={`w-full px-4 py-3 bg-slate-900/80 backdrop-blur-sm border border-slate-600 rounded-xl text-white placeholder-slate-400 transition-all
+                  focus:outline-none focus:border-[#00f2fe] focus:ring-2 focus:ring-[#00f2fe]/30 bg-slate-800
+                  ${errors.barcode ? 'border-[#ff4b5c] focus:border-[#ff4b5c] focus:ring-[#ff4b5c]/30' : ''}`}
                 placeholder="輸入條碼"
                 disabled={isLoading}
                 autoComplete="off"
               />
-              {errors.barcode && <p className="mt-1 text-xs text-[#ff4b5c]">{errors.barcode}</p>}
+              {errors.barcode && <p className="mt-1.5 text-xs text-[#ff4b5c]">{errors.barcode}</p>}
             </div>
-            {/* 分隔空間 */}
-            <div className="w-8" aria-hidden="true" />
-            <div className="w-3/5 pl-3 min-w-0">
-              <label htmlFor="edit-product_code" className="block text-xs font-bold text-slate-400 mb-1.5">商品代碼</label>
+            <div className="space-y-2">
+              <label htmlFor="edit-product_code" className="block text-sm font-medium text-slate-300 mb-2">商品代碼</label>
               <input
                 id="edit-product_code"
                 type="text"
                 value={formData.product_code}
                 onChange={e => handleChange('product_code', e.target.value)}
-                className={`w-full px-3 py-2.5 bg-slate-900 border rounded-xl text-white placeholder-slate-600 transition-all
-                  focus:outline-none focus:border-[#00f2fe] focus:ring-2 focus:ring-[#00f2fe]/20 border-slate-700
+                className={`w-full px-4 py-3 bg-slate-900/80 backdrop-blur-sm border border-slate-600 rounded-xl text-white placeholder-slate-400 transition-all
+                  focus:outline-none focus:border-[#00f2fe] focus:ring-2 focus:ring-[#00f2fe]/30 bg-slate-800 border-slate-600
                 `}
                 placeholder="輸入商品代碼"
                 disabled={isLoading}
@@ -217,9 +213,9 @@ export default function EditDrugModal({
           </div>
 
           {/* 數量欄位 */}
-          <div className="flex gap-6 max-w-[480px] mx-auto items-start">
-            <div className="w-2/5 pr-3 border-r border-slate-700/50 min-w-0">
-              <label htmlFor="edit-expected_quantity" className="block text-xs font-bold text-slate-400 mb-1.5">預期數量 *</label>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <label htmlFor="edit-expected_quantity" className="block text-sm font-medium text-slate-300 mb-2">預期數量 *</label>
               <input
                 id="edit-expected_quantity"
                 type="text"
@@ -227,19 +223,16 @@ export default function EditDrugModal({
                 pattern="[0-9]*"
                 value={formData.expected_quantity}
                 onChange={e => handleNumberChange('expected_quantity', e.target.value)}
-                className={`w-full px-3 py-2.5 bg-slate-900 border rounded-xl text-white placeholder-slate-600 transition-all
-                  focus:outline-none focus:border-[#00f2fe] focus:ring-2 focus:ring-[#00f2fe]/20
-                  ${errors.expected_quantity ? 'border-[#ff4b5c] focus:border-[#ff4b5c] focus:ring-[#ff4b5c]/20' : 'border-slate-700'}
-                `}
+                className={`w-full px-4 py-3 bg-slate-900/80 backdrop-blur-sm border border-slate-600 rounded-xl text-white placeholder-slate-400 transition-all
+                  focus:outline-none focus:border-[#00f2fe] focus:ring-2 focus:ring-[#00f2fe]/30 bg-slate-800
+                  ${errors.expected_quantity ? 'border-[#ff4b5c] focus:border-[#ff4b5c] focus:ring-[#ff4b5c]/30' : ''}`}
                 placeholder="0"
                 disabled={isLoading}
               />
-              {errors.expected_quantity && <p className="mt-1 text-xs text-[#ff4b5c]">{errors.expected_quantity}</p>}
+              {errors.expected_quantity && <p className="mt-1.5 text-xs text-[#ff4b5c]">{errors.expected_quantity}</p>}
             </div>
-            {/* 分隔空間 */}
-            <div className="w-8" aria-hidden="true" />
-            <div className="w-3/5 pl-3 min-w-0">
-              <label htmlFor="edit-warehouse_quantity" className="block text-xs font-bold text-slate-400 mb-1.5">倉庫數量</label>
+            <div className="space-y-2">
+              <label htmlFor="edit-warehouse_quantity" className="block text-sm font-medium text-slate-300 mb-2">倉庫數量</label>
               <input
                 id="edit-warehouse_quantity"
                 type="text"
@@ -247,27 +240,27 @@ export default function EditDrugModal({
                 pattern="[0-9]*"
                 value={formData.warehouse_quantity}
                 onChange={e => handleNumberChange('warehouse_quantity', e.target.value)}
-                className={`w-full px-3 py-2.5 bg-slate-900 border rounded-xl text-white placeholder-slate-600 transition-all
-                  focus:outline-none focus:border-[#00f2fe] focus:ring-2 focus:ring-[#00f2fe]/20 border-slate-700
+                className={`w-full px-4 py-3 bg-slate-900/80 backdrop-blur-sm border border-slate-600 rounded-xl text-white placeholder-slate-400 transition-all
+                  focus:outline-none focus:border-[#00f2fe] focus:ring-2 focus:ring-[#00f2fe]/30 bg-slate-800 border-slate-600
                 `}
                 placeholder="選填"
                 disabled={isLoading}
               />
-              {errors.warehouse_quantity && <p className="mt-1 text-xs text-[#ff4b5c]">{errors.warehouse_quantity}</p>}
+              {errors.warehouse_quantity && <p className="mt-1.5 text-xs text-[#ff4b5c]">{errors.warehouse_quantity}</p>}
             </div>
           </div>
 
           {/* 儲位與類別 */}
-          <div className="flex gap-6 max-w-[480px] mx-auto items-start">
-            <div className="w-2/5 pr-3 border-r border-slate-700/50 min-w-0">
-              <label htmlFor="edit-storage_location" className="block text-xs font-bold text-slate-400 mb-1.5">儲位</label>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <label htmlFor="edit-storage_location" className="block text-sm font-medium text-slate-300 mb-2">儲位</label>
               <input
                 id="edit-storage_location"
                 type="text"
                 value={formData.storage_location}
                 onChange={e => handleChange('storage_location', e.target.value)}
-                className={`w-full px-3 py-2.5 bg-slate-900 border rounded-xl text-white placeholder-slate-600 transition-all
-                  focus:outline-none focus:border-[#00f2fe] focus:ring-2 focus:ring-[#00f2fe]/20 border-slate-700
+                className={`w-full px-4 py-3 bg-slate-900/80 backdrop-blur-sm border border-slate-600 rounded-xl text-white placeholder-slate-400 transition-all
+                  focus:outline-none focus:border-[#00f2fe] focus:ring-2 focus:ring-[#00f2fe]/30 bg-slate-800 border-slate-600
                 `}
                 placeholder="如 F3"
                 disabled={isLoading}
@@ -275,17 +268,15 @@ export default function EditDrugModal({
                 maxLength={10}
               />
             </div>
-            {/* 分隔空間 */}
-            <div className="w-8" aria-hidden="true" />
-            <div className="w-3/5 pl-3 min-w-0">
-              <label htmlFor="edit-category" className="block text-xs font-bold text-slate-400 mb-1.5">類別</label>
+            <div className="space-y-2">
+              <label htmlFor="edit-category" className="block text-sm font-medium text-slate-300 mb-2">類別</label>
               <input
                 id="edit-category"
                 type="text"
                 value={formData.category}
                 onChange={e => handleChange('category', e.target.value)}
-                className={`w-full px-3 py-2.5 bg-slate-900 border rounded-xl text-white placeholder-slate-600 transition-all
-                  focus:outline-none focus:border-[#00f2fe] focus:ring-2 focus:ring-[#00f2fe]/20 border-slate-700
+                className={`w-full px-4 py-3 bg-slate-900/80 backdrop-blur-sm border border-slate-600 rounded-xl text-white placeholder-slate-400 transition-all
+                  focus:outline-none focus:border-[#00f2fe] focus:ring-2 focus:ring-[#00f2fe]/30 bg-slate-800 border-slate-600
                 `}
                 placeholder="如 4"
                 disabled={isLoading}
@@ -296,8 +287,8 @@ export default function EditDrugModal({
           </div>
 
           {/* 項次資訊 (唯讀顯示) */}
-          <div className="pt-2 border-t border-slate-800/50">
-            <div className="flex items-center justify-between text-xs text-slate-500">
+          <div className="mt-4 pt-3 border-t border-slate-700/50">
+            <div className="text-sm text-slate-400 flex flex-col gap-1">
               <span>頁碼: {drug.page_number}</span>
               <span>項次: {(drug.item_order - 1) % 44 + 1}</span>
             </div>
