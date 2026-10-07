@@ -329,40 +329,59 @@ export default function DrugCard({
                 <span className="text-xs font-mono text-slate-600">無條碼</span>
               ) : (
                 <>
-                  {drug.product_code?.trim() && (
-                    <div className="flex items-center gap-1">
-                      <span className="text-lg font-semibold text-[#00f2fe] drop-shadow-[0_0_8px_rgba(0,242,254,0.4)] leading-tight">
-                        {drug.product_code}
-                      </span>
-                      {onFilterByBarcode && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onFilterByBarcode(drug.product_code!);
-                          }}
-                          className="p-1 rounded-full hover:bg-slate-700/50 transition-colors"
-                          title="以商品代碼篩選"
-                        >
-                          <Search className="w-3.5 h-3.5 text-slate-400 hover:text-[#00f2fe]" />
-                        </button>
+                  {/* 條碼區塊：product_code 和 barcode 在同一行顯示，編輯按鈕在最後 */}
+                  {(drug.product_code?.trim() || drug.barcode?.trim()) && (
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {drug.product_code?.trim() && (
+                        <>
+                          <span className="text-lg font-semibold text-[#00f2fe] drop-shadow-[0_0_8px_rgba(0,242,254,0.4)] leading-tight">
+                            {drug.product_code}
+                          </span>
+                          {onFilterByBarcode && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onFilterByBarcode(drug.product_code!);
+                              }}
+                              className="p-1 rounded-full hover:bg-slate-700/50 transition-colors"
+                              title="以商品代碼篩選"
+                            >
+                              <Search className="w-3.5 h-3.5 text-slate-400 hover:text-[#00f2fe]" />
+                            </button>
+                          )}
+                        </>
                       )}
-                    </div>
-                  )}
-                  {drug.barcode?.trim() && drug.barcode !== drug.product_code && (
-                    <div className="flex items-center gap-1">
-                      <span className="text-lg font-semibold text-[#00f2fe]/70 leading-tight">
-                        {drug.barcode}
-                      </span>
-                      {onFilterByBarcode && (
+                      {drug.barcode?.trim() && drug.barcode !== drug.product_code && (
+                        <>
+                          <span className="text-lg font-semibold text-[#00f2fe]/70 leading-tight">
+                            {drug.barcode}
+                          </span>
+                          {onFilterByBarcode && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onFilterByBarcode(drug.barcode);
+                              }}
+                              className="p-1 rounded-full hover:bg-slate-700/50 transition-colors"
+                              title="以條碼篩選"
+                            >
+                              <Search className="w-3.5 h-3.5 text-slate-400 hover:text-[#00f2fe]" />
+                            </button>
+                          )}
+                        </>
+                      )}
+                      {/* 編輯按鈕：放大鏡右旁，只要有條碼且 pending 就顯示 */}
+                      {onEditDrug && !isLocked && drug.counted_status === 'pending' && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            onFilterByBarcode(drug.barcode);
+                            onEditDrug(drug);
                           }}
-                          className="p-1 rounded-full hover:bg-slate-700/50 transition-colors"
-                          title="以條碼篩選"
+                          className="p-1 rounded-full bg-slate-800/50 text-slate-400 hover:text-[#00f2fe] hover:bg-slate-700 transition-colors"
+                          title="編輯藥品資料"
+                          aria-label="編輯藥品資料"
                         >
-                          <Search className="w-3.5 h-3.5 text-slate-400 hover:text-[#00f2fe]" />
+                          <Edit className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
@@ -399,7 +418,7 @@ export default function DrugCard({
         {/* 照片縮圖 / 上傳中動畫 / 佔位符 */}
         <div
           ref={imgContainerRef}
-          className={`group relative w-11 h-11 lg:w-12 lg:h-12 rounded-lg overflow-hidden border shrink-0 shadow-inner bg-slate-900 ${isMatched ? 'border-[#00f2fe]' : 'border-slate-700'}`}
+          className={`relative w-11 h-11 lg:w-12 lg:h-12 rounded-lg overflow-hidden border shrink-0 shadow-inner bg-slate-900 ${isMatched ? 'border-[#00f2fe]' : 'border-slate-700'}`}
         >
           {/* 上傳中覆蓋層 (最高優先級) */}
           {isUploading && (
@@ -469,7 +488,6 @@ export default function DrugCard({
               <Loader2 className="w-5 h-5 text-[#00f2fe] animate-spin" />
             </div>
           )}
-
           {/* 編輯按鈕：僅在未鎖定、未完成、未錯誤、待清點狀態時顯示 */}
           {onEditDrug && !isLocked && drug.counted_status === 'pending' && (
             <button
@@ -477,7 +495,7 @@ export default function DrugCard({
                 e.stopPropagation();
                 onEditDrug(drug);
               }}
-              className="absolute top-2 right-2 p-2 rounded-full bg-slate-800/90 backdrop-blur-md text-[#00f2fe] hover:bg-slate-700 transition-all active:scale-95 opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-[#00f2fe]/50"
+              className="absolute top-1 right-1 p-1.5 rounded-full bg-slate-900/80 backdrop-blur-sm text-slate-400 hover:text-[#00f2fe] hover:bg-slate-800 transition-all active:scale-95 opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-[#00f2fe]/50"
               title="編輯藥品資料"
               aria-label="編輯藥品資料"
             >

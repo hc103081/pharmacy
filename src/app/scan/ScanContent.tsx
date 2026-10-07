@@ -331,15 +331,27 @@ export default function ScanContent() {
     category?: string;
   }) => {
     if (!editDrugModal.drug) return;
+    const drugIdToRefresh = editDrugModal.drug.id;
     setEditDrugLoading(true);
     try {
       const result = await editDrug({
         drugId: editDrugModal.drug.id,
         updates,
       });
-      if (result.success) {
+      if (result.success && result.data) {
         setEditDrugModal({ isOpen: false, drug: null });
-        await refreshStatsOnly();
+        // 直接使用 Server Action 回傳的完整資料（包含 product_code），避免額外查詢
+        setDrugs(prev => prev.map(d => d.id === drugIdToRefresh ? result.data! : d));
+        // 同步更新統計
+        const [totalRes, completedRes, errorItemsRes] = await Promise.all([
+          supabase.from('drug_items').select('*', { count: 'exact', head: true }).eq('manifest_id', manifestId),
+          supabase.from('drug_items').select('*', { count: 'exact', head: true }).eq('manifest_id', manifestId).eq('counted_status', 'completed'),
+          supabase.from('drug_items').select('id, page_number, name, barcode, actual_quantity, expected_quantity').eq('manifest_id', manifestId).eq('counted_status', 'error').order('page_number', { ascending: true }),
+        ]);
+        setTotalItems(totalRes.count || 0);
+        setCompletedTotal(completedRes.count || 0);
+        setErrorTotal(errorItemsRes.data?.length || 0);
+        setErrorDrugs(errorItemsRes.data || []);
         showToast('藥品資料已更新');
       } else {
         showToast(result.error || '更新失敗');
@@ -349,7 +361,7 @@ export default function ScanContent() {
     } finally {
       setEditDrugLoading(false);
     }
-  }, [editDrugModal.drug, refreshStatsOnly, showToast]);
+  }, [editDrugModal.drug, manifestId, supabase, showToast]);
 
   const handleEditDrugClose = useCallback(() => {
     setEditDrugModal({ isOpen: false, drug: null });

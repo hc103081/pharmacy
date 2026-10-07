@@ -158,7 +158,7 @@ export default function EditDrugModal({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+        <form id="edit-drug-form" onSubmit={handleSubmit} className="p-4 space-y-4 min-w-0 max-w-[520px] mx-auto">
           {/* 藥品名稱 */}
           <div>
             <label htmlFor="edit-name" className="block text-xs font-bold text-slate-400 mb-1.5">藥品名稱 *</label>
@@ -179,8 +179,8 @@ export default function EditDrugModal({
           </div>
 
           {/* 條碼與商品代碼 */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
+          <div className="flex gap-6 max-w-[480px] mx-auto items-start">
+            <div className="w-2/5 pr-3 border-r border-slate-700/50 min-w-0">
               <label htmlFor="edit-barcode" className="block text-xs font-bold text-slate-400 mb-1.5">條碼 *</label>
               <input
                 id="edit-barcode"
@@ -197,7 +197,9 @@ export default function EditDrugModal({
               />
               {errors.barcode && <p className="mt-1 text-xs text-[#ff4b5c]">{errors.barcode}</p>}
             </div>
-            <div>
+            {/* 分隔空間 */}
+            <div className="w-8" aria-hidden="true" />
+            <div className="w-3/5 pl-3 min-w-0">
               <label htmlFor="edit-product_code" className="block text-xs font-bold text-slate-400 mb-1.5">商品代碼</label>
               <input
                 id="edit-product_code"
@@ -215,8 +217,8 @@ export default function EditDrugModal({
           </div>
 
           {/* 數量欄位 */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
+          <div className="flex gap-6 max-w-[480px] mx-auto items-start">
+            <div className="w-2/5 pr-3 border-r border-slate-700/50 min-w-0">
               <label htmlFor="edit-expected_quantity" className="block text-xs font-bold text-slate-400 mb-1.5">預期數量 *</label>
               <input
                 id="edit-expected_quantity"
@@ -225,7 +227,7 @@ export default function EditDrugModal({
                 pattern="[0-9]*"
                 value={formData.expected_quantity}
                 onChange={e => handleNumberChange('expected_quantity', e.target.value)}
-                className={`w-full px-3 py-2.5 bg-slate-900 border rounded-xl text-white placeholder-slate-600 transition-all text-right font-mono
+                className={`w-full px-3 py-2.5 bg-slate-900 border rounded-xl text-white placeholder-slate-600 transition-all
                   focus:outline-none focus:border-[#00f2fe] focus:ring-2 focus:ring-[#00f2fe]/20
                   ${errors.expected_quantity ? 'border-[#ff4b5c] focus:border-[#ff4b5c] focus:ring-[#ff4b5c]/20' : 'border-slate-700'}
                 `}
@@ -234,7 +236,9 @@ export default function EditDrugModal({
               />
               {errors.expected_quantity && <p className="mt-1 text-xs text-[#ff4b5c]">{errors.expected_quantity}</p>}
             </div>
-            <div>
+            {/* 分隔空間 */}
+            <div className="w-8" aria-hidden="true" />
+            <div className="w-3/5 pl-3 min-w-0">
               <label htmlFor="edit-warehouse_quantity" className="block text-xs font-bold text-slate-400 mb-1.5">倉庫數量</label>
               <input
                 id="edit-warehouse_quantity"
@@ -243,7 +247,7 @@ export default function EditDrugModal({
                 pattern="[0-9]*"
                 value={formData.warehouse_quantity}
                 onChange={e => handleNumberChange('warehouse_quantity', e.target.value)}
-                className={`w-full px-3 py-2.5 bg-slate-900 border rounded-xl text-white placeholder-slate-600 transition-all text-right font-mono
+                className={`w-full px-3 py-2.5 bg-slate-900 border rounded-xl text-white placeholder-slate-600 transition-all
                   focus:outline-none focus:border-[#00f2fe] focus:ring-2 focus:ring-[#00f2fe]/20 border-slate-700
                 `}
                 placeholder="選填"
@@ -254,8 +258,8 @@ export default function EditDrugModal({
           </div>
 
           {/* 儲位與類別 */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
+          <div className="flex gap-6 max-w-[480px] mx-auto items-start">
+            <div className="w-2/5 pr-3 border-r border-slate-700/50 min-w-0">
               <label htmlFor="edit-storage_location" className="block text-xs font-bold text-slate-400 mb-1.5">儲位</label>
               <input
                 id="edit-storage_location"
@@ -271,7 +275,9 @@ export default function EditDrugModal({
                 maxLength={10}
               />
             </div>
-            <div>
+            {/* 分隔空間 */}
+            <div className="w-8" aria-hidden="true" />
+            <div className="w-3/5 pl-3 min-w-0">
               <label htmlFor="edit-category" className="block text-xs font-bold text-slate-400 mb-1.5">類別</label>
               <input
                 id="edit-category"
