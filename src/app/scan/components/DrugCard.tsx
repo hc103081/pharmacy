@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Camera, CheckCircle2, AlertCircle, Loader2, Search, RotateCcw, SkipForward } from 'lucide-react';
+import { Camera, CheckCircle2, AlertCircle, Loader2, Search, RotateCcw, SkipForward, Edit } from 'lucide-react';
 import type { DrugItem } from '@/types';
 import type { ImageLoadStatus, ImageLoadProgress } from '@/app/scan/hooks/useImageCache';
 
@@ -27,6 +27,7 @@ interface DrugCardProps {
   onFilterByBarcode?: (barcode: string) => void;
   onResetDrug?: (drugId: string) => void;
   onCardClick?: (drugId: string) => void;
+  onEditDrug?: (drug: DrugItem) => void;
   // Image cache functions (legacy)
   getImageUrl?: (key: string) => Promise<string | null>;
   getImageLoadStatus?: (key: string) => ImageLoadStatus;
@@ -123,6 +124,7 @@ export default function DrugCard({
   onFilterByBarcode,
   onResetDrug,
   onCardClick,
+  onEditDrug,
   getImageUrl,
   getImageLoadStatus,
   setImageLoadStatus,
@@ -397,7 +399,7 @@ export default function DrugCard({
         {/* 照片縮圖 / 上傳中動畫 / 佔位符 */}
         <div
           ref={imgContainerRef}
-          className={`relative w-11 h-11 lg:w-12 lg:h-12 rounded-lg overflow-hidden border shrink-0 shadow-inner bg-slate-900 ${isMatched ? 'border-[#00f2fe]' : 'border-slate-700'}`}
+          className={`group relative w-11 h-11 lg:w-12 lg:h-12 rounded-lg overflow-hidden border shrink-0 shadow-inner bg-slate-900 ${isMatched ? 'border-[#00f2fe]' : 'border-slate-700'}`}
         >
           {/* 上傳中覆蓋層 (最高優先級) */}
           {isUploading && (
@@ -466,6 +468,21 @@ export default function DrugCard({
             <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
               <Loader2 className="w-5 h-5 text-[#00f2fe] animate-spin" />
             </div>
+          )}
+
+          {/* 編輯按鈕：僅在未鎖定、未完成、未錯誤、待清點狀態時顯示 */}
+          {onEditDrug && !isLocked && drug.counted_status === 'pending' && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onEditDrug(drug);
+              }}
+              className="absolute top-1 right-1 p-1.5 rounded-full bg-slate-900/80 backdrop-blur-sm text-slate-400 hover:text-[#00f2fe] hover:bg-slate-800 transition-all active:scale-95 opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-[#00f2fe]/50"
+              title="編輯藥品資料"
+              aria-label="編輯藥品資料"
+            >
+              <Edit className="w-4 h-4" />
+            </button>
           )}
         </div>
       </div>
