@@ -477,7 +477,7 @@ export default function DrugCard({
                 e.stopPropagation();
                 onEditDrug(drug);
               }}
-              className="absolute top-1 right-1 p-1.5 rounded-full bg-slate-900/80 backdrop-blur-sm text-slate-400 hover:text-[#00f2fe] hover:bg-slate-800 transition-all active:scale-95 opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-[#00f2fe]/50"
+              className="absolute top-2 right-2 p-2 rounded-full bg-slate-800/90 backdrop-blur-md text-[#00f2fe] hover:bg-slate-700 transition-all active:scale-95 opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-[#00f2fe]/50"
               title="編輯藥品資料"
               aria-label="編輯藥品資料"
             >
