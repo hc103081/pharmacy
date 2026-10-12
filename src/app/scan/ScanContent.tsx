@@ -24,7 +24,6 @@ import { useImageCache } from './hooks/useImageCache';
 import type { DrugItem, ErrorDrugItem, JumpTarget } from '@/types';
 import { resetDrugStatus } from '@/app/actions/scan/resetDrug';
 import { updateDrugStatus } from '@/app/actions/scan/updatePhoto';
-
 export default function ScanContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -56,10 +55,6 @@ export default function ScanContent() {
   const [isStatsExpanded, setIsStatsExpanded] = useState(false);
 
   // 導航確認 Modal 狀態
-  const [showNavConfirm, setShowNavConfirm] = useState(false);
-  const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
-  
-  // Image cache hook
   const imageCache = useImageCache(manifestId);
   const { isKeyboardOpen } = useScanKeyboard();
   const shouldJumpToNextRef = useRef(false);
@@ -316,52 +311,18 @@ export default function ScanContent() {
     if (matchingItem && matchingItem.counted_status !== 'pending') {
       if (matchingItem.counted_status === 'completed') {
         setSelectedStatus('correct');
-        setActualQuantity(String(matchingItem.expected_quantity));
-      } else if (matchingItem.counted_status === 'error') {
-        setSelectedStatus('incorrect');
-        setActualQuantity(String(matchingItem.actual_quantity));
+        setActualQuantity(String(matchingItem.actual_quantity || ''));
       }
-    } else if (!matchingItem) {
-      setSelectedStatus(null);
-      setActualQuantity('');
     }
-  }, [matchingItem?.id]);
+  }, [matchingItem]);
 
-  const navigateToPage = (page: number) => {
-    shouldJumpToNextRef.current = true;
-    setCurrentPage(page);
-  };
-
-  // 清除搜尋（不再自動跳轉，因為雙層架構下底層自動保持位置）
-  const clearBarcodeAndJumpToPending = useCallback(() => {
-    setBarcodeInput('');
-  }, []);
-
-  // 拍照專用：清空輸入，不觸發自動跳轉（滾動位置由相機關閉時恢復）
   const onResetInputForCamera = useCallback(() => {
-    setBarcodeInput('');
-    setActualQuantity('');
     setSelectedStatus(null);
-    // 不設定 shouldJumpToNextRef.current = true，避免自動滾動
+    setActualQuantity('');
+    setBarcodeInput('');
   }, []);
 
-  const { 
-    fileInputRef, 
-    uploadingQueue, 
-    triggerCamera, 
-    handleFileUpload,
-    handleCameraFile,
-    showCameraModal,
-    setShowCameraModal,
-    cameraError,
-    setCameraError,
-    checkingCameraSupport,
-    setCheckingCameraSupport,
-    // 新增：佇列持久化相關
-    hasPendingUploads,
-    pendingUploadsCount,
-    restorePendingUploads,
-  } = usePhotoCapture({
+  const photoCapture = usePhotoCapture({
     manifestId,
     matchingItem,
     selectedStatus,
@@ -825,13 +786,14 @@ export default function ScanContent() {
                           setImageLoadStatus={imageCache.setLoadStatus}
                           getImageLoadProgress={imageCache.getImageLoadProgress}
                           downloadImageWithProgress={imageCache.downloadImageWithProgress}
-                        />
+                        ></DrugCard>
                       </div>
-                    );
+                    )
                   })}
                 </div>
               </div>
-            )}
+            )
+            }
           </main>
 
           {/* 篩選疊層 */}
@@ -872,64 +834,71 @@ export default function ScanContent() {
                     </button>
                   </div>
                   {(() => {
-                    const matchedDrugs = drugs
-                      .filter((d) => getMatchScore(d, barcodeInput) > 0)
-                      .sort((a, b) => {
-                        const scoreDiff = getMatchScore(b, barcodeInput) - getMatchScore(a, barcodeInput);
-                        if (scoreDiff !== 0) return scoreDiff;
-                        return a.item_order - b.item_order;
-                      });
+                        const matchedDrugs = drugs
+                          .filter((d) => getMatchScore(d, barcodeInput) > 0)
+                          .sort((a, b) => {
+                            const scoreDiff = getMatchScore(b, barcodeInput) - getMatchScore(a, barcodeInput);
+                            if (scoreDiff !== 0) return scoreDiff;
+                            return a.item_order - b.item_order;
+                          });
 
-                    if (matchedDrugs.length === 0) {
-                      return (
-                        <div className="text-center py-12 tech-card border-dashed border-slate-700 space-y-3">
-                          <span className="text-slate-500 text-sm">無匹配項目</span>
-                          <span className="text-slate-600 text-xs">請嘗試其他條碼</span>
-                        </div>
-                      );
-                    }
+                        if (matchedDrugs.length === 0) {
+                          return (
+                            <div className="text-center py-12 tech-card border-dashed border-slate-700 space-y-3">
+                              <span className="text-slate-500 text-sm">無匹配項目</span>
+                              <span className="text-slate-600 text-xs">請嘗試其他條碼</span>
+                            </div>
+                          )
+                        }
 
-                    return matchedDrugs.map((drug) => {
-                      const isTopMatch = matchedDrugs[0].id === drug.id;
-                      const isUploading = uploadingQueue.has(drug.id);
-                      const isDimmed = !isTopMatch;
-                      const photoKey = drug.photo_url || '';
+                        return (
+                          <>
+                            {matchedDrugs.map((drug) => {
+                              const isTopMatch = matchedDrugs[0].id === drug.id;
+                              const isUploading = uploadingQueue.has(drug.id);
+                              const isDimmed = !isTopMatch;
+                              const photoKey = drug.photo_url || '';
 
-                      return (
-                        <div key={drug.id} data-drug-id={drug.id} className={`mb-4 ${isDimmed ? 'opacity-60' : ''}`}>
-                          <DrugCard
-                            drug={drug}
-                            photoKey={photoKey}
-                            isMatched={isTopMatch}
-                            isUploading={isUploading}
-                            isLocked={isLocked}
-                            isManuallySelected={false}
-                            actualQuantity={actualQuantity}
-                            selectedStatus={isTopMatch ? selectedStatus : null}
-                            onStatusSelect={isTopMatch ? setSelectedStatus : () => {}}
-                            onActualQuantityChange={isTopMatch ? setActualQuantity : () => {}}
-                            onTriggerCamera={isTopMatch ? triggerCamera : () => {}}
-                            onPreviewPhoto={setPreviewImage}
-                            onFilterByBarcode={setBarcodeInput}
-                            onResetDrug={handleResetDrug}
-                            onSkipPhoto={() => isTopMatch && handleSkipPhoto(drug.id)}
-                            onCardClick={(id) => {
-                              setManuallySelectedDrugId(id);
-                            }}
-                            getImageUrl={imageCache.getUrl}
-                            getImageLoadStatus={imageCache.getLoadStatus}
-                            setImageLoadStatus={imageCache.setLoadStatus}
-                            getImageLoadProgress={imageCache.getImageLoadProgress}
-                            downloadImageWithProgress={imageCache.downloadImageWithProgress}
-                          />
-                        </div>
-                      );
-                    });
-                  })()}
+                              return (
+                                <div key={drug.id} data-drug-id={drug.id} className={`mb-4 ${isDimmed ? 'opacity-60' : ''}`}>
+                                  <DrugCard
+                                    drug={drug}
+                                    photoKey={photoKey}
+                                    isMatched={isTopMatch}
+                                    isUploading={isUploading}
+                                    isLocked={isLocked}
+                                    isManuallySelected={false}
+                                    actualQuantity={actualQuantity}
+                                    selectedStatus={isTopMatch ? selectedStatus : null}
+                                    onStatusSelect={isTopMatch ? setSelectedStatus : () => {}}
+                                    onActualQuantityChange={isTopMatch ? setActualQuantity : () => {}}
+                                    onTriggerCamera={isTopMatch ? triggerCamera : () => {}}
+                                    onPreviewPhoto={setPreviewImage}
+                                    onFilterByBarcode={setBarcodeInput}
+                                    onResetDrug={handleResetDrug}
+                                    onSkipPhoto={() => isTopMatch && handleSkipPhoto(drug.id)}
+                                    onCardClick={(id) => {
+                                      setManuallySelectedDrugId(id);
+                                    }}
+                                    getImageUrl={imageCache.getUrl}
+                                    getImageLoadStatus={imageCache.getLoadStatus}
+                                    setImageLoadStatus={imageCache.setLoadStatus}
+                                    getImageLoadProgress={imageCache.getImageLoadProgress}
+                                    downloadImageWithProgress={imageCache.downloadImageWithProgress}
+                                  />
+                                </div>
+                              );
+                            })}
+                          </>
+                        );
+                  })()
+                }
                 </div>
               )}
             </div>
           )}
+
+
         </div>
   
         {/* 底部浮動導覽列 (鍵盤彈出時隱藏) */}
@@ -978,6 +947,7 @@ export default function ScanContent() {
               disabled={currentPage === totalPages}
               className="flex items-center justify-center gap-1 px-4 py-2.5 bg-slate-700 rounded-lg border border-slate-600 text-slate-200 disabled:opacity-30 transition-all active:scale-95 hover:bg-slate-700"
             >
+
               <span className="text-xs font-bold">下一頁</span>
               <ChevronRight className="w-5 h-5" />
             </button>
@@ -1117,7 +1087,7 @@ export default function ScanContent() {
             </div>
           </div>
         </aside>
-  
+
         {/* 右側主區域: 藥品列表容器 */}
         <div className="relative flex-1 min-h-0 overflow-hidden">
           <main data-scroll-main className="absolute inset-0 overflow-y-auto p-6">
@@ -1239,60 +1209,58 @@ export default function ScanContent() {
                       );
                     }
 
-                    return matchedDrugs.map((drug) => {
-                      const isTopMatch = matchedDrugs[0].id === drug.id;
-                      const isUploading = uploadingQueue.has(drug.id);
-                      const isDimmed = !isTopMatch;
-                      const photoKey = drug.photo_url || '';
+                    return (
+                      matchedDrugs.map((drug) => {
+                        const isTopMatch = matchedDrugs[0].id === drug.id;
+                        const isUploading = uploadingQueue.has(drug.id);
+                        const isDimmed = !isTopMatch;
+                        const photoKey = drug.photo_url || '';
 
-                      return (
-                        <div key={drug.id} data-drug-id={drug.id} className={`mb-4 ${isDimmed ? 'opacity-60' : ''}`}>
-                          <DrugCard
-                            drug={drug}
-                            photoKey={photoKey}
-                            isMatched={isTopMatch}
-                            isUploading={isUploading}
-                            isLocked={isLocked}
-                            isManuallySelected={false}
-                            actualQuantity={actualQuantity}
-                            selectedStatus={isTopMatch ? selectedStatus : null}
-                            onStatusSelect={isTopMatch ? setSelectedStatus : () => {}}
-                            onActualQuantityChange={isTopMatch ? setActualQuantity : () => {}}
-                            onTriggerCamera={isTopMatch ? triggerCamera : () => {}}
-                            onPreviewPhoto={setPreviewImage}
-                            onFilterByBarcode={setBarcodeInput}
-                            onResetDrug={handleResetDrug}
-                            onSkipPhoto={() => isTopMatch && handleSkipPhoto(drug.id)}
-                            onCardClick={(id) => {
-                              setManuallySelectedDrugId(id);
-                            }}
-                            getImageUrl={imageCache.getUrl}
-                            getImageLoadStatus={imageCache.getLoadStatus}
-                            setImageLoadStatus={imageCache.setLoadStatus}
-                            getImageLoadProgress={imageCache.getImageLoadProgress}
-                            downloadImageWithProgress={imageCache.downloadImageWithProgress}
-                          />
-                        </div>
-                      );
-                    });
-                  })()}
+                        return (
+                          <div key={drug.id} data-drug-id={drug.id} className={`mb-4 ${isDimmed ? 'opacity-60' : ''}`}>
+                            <DrugCard
+                              drug={drug}
+                              photoKey={photoKey}
+                              isMatched={isTopMatch}
+                              isUploading={isUploading}
+                              isLocked={isLocked}
+                              isManuallySelected={isManuallySelected}
+                              actualQuantity={actualQuantity}
+                              selectedStatus={isTopMatch ? selectedStatus : null}
+                              onStatusSelect={isTopMatch ? setSelectedStatus : () => {}}
+                              onActualQuantityChange={isTopMatch ? setActualQuantity : () => {}}
+                              onTriggerCamera={isTopMatch ? triggerCamera : () => {}}
+                              onPreviewPhoto={setPreviewImage}
+                              onFilterByBarcode={setBarcodeInput}
+                              onResetDrug={handleResetDrug}
+                              onSkipPhoto={() => isTopMatch && handleSkipPhoto(drug.id)}
+                              onCardClick={(id) => {
+                                setManuallySelectedDrugId(id);
+                              }}
+                              getImageUrl={imageCache.getUrl}
+                              getImageLoadStatus={imageCache.getLoadStatus}
+                              setImageLoadStatus={imageCache.setLoadStatus}
+                              getImageLoadProgress={imageCache.getImageLoadProgress}
+                              downloadImageWithProgress={imageCache.downloadImageWithProgress}
+                            />
+                          </div>
+                        )
+                      })
+                    )
+                  }()})
                 </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-    {showCameraModal && (
-      <CameraModal
-        isOpen={showCameraModal}
-        onClose={() => setShowCameraModal(false)}
-        onCapture={handleCameraFile}
-        onError={setCameraError}
-        onCheckingSupport={setCheckingCameraSupport}
-      />
-    )}
-    <NavigationConfirmModal />
+              </div})
+          </main>
+      {showCameraModal && (
+        <CameraModal
+          isOpen={showCameraModal}
+          onClose={() => setShowCameraModal(false)}
+          onCapture={handleCameraFile}
+          onError={setCameraError}
+          onCheckingSupport={setCheckingCameraSupport}
+        />
+      )}
+      <NavigationConfirmModal />
     </>
   );
 }

@@ -8,8 +8,6 @@ import type { ImageLoadStatus, ImageLoadProgress } from '@/app/scan/hooks/useIma
 // 使用 loadProgress.objectUrl 作為單一真相來源，避免 state 競態條件
 function getImageUrlFromProgress(loadProgress: ImageLoadProgress): string | null {
   return loadProgress.status === 'loaded' && loadProgress.objectUrl ? loadProgress.objectUrl : null;
-}
-
 interface DrugCardProps {
   drug: DrugItem;
   photoKey?: string; // B2 key (relative path) for fetching presigned URL
@@ -365,23 +363,6 @@ export default function DrugCard({
                       )}
                     </div>
                   )}
-                  {/* 預期 / 倉庫數量 - 與條碼同一垂直容器 */}
-                  <div className="flex items-center gap-1 text-sm pt-0.5 border-t border-slate-800/50">
-                    <span className="text-slate-600">·</span>
-                    <span className="text-xs font-medium text-slate-500">預期:</span>
-                    <span className="text-lg font-bold text-[#00f2fe] drop-shadow-[0_0_8px_rgba(0,242,254,0.4)]">
-                      {drug.expected_quantity}
-                    </span>
-                    {drug.warehouse_quantity != null && (
-                      <>
-                        <span className="text-slate-600">·</span>
-                        <span className="text-xs font-medium text-slate-500">倉庫:</span>
-                        <span className="text-lg font-bold text-[#ff9f0a] drop-shadow-[0_0_8px_rgba(255,159,10,0.4)]">
-                          {drug.warehouse_quantity}
-                        </span>
-                      </>
-                    )}
-                  </div>
                 </>
               )}
             </div>
@@ -417,12 +398,6 @@ export default function DrugCard({
             </div>
           )}
 
-          {/* Fetching URL 階段：簡單轉圈 (size=28) */}
-          {!isUploading && loadProgress.status === 'fetching_url' && (
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
-              <Loader2 className="w-5 h-5 text-[#00f2fe] animate-spin" />
-            </div>
-          )}
 
           {/* Downloading 階段：環形進度條 (size=32, strokeWidth=4) */}
           {!isUploading && loadProgress.status === 'downloading' && (
@@ -488,6 +463,7 @@ export default function DrugCard({
               </span>
               <span className="text-xs text-slate-400">
                 實際: <span className={`font-mono font-bold ${isCompleted ? 'text-[#00f2fe]' : 'text-[#ff4b5c]'}`}>{drug.actual_quantity}</span>
+
               </span>
               {onResetDrug && (
                 <button

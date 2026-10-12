@@ -17,7 +17,7 @@ export default function ExportTab() {
     filters: {} as any,
     columns: [] as string[]
   });
-  
+
   const [isExporting, setIsExporting] = useState(false);
   const [exportResult, setExportResult] = useState<string | null>(null);
 
@@ -26,11 +26,11 @@ export default function ExportTab() {
       alert('沒有可導出的數據');
       return;
     }
-    
+
     setIsExporting(true);
     try {
       const blob = await exportData(data as DrugSearchResult[], exportOptions.format, { includeCharts: exportOptions.includeCharts });
-      
+
       // 建立下載連結
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -40,7 +40,7 @@ export default function ExportTab() {
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-      
+
       setExportResult(`導出成功! 檔案已下載為 pharmacount_report_${new Date().toISOString().slice(0,10)}.${exportOptions.format}`);
     } catch (error) {
       console.error('導出失敗:', error);
@@ -72,21 +72,21 @@ export default function ExportTab() {
           </button>
         </div>
       </div>
-      
+
       {/* 導出結果提示 */}
       {exportResult && (
         <div className="px-4 py-2 bg-green-900/20 text-green-400 rounded-md mb-2">
           {exportResult}
         </div>
       )}
-      
+
       {/* 內容 */}
       <div className="flex-1 overflow-y-auto p-4">
         <div className="space-y-4">
           {/* 導出選項 */}
           <div className="bg-slate-800/50 rounded-md p-4">
             <h3 className="text-md font-semibold text-white mb-4">導出選項</h3>
-            
+
             {/* 導出格式 */}
             <div className="space-y-3">
               <label className="block text-sm font-medium text-slate-300 mb-1">導出格式</label>
@@ -125,8 +125,8 @@ export default function ExportTab() {
                   <span className="ml-1">PDF (.pdf)</span>
                 </label>
               </div>
-            }
-            
+            </div>
+
             {/* 是否包含圖表 */}
             <div className="space-y-3">
               <label className="block text-sm font-medium text-slate-300 mb-1">導出內容</label>
@@ -138,9 +138,9 @@ export default function ExportTab() {
                   className="w-4 h-4 text-[#00f2fe] bg-slate-700 rounded border-gray-500 focus:ring-2"
                 />
                 <span className="ml-1">包含圖表和統計</span>
-              }
+              </div>
             </div>
-            
+
             {/* 日期範圍 */}
             <div className="space-y-3">
               <label className="block text-sm font-medium text-slate-300 mb-1">日期範圍</label>
@@ -161,9 +161,9 @@ export default function ExportTab() {
                            text-white placeholder-slate-400 focus:outline-none focus:ring-2 
                            focus:ring-[#00f2fe] focus:border-[#00f2fe]"
                 />
-              }
+              </div>
             </div>
-            
+
             {/* 欄位選擇 */}
             <div className="space-y-3">
               <label className="block text-sm font-medium text-slate-300 mb-1">導出欄位</label>
@@ -171,19 +171,19 @@ export default function ExportTab() {
                 {/* 動態生成欄位選擇待實作 */}
                 <div className="text-sm text-slate-400 italic">
                   欄位選擇功能開發中...
-                }
+                </div>
               </div>
-            }
+            </div>
           </div>
-          
+
           {/* 預覽 */}
           <div className="bg-slate-800/50 rounded-md p-4">
             <h3 className="text-md font-semibold text-white mb-4">數據預覽</h3>
             {isLoading ? (
               <div className="flex h-32 items-center justify-center text-slate-400">
                 載入中...
-              )
-            } : (
+              </div>
+            ) : (
               <div className="overflow-y-auto h-64">
                 {data && data.length > 0 ? (
                   <table className="w-full text-xs">

@@ -1,13 +1,15 @@
 import ExcelJS from 'exceljs';
 import { unparse } from 'papaparse';
 import type { DrugSearchResult } from '@/types/query';
+import { renderToBlob } from '@react-pdf/renderer';
+import { PdfReport } from '@/components/PdfReportGenerator';
 
 // Excel 導出
-export async function exportToExcel(data: DrugSearchResult[], options: { includeCharts: boolean }): Promise<Blob> {
+export async function exportToExcel(data: DrugSearchResult[]): Promise<Blob> {
   // 建立工作簿和工作表
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('藥品清點報表');
-  
+
   // 添加標題行
   worksheet.columns = [
     { header: '條碼', key: 'barcode', width: 20 },
@@ -22,7 +24,7 @@ export async function exportToExcel(data: DrugSearchResult[], options: { include
     { header: '平均差異', key: 'avg_discrepancy', width: 15 },
     { header: '錯誤次數', key: 'error_count', width: 15 },
   ];
-  
+
   // 添加數據行
   data.forEach(item => {
     worksheet.addRow({
@@ -39,19 +41,14 @@ export async function exportToExcel(data: DrugSearchResult[], options: { include
       error_count: item.error_count,
     });
   });
-  
-  // 如果需要包含圖表，這裡可以添加圖表（簡化處理）
-  if (options.includeCharts) {
-    // 圖表生成邏輯待實作
-  }
-  
+
   // 導出為 Blob
   const buffer = await workbook.xlsx.writeBuffer();
   return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
 // CSV 導出
-export function exportToCSV(data: DrugSearchResult[], options: { includeCharts: boolean }): Blob {
+export function exportToCSV(data: DrugSearchResult[]): Blob {
   // 轉換為 CSV 格式的數據
   const csvData = data.map(item => ({
     條碼: item.barcode,
@@ -66,24 +63,15 @@ export function exportToCSV(data: DrugSearchResult[], options: { includeCharts: 
     平均差異: item.avg_discrepancy,
     錯誤次數: item.error_count,
   }));
-  
+
   const csv = unparse(csvData);
   return new Blob([csv], { type: 'text/csv;charset=utf-8;' });
 }
 
 // PDF 導出
-export function exportToPDF(data: DrugSearchResult[], options: { includeCharts: boolean }): Blob {
-  // 這裡應該使用 @react-pdf/renderer 生成 PDF
-  // 為了簡化，我們先返回一個簡單的文本說明
-  const pdfContent = `
-    藥品清點報表
-    生成時間: ${new Date().toLocaleString()}
-    記錄數量: ${data.length}
-    
-    詳細數據見附錄
-  `;
-  
-  return new Blob([pdfContent], { type: 'application/pdf' });
+export async function exportToPDF(data: DrugSearchResult[], options: { includeCharts: boolean }): Promise<Blob> {
+  const blob = await renderToBlob(<PdfReport data={data} options={options} />);
+  return blob;
 }
 
 // 主導出函數
@@ -94,9 +82,9 @@ export async function exportData(
 ): Promise<Blob> {
   switch (format) {
     case 'excel':
-      return await exportToExcel(data, options);
+      return await exportToExcel(data);
     case 'csv':
-      return exportToCSV(data, options);
+      return exportToCSV(data);
     case 'pdf':
       return exportToPDF(data, options);
     default:
