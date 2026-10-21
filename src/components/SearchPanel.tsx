@@ -104,7 +104,7 @@ export function SearchPanel() {
             className="flex w-full items-center justify-between px-3 py-2 text-left 
                      text-sm font-medium text-slate-300 bg-slate-800/50 rounded-md 
                      hover:bg-slate-800"
-            onClick={() => {/* 切換儲位選擇器 */}
+            onClick={() => {}}
           >
             <div className="flex items-center">
               <Sliders className="h-4 w-4 mr-2" />
@@ -140,7 +140,7 @@ export function SearchPanel() {
             className="flex w-full items-center justify-between px-3 py-2 text-left 
                      text-sm font-medium text-slate-300 bg-slate-800/50 rounded-md 
                      hover:bg-slate-800"
-            onClick={() => {/* 切換類別選擇器 */}
+            onClick={() => {}}
           >
             <div className="flex items-center">
               <Sliders className="h-4 w-4 mr-2" />

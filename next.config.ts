@@ -12,7 +12,7 @@ const withPWA = require('next-pwa')({
         expiration: { maxEntries: 200, maxAgeSeconds: 24 * 60 * 60 },
         plugins: [
           {
-            cacheWillUpdate: async ({ response }) => {
+            cacheWillUpdate: async ({ response }: { response: Response }) => {
               if (response.status === 200) return response;
               return null;
             },

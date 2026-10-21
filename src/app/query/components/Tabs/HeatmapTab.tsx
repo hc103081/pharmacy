@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getLocationCategoryHeatmap } from '@/lib/supabaseRpc';
 import type { HeatmapCell } from '@/types/query';
-import { Heatmap, HeatmapCell as RechartsHeatmapCell, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useState } from 'react';
 
 export default function HeatmapTab() {
@@ -72,35 +72,38 @@ export default function HeatmapTab() {
           <div className="bg-slate-800/50 rounded-md p-4">
             <h3 className="text-md font-semibold text-white mb-4">錯誤率熱力圖</h3>
             {data && data.length > 0 ? (
-              <ResponsiveContainer width="100%" height={400}>
-                <Heatmap 
-                  data={data.map(item => ({
-                    ...item,
-                    // 為了確保有足夠的數據點，我們需要將數據轉換為Heatmap所需的格式
-                    // 但這裡我們簡化處理，使用錯誤率作為value
-                    value: item.error_rate
-                  }))}
-                  margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
-                  dataKey="value"
-                >
-                  <XAxis 
-                    dataKey="storage_location" 
-                    tick={{ fontSize: 10, fill: '#text-slate-400' }} 
-                    orientation="top"
-                  />
-                  <YAxis 
-                    dataKey="category" 
-                    tick={{ fontSize: 10, fill: '#text-slate-400' }} 
-                  />
-                  <Tooltip 
-                    formatter={(value) => `${value}%`}
-                    contentStyle={{ backgroundColor: 'rgba(16, 42, 86, 0.8)', border: '1px solid rgba(0, 242, 254, 0.3)' }}
-                    labelStyle={{ color: '#ffffff' }}
-                    wrapperStyle={{ padding: [8, 12] }}
-                  />
-                  <Legend verticalAlign="top" height={36} />
-                </Heatmap>
-              </ResponsiveContainer>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-800">
+                  <thead>
+                    <tr className="bg-slate-800/70">
+                      <th className="px-4 py-2 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">儲位</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">類別</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">總數</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">錯誤數</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">錯誤率</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {data.map((item: any, idx) => (
+                      <tr key={idx} className="hover:bg-slate-800/30">
+                        <td className="px-4 py-2 text-sm text-slate-300">{item.storage_location}</td>
+                        <td className="px-4 py-2 text-sm text-slate-300">{item.category}</td>
+                        <td className="px-4 py-2 text-sm text-slate-300">{item.total_count}</td>
+                        <td className="px-4 py-2 text-sm text-slate-300">{item.error_count}</td>
+                        <td className="px-4 py-2 text-sm">
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                            item.error_rate > 10 ? 'bg-[#ff4b5c]/20 text-[#ff4b5c]' :
+                            item.error_rate > 5 ? 'bg-yellow-500/20 text-yellow-400' :
+                            'bg-[#00f2fe]/20 text-[#00f2fe]'
+                          }`}>
+                            {item.error_rate.toFixed(1)}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             ) : (
               <div className="text-center py-8">
                 <p className="text-slate-400">暫無熱力圖數據</p>

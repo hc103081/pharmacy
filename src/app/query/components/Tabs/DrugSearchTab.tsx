@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useDrugSearchSuspended } from '@/app/query/hooks/useDrugSearch';
 import { useDrugTrendSuspended } from '@/app/query/hooks/useDrugTrend';
 import { useOfflineCache } from '@/app/query/hooks/useOfflineCache';
@@ -30,14 +30,14 @@ interface DrugSearchResult {
 export default function DrugSearchTab() {
   const [filters, setFilters] = useState({
     searchText: '',
-    barcode: null,
-    productCode: null,
+    barcode: undefined as string | undefined,
+    productCode: undefined as string | undefined,
     storageLocations: [] as string[],
     categories: [] as string[],
-    dateFrom: null as string | null,
-    dateTo: null as string | null,
+    dateFrom: undefined as string | undefined,
+    dateTo: undefined as string | undefined,
     manifestStatus: ['active', 'archived'] as ('active' | 'archived')[],
-    countedStatus: null as ('pending' | 'counted' | 'error' | 'skipped') | null,
+    countedStatus: undefined as ('error' | 'pending' | 'completed')[] | undefined,
     hasDiscrepancy: null as boolean | null,
   });
   
@@ -55,7 +55,9 @@ export default function DrugSearchTab() {
   const [selectedResult, setSelectedResult] = useState<DrugSearchResult | null>(null);
   const [trendData, setTrendData] = useState<any[]>([]);
   const [isTrendLoading, setIsTrendLoading] = useState(false);
-  
+
+  const flatResults = useMemo((): DrugSearchResult[] => (searchResults as any).pages?.flat() ?? [], [searchResults]);
+
   // Handle result selection for trend view
   useEffect(() => {
     if (selectedResult) {
@@ -80,20 +82,20 @@ export default function DrugSearchTab() {
   };
   
   const handleBarcodeScan = (barcode: string) => {
-    setFilters(prev => ({ ...prev, barcode: barcode || null, searchText: barcode || '' }));
+    setFilters(prev => ({ ...prev, barcode: barcode || undefined, searchText: barcode || '' }));
   };
-  
+
   const handleResetFilters = () => {
     setFilters({
       searchText: '',
-      barcode: null,
-      productCode: null,
+      barcode: undefined,
+      productCode: undefined,
       storageLocations: [],
       categories: [],
-      dateFrom: null,
-      dateTo: null,
+      dateFrom: undefined,
+      dateTo: undefined,
       manifestStatus: ['active', 'archived'],
-      countedStatus: null,
+      countedStatus: undefined,
       hasDiscrepancy: null,
     });
   };
@@ -118,11 +120,11 @@ export default function DrugSearchTab() {
           <AlertTriangle className="w-5 h-5 text-[#ff4b5c]" />
           <div>
             <h3 className="font-medium text-[#ff4b5c]">搜尋失敗</h3>
-            <p className="text-sm text-slate-400">{error.message}</p>
+            <p className="text-sm text-slate-400">{(error as Error).message}</p>
           </div>
         </div>
         <button 
-          onClick={refetch}
+          onClick={() => refetch()}
           className="px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors"
         >
           重試
@@ -170,7 +172,7 @@ export default function DrugSearchTab() {
       {/* Results Count and Status */}
       <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2 text-sm text-slate-400">
-          <span>共找到 {searchResults.length} 項結果</span>
+          <span>共找到 {(searchResults as any).pages?.flat().length ?? 0} 項結果</span>
           {isCached && (
             <span className="flex items-center gap-1">
               <CircleHelp className="w-3 h-3 text-[#00f2fe]" />
@@ -186,7 +188,7 @@ export default function DrugSearchTab() {
           
           {!isFetching && hasNextPage && (
             <button 
-              onClick={fetchNextPage}
+              onClick={() => fetchNextPage()}
               className="px-3 py-1 bg-slate-800/50 border border-slate-700 rounded hover:bg-slate-800 transition-colors text-xs"
             >
               載入更多
@@ -197,7 +199,7 @@ export default function DrugSearchTab() {
       
       {/* Results Table */}
       <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-800 overflow-hidden">
-        {searchResults.length > 0 ? (
+        {flatResults.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-800">
               <thead>
@@ -214,7 +216,7 @@ export default function DrugSearchTab() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
-                {searchResults.map((result) => (
+                {flatResults.map((result) => (
                   <tr
                     key={result.id}
                     className="hover:bg-slate-800/30 cursor-pointer"
@@ -292,18 +294,9 @@ export default function DrugSearchTab() {
             </table>
           </div>
         ) : (
-          <div className="p-8 text-center">
-            <Search className="w-12 h-12 mx-auto mb-4 text-slate-500" />
-            <h3 className="text-lg font-medium text-slate-400 mb-2">無搜尋結果</h3>
-            <p className="text-sm text-slate-500">
-              嘗試調整搜尋條件或使用不同的關鍵字
-            </p>
-            <button 
-              onClick={handleResetFilters}
-              className="mt-4 px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors"
-            >
-              重置搜尋條件
-            </button>
+          <div className="p-12 text-center text-slate-400">
+            <Search className="w-12 h-12 mx-auto mb-4 text-slate-600" />
+            <p>無搜尋結果</p>
           </div>
         )}
       </div>

@@ -465,9 +465,9 @@ export default function ReportTab() {
                 checked={filters.manifestStatus.includes('active')}
                 onChange={(e) => {
                   const status = e.target.checked 
-                    ? [...filters.manifestStatus, 'active'] 
+                    ? [...filters.manifestStatus, 'active' as const] 
                     : filters.manifestStatus.filter(s => s !== 'active');
-                  handleManifestStatusChange(status);
+                  handleManifestStatusChange(status as ('archived' | 'active')[]);
                 }}
                 className="w-4 h-4 text-[#00f2fe]"
               />
@@ -479,9 +479,9 @@ export default function ReportTab() {
                 checked={filters.manifestStatus.includes('archived')}
                 onChange={(e) => {
                   const status = e.target.checked 
-                    ? [...filters.manifestStatus, 'archived'] 
+                    ? [...filters.manifestStatus, 'archived' as const] 
                     : filters.manifestStatus.filter(s => s !== 'archived');
-                  handleManifestStatusChange(status);
+                  handleManifestStatusChange(status as ('archived' | 'active')[]);
                 }}
                 className="w-4 h-4 text-[#00f2fe]"
               />
@@ -708,19 +708,19 @@ export default function ReportTab() {
                     <div className="bg-slate-800/30 rounded-lg p-4">
                       <p className="text-sm font-medium text-slate-400">平均絕對差異</p>
                       <p className="text-2xl font-bold text-[#00f2fe]">
-                        {Number((reportData.reduce((sum, item) => sum + Math.abs(item.discrepancy), 0) / reportData.length).toFixed(2))}
+                        {Number((reportData.reduce((sum: number, item: any) => sum + Math.abs(item.discrepancy), 0) / reportData.length).toFixed(2))}
                       </p>
                     </div>
                     <div className="bg-slate-800/30 rounded-lg p-4">
                       <p className="text-sm font-medium text-slate-400">大幅差異項目 ({'>'}50%)</p>
                       <p className="text-2xl font-bold text-[#ff4b5c]">
-                        {reportData.filter(function(item) { return Math.abs(item.discrepancy_percentage) > 50; }).length}
+                        {reportData.filter((item: any) => Math.abs(item.discrepancy_percentage) > 50).length}
                       </p>
                     </div>
                     <div className="bg-slate-800/30 rounded-lg p-4">
                       <p className="text-sm font-medium text-slate-400">中度差異項目 (20-50%)</p>
                       <p className="text-2xl font-bold text-[#00f2fe]">
-                        {reportData.filter(item => Math.abs(item.discrepancy_percentage) > 20 && Math.abs(item.discrepancy_percentage) <= 50).length}
+                        {reportData.filter((item: any) => Math.abs(item.discrepancy_percentage) > 20 && Math.abs(item.discrepancy_percentage) <= 50).length}
                       </p>
                     </div>
                   </div>
@@ -754,25 +754,25 @@ export default function ReportTab() {
                     <div className="bg-slate-800/30 rounded-lg p-4">
                       <p className="text-sm font-medium text-slate-400">平均日完成率</p>
                       <p className="text-2xl font-bold text-[#00f2fe]">
-                        {Number((reportData.reduce((sum, item) => sum + item.completion_rate, 0) / reportData.length).toFixed(1))}%
+                        {Number((reportData.reduce((sum: number, item: any) => sum + item.completion_rate, 0) / reportData.length).toFixed(1))}%
                       </p>
                     </div>
                     <div className="bg-slate-800/30 rounded-lg p-4">
                       <p className="text-sm font-medium text-slate-400">最高日完成率</p>
                       <p className="text-2xl font-bold text-[#00f2fe]">
-                        {Math.max(...reportData.map(item => item.completion_rate))}%
+                        {Math.max(...reportData.map((item: any) => item.completion_rate))}%
                       </p>
                     </div>
                     <div className="bg-slate-800/30 rounded-lg p-4">
                       <p className="text-sm font-medium text-slate-400">最低日完成率</p>
                       <p className="text-2xl font-bold text-[#ff4b5c]">
-                        {Math.min(...reportData.map(item => item.completion_rate))}%
+                        {Math.min(...reportData.map((item: any) => item.completion_rate))}%
                       </p>
                     </div>
                     <div className="bg-slate-800/30 rounded-lg p-4">
                       <p className="text-sm font-medium text-slate-400">總處理項目數</p>
                       <p className="text-2xl font-bold text-[#00f2fe]">
-                        {reportData.reduce((sum, item) => sum + item.total_items, 0)}
+                        {reportData.reduce((sum: number, item: any) => sum + item.total_items, 0)}
                       </p>
                     </div>
                   </div>
@@ -904,20 +904,20 @@ export default function ReportTab() {
                     <div className="bg-slate-800/30 rounded-lg p-4">
                       <p className="text-sm font-medium text-slate-400">總項目數</p>
                       <p className="text-2xl font-bold text-[#00f2fe]">
-                        {reportData.by_manifest.reduce((sum, item) => sum + item.total_items, 0)}
+                        {reportData.by_manifest.reduce((sum: number, item: any) => sum + item.total_items, 0)}
                       </p>
                     </div>
                     <div className="bg-slate-800/30 rounded-lg p-4">
                       <p className="text-sm font-medium text-slate-400">正確項目數</p>
                       <p className="text-2xl font-bold text-[#00f2fe]">
-                        {reportData.by_manifest.reduce((sum, item) => sum + item.correct_count, 0)}
+                        {reportData.by_manifest.reduce((sum: number, item: any) => sum + item.correct_count, 0)}
                       </p>
                     </div>
                     <div className="bg-slate-800/30 rounded-lg p-4">
                       <p className="text-sm font-medium text-slate-400">整體準確率</p>
                       <p className="text-2xl font-bold text-[#00f2fe]">
-                        {Number((reportData.by_manifest.reduce((sum, item) => sum + item.correct_count, 0) / 
-                          reportData.by_manifest.reduce((sum, item) => sum + item.total_items, 0) * 100).toFixed(1))}%
+                        {Number((reportData.by_manifest.reduce((sum: number, item: any) => sum + item.correct_count, 0) / 
+                          reportData.by_manifest.reduce((sum: number, item: any) => sum + item.total_items, 0) * 100).toFixed(1))}%
                       </p>
                     </div>
                   </div>

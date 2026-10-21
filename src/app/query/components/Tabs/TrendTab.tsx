@@ -10,7 +10,7 @@ import { Search, Clock, Bell, TrendingUp, Upload, CheckCircle2, XCircle, Loader2
 import { Pagination } from '@/components/ui/pagination';
 
 interface DrugTrendPoint {
-  date: string; // YYYY-MM-DD
+  counted_at: string; // YYYY-MM-DD
   expected_quantity: number;
   actual_quantity: number | null;
   discrepancy: number; // actual - expected
@@ -58,8 +58,8 @@ export default function TrendTab() {
     isLoading: trendIsLoading,
     refetch: trendRefetch
   } = useDrugTrendSuspended(
-    filters.drugSelection.barcode ?? undefined,
-    filters.drugSelection.productCode ?? undefined
+    filters.drugSelection.barcode || '',
+    filters.drugSelection.productCode || ''
   );
   
   const { 
@@ -68,8 +68,8 @@ export default function TrendTab() {
     isLoading: heatmapIsLoading,
     refetch: heatmapRefetch
   } = useHeatmapSuspended(
-    heatmapDateRange.from,
-    heatmapDateRange.to
+    heatmapDateRange.from ?? undefined,
+    heatmapDateRange.to ?? undefined
   );
   
   const { isCached } = useOfflineCache();
@@ -110,7 +110,7 @@ export default function TrendTab() {
   // Process trend data for display
   const processedTrendData = trendData.map(item => ({
     ...item,
-    date: new Date(item.date) // Ensure it's a Date object
+    date: new Date(item.counted_at) // Ensure it's a Date object
   })).sort((a, b) => a.date.getTime() - b.date.getTime());
   
   // Calculate statistics
@@ -138,7 +138,7 @@ export default function TrendTab() {
     };
   };
   
-  const stats = calculateStats(processedTrendData);
+  const stats = calculateStats(trendData);
   
   const handleDrugSelectionChange = (field: keyof TrendFilter['drugSelection'], value: string | null) => {
     setFilters(prev => ({
@@ -215,7 +215,7 @@ export default function TrendTab() {
           <AlertTriangle className="w-5 h-5 text-[#ff4b5c]" />
           <div>
             <h3 className="font-medium text-[#ff4b5c]">載入失敗</h3>
-            <p className="text-sm text-slate-400">{error.message}</p>
+            <p className="text-sm text-slate-400">{(error as unknown as Error).message}</p>
           </div>
         </div>
         <button 
@@ -557,7 +557,7 @@ export default function TrendTab() {
                   請選擇藥品並確認時間範圍以查看趨勢分析
                 </p>
                 <button 
-                  onClick={trendRefetch}
+                  onClick={() => trendRefetch()}
                   className="mt-4 px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors"
                 >
                   重新載入
@@ -723,7 +723,7 @@ export default function TrendTab() {
                   請選擇日期範圍以查看位置熱力分析
                 </p>
                 <button 
-                  onClick={heatmapRefetch}
+                  onClick={() => heatmapRefetch()}
                   className="mt-4 px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors"
                 >
                   重新載入
@@ -778,31 +778,34 @@ export default function TrendTab() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800">
-                        {heatmapData.map((item, index) => (
-                          <tr key={index} className="hover:bg-slate-800/30">
-                            <td className="px-4 py-2 text-sm text-slate-200">{item.storage_location}</td>
-                            <td className="px-4 py-2 text-sm text-slate-200">{item.category}</td>
-                            <td className="px-4 py-2 text-sm text-slate-200">{item.count}</td>
-                            <td className="px-4 py-2 text-sm whitespace-nowrap">
-                              <span className={`px-1 py-0.5 rounded text-xs ${
-                                item.avg_discrepancy > 0 ? 'bg-[#ff4b5c]/20 text-[#ff4b5c]' :
-                                item.avg_discrepancy < 0 ? 'bg-[#00f2fe]/20 text-[#00f2fe]' :
-                                'bg-slate-600/20 text-slate-300'
-                              }`}>
-                                {item.avg_discrepancy.toFixed(2)}
-                              </span>
-                            </td>
-                            <td className="px-4 py-2 text-sm whitespace-nowrap">
-                              <span className={`px-1 py-0.5 rounded text-xs ${
-                                item.error_rate > 10 ? 'bg-[#ff4b5c]/20 text-[#ff4b5c]' :
-                                item.error_rate > 5 ? 'bg-slate-600/20 text-slate-400' :
-                                'bg-[#00f2fe]/20 text-[#00f2fe]'
+                        {heatmapData.map((item, index) => {
+                          const avgDiscrepancy = item.total_items > 0 ? item.total_discrepancy_qty / item.total_items : 0;
+                          return (
+                            <tr key={index} className="hover:bg-slate-800/30">
+                              <td className="px-4 py-2 text-sm text-slate-200">{item.storage_location}</td>
+                              <td className="px-4 py-2 text-sm text-slate-200">{item.category}</td>
+                              <td className="px-4 py-2 text-sm text-slate-200">{item.total_items}</td>
+                              <td className="px-4 py-2 text-sm whitespace-nowrap">
+                                <span className={`px-1 py-0.5 rounded text-xs ${
+                                  avgDiscrepancy > 0 ? 'bg-[#ff4b5c]/20 text-[#ff4b5c]' :
+                                  avgDiscrepancy < 0 ? 'bg-[#00f2fe]/20 text-[#00f2fe]' :
+                                  'bg-slate-600/20 text-slate-300'
+                                }`}>
+                                  {avgDiscrepancy.toFixed(2)}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2 text-sm whitespace-nowrap">
+                                <span className={`px-1 py-0.5 rounded text-xs ${
+                                  item.error_rate > 10 ? 'bg-[#ff4b5c]/20 text-[#ff4b5c]' :
+                                  item.error_rate > 5 ? 'bg-slate-600/20 text-slate-400' :
+                                  'bg-[#00f2fe]/20 text-[#00f2fe]'
                               }`}>
                                 {item.error_rate.toFixed(1)}%
                               </span>
                             </td>
                           </tr>
-                        ))}
+                        )
+                      })}
                       </tbody>
                     </table>
                   </div>

@@ -58,7 +58,7 @@ export default function QueryPage() {
         <SearchPanel className="hidden lg:block lg:w-64 border-r border-slate-800" />
         
         <div className="flex-1 flex flex-col overflow-hidden">
-          <QueryHeader user={user} isOffline={isOffline} />
+          <QueryHeader user={{ ...user, role: user.role as 'counter' | 'pharmacist' | 'manager' | undefined }} isOffline={isOffline} />
           
           <div className="flex-1 overflow-hidden">
             <Tabs>
@@ -71,16 +71,16 @@ export default function QueryPage() {
               
               <Tabs.TabPanels>
                 <Tabs.TabPanel>
-                     <DrugSearchTab isOffline={isOffline} />
+                     <DrugSearchTab />
                  </Tabs.TabPanel>
                 <Tabs.TabPanel>
-                      <HistoryTab isOffline={isOffline} />
+                      <HistoryTab />
                   </Tabs.TabPanel>
                 <Tabs.TabPanel>
-                      <TrendTab isOffline={isOffline} />
+                      <TrendTab />
                   </Tabs.TabPanel>
                 <Tabs.TabPanel>
-                      <ReportTab isOffline={isOffline} />
+                      <ReportTab />
                   </Tabs.TabPanel>
               </Tabs.TabPanels>
             </Tabs>

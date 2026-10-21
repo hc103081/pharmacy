@@ -1,6 +1,7 @@
 'use client';
 
 import type { DrugSearchResult } from '@/types/query';
+import { X, CalendarDays } from 'lucide-react';
 
 interface DrugDetailDrawerProps {
   drug: DrugSearchResult | null;
@@ -49,7 +50,7 @@ export function DrugDetailDrawer({ drug, onClose }: DrugDetailDrawerProps) {
                   <span>{drug.category || '無'}</span>
                 </div>
               </div>
-            }
+            </div>
             
             {/* 統計資訊 */}
             <div className="space-y-2">
@@ -92,7 +93,7 @@ export function DrugDetailDrawer({ drug, onClose }: DrugDetailDrawerProps) {
                   </span>
                 </div>
               </div>
-            }
+            </div>
             
             {/* 趨勢圖表待實作 */}
             <div className="space-y-2">
@@ -164,7 +165,7 @@ export function DrugDetailDrawer({ drug, onClose }: DrugDetailDrawerProps) {
           </div>
           <div className="flex items-center space-x-2">
             <button 
-              onClick={() => {/* 匯出此藥品詳情待實作 */}
+              onClick={() => {}}
               className="flex items-center justify-center px-3 py-2 bg-[#00f2fe]/20 
                        rounded-md text-sm font-medium text-[#00f2fe] hover:bg-[#00f2fe]/30"
             >

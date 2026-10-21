@@ -81,6 +81,7 @@ export default function HistoryTab() {
     getNextPageParam: (lastPage, allPages) => {
       return lastPage.length === 20 ? allPages.length : undefined;
     },
+    initialPageParam: 0,
     staleTime: 5 * 60 * 1000,
   });
   
@@ -103,6 +104,7 @@ export default function HistoryTab() {
     getNextPageParam: (lastPage, allPages) => {
       return lastPage.length === 20 ? allPages.length : undefined;
     },
+    initialPageParam: 0,
     staleTime: 5 * 60 * 1000,
   });
   
@@ -139,7 +141,7 @@ export default function HistoryTab() {
       });
     }
     
-    return manifests;
+    return manifests as ManifestHistoryItem[];
   }
   
   function mockDrugs(page: number): DrugHistoryItem[] {
@@ -178,7 +180,7 @@ export default function HistoryTab() {
       });
     }
     
-    return drugs;
+    return drugs as DrugHistoryItem[];
   }
   
   const handleViewModeChange = (mode: 'manifests' | 'drugs') => {
@@ -243,7 +245,7 @@ export default function HistoryTab() {
           <AlertTriangle className="w-5 h-5 text-[#ff4b5c]" />
           <div>
             <h3 className="font-medium text-[#ff4b5c]">載入失敗</h3>
-            <p className="text-sm text-slate-400">{error.message}</p>
+            <p className="text-sm text-slate-400">{(error as Error).message}</p>
           </div>
         </div>
         <button 
@@ -336,7 +338,7 @@ export default function HistoryTab() {
       {/* Results Count and Status */}
       <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2 text-sm text-slate-400">
-          <span>共 {viewMode === 'manifests' ? manifestData.length : drugData.length} 項結果</span>
+          <span>共 {((viewMode === 'manifests' ? (manifestData as any).pages?.flat().length ?? 0 : (drugData as any).pages?.flat().length ?? 0))} 項結果</span>
           {isCached && (
             <span className="flex items-center gap-1">
               <CircleHelp className="w-3 h-3 text-[#00f2fe]" />
@@ -352,7 +354,7 @@ export default function HistoryTab() {
           
           {!isFetching && hasNextPage && (
             <button 
-              onClick={fetchNextPage}
+              onClick={() => fetchNextPage()}
               className="px-3 py-1 bg-slate-800/50 border border-slate-700 rounded hover:bg-slate-800 transition-colors text-xs"
             >
               載入更多
@@ -363,7 +365,7 @@ export default function HistoryTab() {
       
       {/* Results Table */}
       <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-800 overflow-hidden">
-        {(viewMode === 'manifests' ? manifestData.length : drugData.length) > 0 ? (
+        {(viewMode === 'manifests' ? (manifestData as any).pages?.flat().length ?? 0 : (drugData as any).pages?.flat().length ?? 0) > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-800">
               <thead>
@@ -397,7 +399,7 @@ export default function HistoryTab() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
-                {(viewMode === 'manifests' ? manifestData : drugData).map((item, index) => (
+                {((viewMode === 'manifests' ? (manifestData as any).pages?.flat() ?? [] : (drugData as any).pages?.flat() ?? [])).map((item: any, index: number) => (
                   <tr
                     key={item.id}
                     className="hover:bg-slate-800/30 cursor-pointer"

@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
-import { Bell, LogOut, Sun, Moon, Settings, Search, Plus } from 'lucide-react';
+import { Bell, LogOut, Sun, Moon, Settings, Search, Plus, Upload } from 'lucide-react';
 
 interface QueryHeaderProps {
   user: {

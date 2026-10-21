@@ -117,7 +117,7 @@ export async function exportQueryResults(
   // Convert to CSV for demo
   const csvContent = 
     '條碼,品名,預期數量,實際數量,差異,狀態\n' +
-    drugResults.map(item => 
+    (drugResults || []).map(item => 
       `${item.barcode || ''},${item.name},${item.expected_quantity},${item.actual_quantity},${item.actual_quantity - item.expected_quantity},${item.counted_status}`
     ).join('\n');
     

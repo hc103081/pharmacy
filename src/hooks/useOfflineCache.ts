@@ -28,7 +28,7 @@ export function useOfflineCache<T>(key: string, maxAgeMs = 24 * 60 * 60 * 1000) 
   useEffect(() => {
     async function loadCache() {
       setLoading(true);
-      const cached = await getCachedQueryResult<T>(key, maxAgeMs);
+      const cached = await getCachedQueryResult(key, maxAgeMs) as T | null;
       setData(cached);
       setLoading(false);
     }

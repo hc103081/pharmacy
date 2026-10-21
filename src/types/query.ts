@@ -9,6 +9,8 @@ export interface DrugSearchFilters {
   manifestStatus?: ('active' | 'archived')[];
   countedStatus?: ('pending' | 'completed' | 'error')[];
   hasDiscrepancy?: boolean | null;
+  limit?: number;
+  offset?: number;
 }
 
 export interface DrugSearchResult {

@@ -220,7 +220,7 @@ export default function ExportTab() {
                       ))}
                       {data.length > 10 && (
                         <tr className="bg-slate-900/50">
-                          <td colSpan="12" className="px-3 py-2 text-slate-400 text-center italic">
+                          <td colSpan={12} className="px-3 py-2 text-slate-400 text-center italic">
                             及其他 {data.length - 10} 筆記錄
                           </td>
                         </tr>

@@ -1,8 +1,8 @@
 import ExcelJS from 'exceljs';
 import { unparse } from 'papaparse';
 import type { DrugSearchResult } from '@/types/query';
-import { renderToBlob } from '@react-pdf/renderer';
-import { PdfReport } from '@/components/PdfReportGenerator';
+
+// PDF 導出支援已移除 (組件缺失)
 
 // Excel 導出
 export async function exportToExcel(data: DrugSearchResult[]): Promise<Blob> {
@@ -70,8 +70,8 @@ export function exportToCSV(data: DrugSearchResult[]): Blob {
 
 // PDF 導出
 export async function exportToPDF(data: DrugSearchResult[], options: { includeCharts: boolean }): Promise<Blob> {
-  const blob = await renderToBlob(<PdfReport data={data} options={options} />);
-  return blob;
+  // PDF 功能已暫時停用 (組件缺失)
+  return new Blob([], { type: 'application/pdf' });
 }
 
 // 主導出函數

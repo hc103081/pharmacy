@@ -8,6 +8,7 @@ import type { ImageLoadStatus, ImageLoadProgress } from '@/app/scan/hooks/useIma
 // 使用 loadProgress.objectUrl 作為單一真相來源，避免 state 競態條件
 function getImageUrlFromProgress(loadProgress: ImageLoadProgress): string | null {
   return loadProgress.status === 'loaded' && loadProgress.objectUrl ? loadProgress.objectUrl : null;
+}
 interface DrugCardProps {
   drug: DrugItem;
   photoKey?: string; // B2 key (relative path) for fetching presigned URL

@@ -49,7 +49,7 @@ export function useOfflineCache() {
     
     try {
       const db = await dbPromise;
-      const entry = await db.get<CacheEntry<T>>(STORE_NAME, key);
+      const entry = await db.get(STORE_NAME, key) as CacheEntry<T> | undefined;
       
       if (!entry) return null;
       

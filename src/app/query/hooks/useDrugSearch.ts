@@ -8,11 +8,12 @@ import type { DrugSearchFilters, DrugSearchResult } from '@/types/query';
 export const useDrugSearch = (filters: DrugSearchFilters) => {
   return useInfiniteQuery<DrugSearchResult[], Error>({
     queryKey: queryKeys.drugSearch(filters),
-    queryFn: async ({ pageParam = 0 }) => {
+    queryFn: async ({ pageParam }: { pageParam: unknown }) => {
+      const page = (pageParam as number) ?? 0;
       const results = await searchDrugsCrossManifest({
         ...filters,
         limit: 50,
-        offset: pageParam * 50
+        offset: page * 50
       });
       return results;
     },
@@ -20,6 +21,7 @@ export const useDrugSearch = (filters: DrugSearchFilters) => {
       // If we got less than 50 results, we're at the end
       return lastPage.length === 50 ? allPages.length : undefined;
     },
+    initialPageParam: 0,
     // Enable stale-while-revalidate for better UX
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 30 * 60 * 1000, // 30 minutes
