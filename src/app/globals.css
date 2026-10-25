@@ -20,7 +20,7 @@ body {
 
 @layer components {
   .tech-card {
-    @apply bg-[#162a56] backdrop-blur-lg border border-[#00f2fe]/30 rounded-2xl shadow-[0_8px_30px_rgba(0,242,254,0.2)] transition-all duration-300;
+    @apply bg-[#162a56] border border-[#00f2fe]/30 rounded-lg shadow-[0_8px_30px_rgba(0,242,254,0.2)] transition-all duration-300;
   }
   .tech-card:hover {
     @apply border-[#00f2fe] shadow-[0_0_20px_rgba(0,242,254,0.6)];

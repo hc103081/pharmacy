@@ -541,7 +541,7 @@ export default function TrendTab() {
           )}
           
           {/* Trend Chart Display */}
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-800 overflow-hidden">
+          <div className="bg-slate-800/50 rounded-xl border border-slate-800 overflow-hidden">
             {trendIsLoading && (
               <div className="p-12 text-center">
                 <Loader2 className="w-8 h-8 mx-auto mb-4 text-[#00f2fe] animate-spin" />
@@ -707,7 +707,7 @@ export default function TrendTab() {
           </div>
           
           {/* Heatmap Display */}
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-800 overflow-hidden">
+          <div className="bg-slate-800/50 rounded-xl border border-slate-800 overflow-hidden">
             {heatmapIsLoading && (
               <div className="p-12 text-center">
                 <Loader2 className="w-8 h-8 mx-auto mb-4 text-[#00f2fe] animate-spin" />

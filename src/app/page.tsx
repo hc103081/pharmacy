@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { PackageSearch, FileUp, ClipboardCheck, CheckCircle } from 'lucide-react';
+import { PackageSearch, Search, FileUp, ClipboardCheck, CheckCircle } from 'lucide-react';
 import { UserMenu } from '@/components/UserMenu';
 import { TeachingButton } from '@/components/teaching';
 
@@ -49,7 +49,7 @@ function HomeContent() {
           <div className="max-w-2xl w-full text-center space-y-8 lg:space-y-12">
           <div className="space-y-3 lg:space-y-4">
             <div className="flex items-center justify-center gap-3 mb-3 lg:mb-4">
-              <div className="p-3 bg-[#162a56] rounded-2xl border border-blue-500/30 shadow-[0_0_20px_rgba(0,242,254,0.2)]">
+              <div className="p-3 bg-[#162a56] rounded-lg border border-blue-500/30 shadow-[0_0_20px_rgba(0,242,254,0.2)]">
                 <PackageSearch className="w-8 h-8 lg:w-10 lg:h-10 text-[#00f2fe]" />
               </div>
             </div>
@@ -114,6 +114,21 @@ function HomeContent() {
                 <div className="text-xl lg:text-2xl font-bold text-white">開始清點</div>
                 <p className="text-xs lg:text-sm text-slate-400 text-center leading-relaxed">
                   選擇清單並依照分頁進行條碼核對
+                </p>
+              </div>
+            </Link>
+
+            <Link 
+              href="/query" 
+              className="tech-card p-6 lg:p-8 group hover:border-[#00f2fe]/50"
+            >
+              <div className="flex flex-col items-center gap-4 lg:gap-6">
+                <div className="p-4 bg-[#00f2fe]/10 text-[#00f2fe] rounded-full group-hover:bg-[#00f2fe] group-hover:text-slate-900 transition-all duration-300 shadow-[0_0_15px_rgba(0,242,254,0.3)]">
+                  <Search className="w-7 h-7 lg:w-8 lg:h-8" />
+                </div>
+                <div className="text-xl lg:text-2xl font-bold text-white">查詢系統</div>
+                <p className="text-xs lg:text-sm text-slate-400 text-center leading-relaxed">
+                  進行藥品搜尋與分析
                 </p>
               </div>
             </Link>

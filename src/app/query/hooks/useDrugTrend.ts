@@ -20,13 +20,10 @@ export const useDrugTrend = (barcode: string, productCode?: string) => {
 export const useDrugTrendSuspended = (barcode: string, productCode?: string) => {
   const query = useDrugTrend(barcode, productCode);
   
-  // Suspense-friendly version
+  // Suspense-friendly version - 直接返回，避免拋出物件導致 [object Object] 錯誤
   if (query.isLoading && !query.data) {
-    throw { status: 'pending', component: null };
-  }
-  
-  if (query.error) {
-    throw query.error;
+    // 直接返回 query 物件，讓呼叫者自行處理 loading 狀態
+    return query;
   }
   
   return query;

@@ -53,7 +53,7 @@ export default function ExportTab() {
   return (
     <div className="flex h-full flex-col">
       {/* 標題和操作 */}
-      <div className="flex h-14 items-center justify-between px-4 bg-slate-900/50 backdrop-blur-md">
+      <div className="flex h-14 items-center justify-between px-4 bg-slate-900/50">
         <h2 className="text-lg font-semibold text-white">導出報表</h2>
         <div className="flex items-center space-x-2">
           <button 

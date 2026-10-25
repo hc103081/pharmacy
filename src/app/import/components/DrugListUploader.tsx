@@ -125,7 +125,7 @@ const DrugListUploader: React.FC<DrugListUploaderProps> = ({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={`
-          relative border-2 border-dashed rounded-2xl p-6 lg:p-8 text-center
+          relative border-2 border-dashed rounded-lg p-6 lg:p-8 text-center
           transition-all duration-300 cursor-pointer
           ${isDragOver
             ? 'border-[#00f2fe] bg-[#00f2fe]/5 shadow-[0_0_30px_rgba(0,242,254,0.25)]'
@@ -197,7 +197,7 @@ const DrugListUploader: React.FC<DrugListUploaderProps> = ({
 
         {/* 拖曳中提示覆蓋層 */}
         {isDragOver && (
-          <div className="absolute inset-0 rounded-2xl bg-[#00f2fe]/5 flex flex-col items-center justify-center z-10 pointer-events-none">
+          <div className="absolute inset-0 rounded-lg bg-[#00f2fe]/5 flex flex-col items-center justify-center z-10 pointer-events-none">
             <div className="animate-bounce">
               <UploadCloud className="w-14 h-14 text-[#00f2fe] mx-auto mb-3" />
             </div>

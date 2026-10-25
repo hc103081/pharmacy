@@ -18,7 +18,7 @@ export default function PhotoPreview({ imageUrl, onClose }: PhotoPreviewProps) {
         <img
           src={imageUrl}
           alt="Drug evidence"
-          className="w-full h-auto max-h-[85vh] object-contain rounded-2xl shadow-2xl border border-white/10"
+          className="w-full h-auto max-h-[85vh] object-contain rounded-lg shadow-2xl border border-white/10"
         />
         <button
           onClick={onClose}

@@ -18,7 +18,8 @@ export const useDrugSearch = (filters: DrugSearchFilters) => {
       return results;
     },
     getNextPageParam: (lastPage, allPages) => {
-      // If we got less than 50 results, we're at the end
+      // 如果最後一頁有 50 筆資料，表示還有下一頁
+      //下一個頁面的索引就是目前所有頁面的數量（因為頁面索引從 0 開始）
       return lastPage.length === 50 ? allPages.length : undefined;
     },
     initialPageParam: 0,
@@ -31,14 +32,7 @@ export const useDrugSearch = (filters: DrugSearchFilters) => {
 export const useDrugSearchSuspended = (filters: DrugSearchFilters) => {
   const query = useDrugSearch(filters);
   
-  // Suspense-friendly version
-  if (query.isLoading && !query.data) {
-    throw { status: 'pending', component: null };
-  }
-  
-  if (query.error) {
-    throw query.error;
-  }
-  
+  // 直接返回 query，讓呼叫者自行判斷 loading 狀態
+  // 避免拋出物件導致 "[object Object]" 錯誤
   return query;
 };

@@ -39,7 +39,7 @@ export default function QueryHeader({ user, isOffline }: QueryHeaderProps) {
   };
 
   return (
-    <div className="flex items-center justify-between px-6 py-4 bg-slate-800/50 backdrop-blur-md border-b border-slate-800">
+    <div className="flex items-center justify-between px-6 py-4 bg-slate-800/50 border-b border-slate-800">
       <div className="flex items-center gap-4">
         <h1 className="text-xl font-bold text-[#00f2fe]">藥品查詢系統</h1>
         <div className="flex items-center gap-2 text-sm">

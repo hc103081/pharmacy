@@ -18,13 +18,10 @@ export const useHeatmap = (dateFrom?: string, dateTo?: string) => {
 export const useHeatmapSuspended = (dateFrom?: string, dateTo?: string) => {
   const query = useHeatmap(dateFrom, dateTo);
   
-  // Suspense-friendly version
+  // Suspense-friendly version - 直接返回，避免拋出物件導致 [object Object] 錯誤
   if (query.isLoading && !query.data) {
-    throw { status: 'pending', component: null };
-  }
-  
-  if (query.error) {
-    throw query.error;
+    // 直接返回 query 物件，讓呼叫者自行處理 loading 狀態
+    return query;
   }
   
   return query;

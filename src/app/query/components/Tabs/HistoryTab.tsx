@@ -364,7 +364,7 @@ export default function HistoryTab() {
       </div>
       
       {/* Results Table */}
-      <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-800 overflow-hidden">
+      <div className="bg-slate-800/50 rounded-xl border border-slate-800 overflow-hidden">
         {(viewMode === 'manifests' ? (manifestData as any).pages?.flat().length ?? 0 : (drugData as any).pages?.flat().length ?? 0) > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-800">
@@ -593,7 +593,7 @@ export default function HistoryTab() {
       
       {/* Selected Item Details Panel */}
       {selectedItem && (
-        <div className="mt-6 bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-800 overflow-hidden">
+        <div className="mt-6 bg-slate-800/50 rounded-xl border border-slate-800 overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
             <h2 className="text-xl font-bold text-white">
               {viewMode === 'manifests' ? '清單詳細資訊' : '藥品詳細資訊'}

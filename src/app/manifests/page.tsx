@@ -674,7 +674,7 @@ export default function ManifestsPage() {
                     >
                       {/* 操作進行中的覆蓋層 */}
                       {isOperationInProgress && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-[#162a56]/60 backdrop-blur-sm overflow-hidden">
+                        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-[#162a56]/60 backdrop-blur-sm overflow-hidden">
                 {/* 掃描光帶 */}
                 <div className={`scan-beam ${operationProgress?.status === 'archiving' ? 'scan-archive-beam' : 'scan-restore-beam'}`} />
                 <div className="relative z-10 flex items-center gap-3 px-5 py-2.5 bg-slate-900/80 rounded-xl border border-[#00f2fe]/40 shadow-[0_0_20px_rgba(0,242,254,0.3)]">
@@ -687,7 +687,7 @@ export default function ManifestsPage() {
                       )}
                       {/* 操作完成的覆蓋層 */}
                       {isOperationCompleted && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-[#162a56]/60 backdrop-blur-sm animate-in fade-in zoom-in duration-300">
+                        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-[#162a56]/60 backdrop-blur-sm animate-in fade-in zoom-in duration-300">
                           <div className="flex items-center gap-3 px-5 py-2.5 bg-slate-900/80 rounded-xl border border-green-400/40 shadow-[0_0_20px_rgba(74,222,128,0.3)]">
                             <CheckCircle2 className="w-5 h-5 text-green-400 animate-check-pop" />
                             <span className="text-sm font-bold text-green-400">

@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import path from 'path';
 
 /**
  * Playwright E2E 設定。
@@ -20,6 +21,18 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'chromium-authenticated',
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: path.join(__dirname, 'tests', 'e2e', 'auth-state.json'),
+      },
+      dependencies: ['setup-auth'],
+    },
+    {
+      name: 'setup-auth',
+      testMatch: /.*\.setup\.ts/,
     },
   ],
   webServer: {

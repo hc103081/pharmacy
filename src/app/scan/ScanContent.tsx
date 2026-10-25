@@ -431,7 +431,7 @@ export default function ScanContent() {
 
     return (
       <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-        <div className="relative w-full max-w-md mx-4 bg-[#162a56] border border-[#00f2fe]/30 rounded-2xl shadow-[0_0_30px_rgba(0,242,254,0.15)] overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="relative w-full max-w-md mx-4 bg-[#162a56] border border-[#00f2fe]/30 rounded-lg shadow-[0_0_30px_rgba(0,242,254,0.15)] overflow-hidden animate-in zoom-in-95 duration-200">
           <div className="p-6 text-center">
             <div className="w-14 h-14 mx-auto mb-4 bg-[#00f2fe]/10 border border-[#00f2fe]/30 rounded-full flex items-center justify-center">
               <AlertTriangle className="w-7 h-7 text-[#00f2fe]" />

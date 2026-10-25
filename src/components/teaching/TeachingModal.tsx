@@ -47,7 +47,7 @@ const TeachingModal: React.FC = () => {
       />
       
       {/* 教學內容容器 */}
-      <div className="relative w-[90%] max-w-[500px] max-h-[80vh] bg-[#162a56]/[0.9] backdrop-blur-md rounded-2xl shadow-2xl border border-[#00f2fe]/[0.2] overflow-hidden">
+      <div className="relative w-[90%] max-w-[500px] max-h-[80vh] bg-[#162a56]/[0.9] backdrop-blur-md rounded-lg shadow-2xl border border-[#00f2fe]/[0.2] overflow-hidden">
         {/* 頭部：標題和關閉按鈕 */}
         <div className="flex justify-between items-start p-4 border-b border-[#00f2fe]/[0.1]">
           <h2 className="text-[#00f2fe] font-semibold text-lg">{getTeachingTitle(state.teachingModule)}</h2>

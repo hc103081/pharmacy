@@ -12,7 +12,7 @@ export default function QueryTabs() {
   return (
     <div className="flex h-full flex-col">
       {/* 頁籤 */}
-      <div className="flex h-12 bg-slate-900/50 backdrop-blur-md border-b border-slate-600/50">
+      <div className="flex h-12 bg-slate-900/50 border-b border-slate-600/50">
         <button 
           onClick={() => setActiveTab('search')}
           className={`flex-1 flex items-center justify-center text-sm font-medium 
