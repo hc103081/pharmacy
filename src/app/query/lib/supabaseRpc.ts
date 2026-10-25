@@ -14,6 +14,7 @@ const supabase = createClient();
 
 /**
  * Search drugs across manifests using RPC function
+ * Updated to match the new RPC function signature (migration 20261026000001)
  */
 export async function searchDrugsCrossManifest(
   params: DrugSearchFilters & { 
@@ -22,8 +23,8 @@ export async function searchDrugsCrossManifest(
   }
 ): Promise<DrugSearchResult[]> {
   
-  // 聲明內部類型
-  interface DrugSearchResultInternal {
+  // New RPC function returns already-aggregated results
+  interface RPCResult {
     barcode: string;
     product_code: string | null;
     name: string;
@@ -36,10 +37,34 @@ export async function searchDrugsCrossManifest(
     avg_discrepancy: number;
     error_count: number;
     last_counted_at: string | null;
-    history: any[];
+    history: Array<{
+      manifestId: string;
+      manifestName: string;
+      expected: number;
+      actual: number;
+      discrepancy: number;
+      status: string;
+      countedAt: string;
+    }>;
   }
 
   try {
+    // Convert offset to page (1-based)
+    const page = params.offset ? Math.floor(params.offset / (params.limit ?? 50)) + 1 : 1;
+    
+    // Convert manifestStatus array to single string for new RPC
+    const manifestStatus = params.manifestStatus?.length 
+      ? params.manifestStatus[0] 
+      : 'all';
+    
+    // Convert countedStatus array to single string for new RPC
+    const countedStatus = params.countedStatus?.length 
+      ? params.countedStatus[0] 
+      : 'all';
+    
+    // Convert hasDiscrepancy to boolean for new RPC
+    const hasDiscrepancy = params.hasDiscrepancy === true;
+
     const { data, error } = await supabase.rpc('search_drugs_cross_manifest', {
       p_search_text: params.searchText ?? null,
       p_barcode: params.barcode ?? null,
@@ -48,11 +73,11 @@ export async function searchDrugsCrossManifest(
       p_categories: params.categories?.length ? params.categories : null,
       p_date_from: params.dateFrom ?? null,
       p_date_to: params.dateTo ?? null,
-      p_manifest_status: params.manifestStatus ?? ['active', 'archived'],
-      p_counted_status: params.countedStatus ?? null,
-      p_has_discrepancy: params.hasDiscrepancy ?? null,
+      p_manifest_status: manifestStatus,
+      p_counted_status: countedStatus,
+      p_has_discrepancy: hasDiscrepancy,
       p_limit: params.limit ?? 50,
-      p_offset: params.offset ?? 0
+      p_page: page
     });
 
     if (error) {
@@ -61,75 +86,35 @@ export async function searchDrugsCrossManifest(
     }
 
     // Handle NULL/undefined responses gracefully
-    const rawResults = (data as any[]) || [];
+    const rawResults = (data as RPCResult[]) || [];
     
-    // 按條碼分組聚合數據
-    const groupedResults = rawResults.reduce((acc, item) => {
-      // Defensive: skip items without barcode
-      const barcode = item?.barcode;
-      if (!barcode) return acc;
-      
-      if (!acc[barcode]) {
-        acc[barcode] = {
-          barcode: barcode,
-          product_code: item?.product_code ?? null,
-          name: item?.name ?? '',
-          storage_location: item?.storage_location ?? null,
-          category: item?.category ?? null,
-          manifest_count: 0,
-          total_expected: 0,
-          total_actual: 0,
-          total_discrepancy: 0,
-          avg_discrepancy: 0,
-          error_count: 0,
-          last_counted_at: null,
-          history: []
-        };
-      }
-      
-      // 聚合統計數據 (defensive number parsing)
-      acc[barcode].manifest_count += 1;
-      acc[barcode].total_expected += Number(item?.expected_quantity) || 0;
-      acc[barcode].total_actual += Number(item?.actual_quantity) || 0;
-      acc[barcode].total_discrepancy += (Number(item?.actual_quantity) || 0) - (Number(item?.expected_quantity) || 0);
-      
-      // 計算平均差異
-      acc[barcode].avg_discrepancy = acc[barcode].total_discrepancy / acc[barcode].manifest_count;
-      
-      // 計算錯誤數量
-      if (item?.counted_status === 'error') {
-        acc[barcode].error_count += 1;
-      }
-      
-      // 記錄最後清點時間
-      const countedAt = item?.counted_at ?? item?.created_at;
-      if (countedAt && (!acc[barcode].last_counted_at || new Date(countedAt) > new Date(acc[barcode].last_counted_at))) {
-        acc[barcode].last_counted_at = countedAt;
-      }
-      
-      // 添加歷史記錄
-      if (item?.manifest_id) {
-        acc[barcode].history.push({
-          manifest_id: item.manifest_id,
-          manifest_name: item?.manifest_name ?? `清單 ${item.manifest_id.substring(0, 8)}`,
-          page_number: Number(item?.page_number) || 1,
-          expected: Number(item?.expected_quantity) || 0,
-          actual: Number(item?.actual_quantity) || 0,
-          status: item?.counted_status ?? 'pending',
-          counted_at: countedAt ?? new Date().toISOString()
-        });
-      }
-      
-      return acc;
-    }, {} as Record<string, DrugSearchResult>);
-
-    // 轉換為數組並排序
-    const resultArray = Object.values(groupedResults) as DrugSearchResultInternal[];
+    // Map RPC results to DrugSearchResult format
+    const results: DrugSearchResult[] = rawResults.map(item => ({
+      barcode: item.barcode,
+      product_code: item.product_code,
+      name: item.name,
+      storage_location: item.storage_location,
+      category: item.category,
+      manifest_count: Number(item.manifest_count) || 0,
+      total_expected: Number(item.total_expected) || 0,
+      total_actual: Number(item.total_actual) || 0,
+      total_discrepancy: Number(item.total_discrepancy) || 0,
+      avg_discrepancy: Number(item.avg_discrepancy) || 0,
+      error_count: Number(item.error_count) || 0,
+      last_counted_at: item.last_counted_at,
+      history: (item.history || []).map(h => ({
+        manifest_id: h.manifestId,
+        manifest_name: h.manifestName,
+        page_number: 1, // Not provided by new RPC, default to 1
+        expected: Number(h.expected) || 0,
+        actual: Number(h.actual) || 0,
+        status: (h.status as 'pending' | 'completed' | 'error') || 'pending',
+        counted_at: h.countedAt
+      }))
+    }));
     
-    // 按總差異絕對值排序（差異最大的在前）
-    resultArray.sort((a, b) => Math.abs(b.total_discrepancy) - Math.abs(a.total_discrepancy));
-    
-    return resultArray;
+    // Results are already sorted by last_counted_at DESC from the RPC
+    return results;
   } catch (err) {
     console.error('searchDrugsCrossManifest error:', err);
     throw err;
