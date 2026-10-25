@@ -116,7 +116,7 @@ export default function SearchPanel({
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">進階篩選</label>
             <button 
-              onClick={() => {}}
+              onClick={() => setIsOpen(!isOpen)}
               className={`w-full text-left flex items-center justify-between px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors ${
                 !isOpen ? 'border-t-broken' : ''
               }`}
