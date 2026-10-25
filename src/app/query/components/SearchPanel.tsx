@@ -23,8 +23,8 @@ export default function SearchPanel({
   const [selectedStorageLocations, setSelectedStorageLocations] = useState<string[]>(filters.storageLocations ?? []);
   const [selectedCategories, setSelectedCategories] = useState<string[]>(filters.categories ?? []);
   const [dateRange, setDateRange] = useState<{ from: string | null; to: string | null }>({ 
-    from: filters.dateFrom ?? null, 
-    to: filters.dateTo ?? null 
+    from: filters.dateFrom ? new Date(filters.dateFrom).toISOString().split('T')[0] : null, 
+    to: filters.dateTo ? new Date(filters.dateTo).toISOString().split('T')[0] : null 
   });
 
   const storageLocations = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3', 'D1', 'D2', 'D3'];
@@ -34,11 +34,17 @@ export default function SearchPanel({
     setSearchText(e.target.value);
   };
 
-  const handleDateChange = (type: 'from' | 'to', date: string | null) => {
-    setDateRange(prev => ({
-      ...prev,
-      [type]: date
-    }));
+  const handleDateChange = (field: 'from' | 'to', value: string | null) => {
+    setDateRange(prev => ({ ...prev, [field]: value }));
+    
+    // Convert to ISO string for API
+    const newFrom = field === 'from' ? value : dateRange.from;
+    const newTo = field === 'to' ? value : dateRange.to;
+    
+    updateFilters({
+      dateFrom: newFrom ? `${newFrom}T00:00:00.000Z` : undefined,
+      dateTo: newTo ? `${newTo}T23:59:59.999Z` : undefined,
+    });
   };
 
   const toggleStorageLocation = (location: string) => {
@@ -72,8 +78,8 @@ export default function SearchPanel({
       searchText,
       storageLocations: selectedStorageLocations,
       categories: selectedCategories,
-      dateFrom: dateRange.from ?? undefined,
-      dateTo: dateRange.to ?? undefined,
+      dateFrom: dateRange.from ? `${dateRange.from}T00:00:00.000Z` : undefined,
+      dateTo: dateRange.to ? `${dateRange.to}T23:59:59.999Z` : undefined,
     });
   };
 
