@@ -16,11 +16,13 @@ export async function getGeminiKey(): Promise<string> {
 /**
  * 建立 Gemini model 實例
  */
-export async function createGeminiModel(): Promise<ReturnType<GoogleGenerativeAI['getGenerativeModel']>> {
+export async function createGeminiModel(
+  modelName: string = 'gemini-3.1-flash-lite'
+): Promise<ReturnType<GoogleGenerativeAI['getGenerativeModel']>> {
   const apiKey = await getGeminiKey();
   const genAI = new GoogleGenerativeAI(apiKey);
   return genAI.getGenerativeModel({
-    model: 'gemini-3.1-flash-lite',
+    model: modelName,
     // 強制結構化 JSON 輸出，設定充足 token 與低隨機度，避免品名截斷或未配對引號破壞 JSON
     generationConfig: {
       responseMimeType: 'application/json',

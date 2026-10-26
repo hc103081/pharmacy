@@ -14,12 +14,23 @@ import { parsePdf, ParsedPdf, ParsedItem, PdfProgressStep } from '@/lib/pdfParse
 import { validateParsedPdf } from '@/lib/pdfValidator';
 
 /** OCR 進度步驟類型 */
+export interface OcrProgressLog {
+  id: string;
+  time: string;
+  text: string;
+  type: 'info' | 'warning' | 'error' | 'success';
+}
+
 interface OcrProgressStep {
-  step: 'uploading' | 'header' | 'batch' | 'done';
+  step: 'uploading' | 'header' | 'batch' | 'nhi' | 'done';
   label: string;
   percent: number;
   currentBatch?: number;
   totalBatches?: number;
+  model?: string;
+  retryCountdown?: number;
+  retryMessage?: string;
+  logs: OcrProgressLog[];
 }
 import PreviewPanel from './components/PreviewPanel';
 import { TeachingButton } from '@/components/teaching';
@@ -240,45 +251,185 @@ export default function ImportPage() {
   const handleOcrImages = async () => {
     if (uploadedUrls.length === 0) return;
     try {
-      // 進度顯示（Server Action 不支援 streaming 進度回傳，顯示靜態訊息）
-      setOcrProgress({ step: 'uploading', label: `正在 AI 辨識 ${uploadedUrls.length} 張照片...`, percent: 10 });
-      await new Promise(r => setTimeout(r, 300));
-
-      setOcrProgress({ step: 'batch', label: `AI 逐批辨識藥品中（共 ${uploadedUrls.length} 張，每張約 44 項）...`, percent: 30 });
-      
-      const result = await processImagesWithGeminiAsPdf({ urls: uploadedUrls });
-      console.log('OCR result:', result);
-      
-      setOcrProgress({ step: 'done', label: 'OCR 辨識完成！', percent: 100 });
-      await new Promise(r => setTimeout(r, 500));
-      
-      if (!result.success || !result.data) {
-        setStatus('error');
-        // ⭐ 關鍵修復：顯示後端真實錯誤
-        setMessage(`OCR 辨識失敗: ${result.error || '未知錯誤'}`);
-        setOcrProgress(null);
-        return;
-      }
-      if (!result.data.items || result.data.items.length === 0) {
-        setStatus('error');
-        setMessage('OCR 辨識成功但未取得任何藥品項目，請檢查圖片或重試');
-        setOcrProgress(null);
-        return;
-      }
-      setParsedData(result.data);
-      setManifestName(prev => prev.trim() || result.data!.order_metadata.order_number || '');
-      setStatus('idle');
+      setStatus('loading');
       setMessage('');
-      setOcrProgress(null);
-    } catch (error: unknown) {  // ⭐ 捕獲 error 參數
-      console.error('[handleOcrImages] 錯誤:', error);  // ⭐ 印出完整錯誤到 Console
+
+      const timeStr = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+      const initialLogs: OcrProgressLog[] = [{
+        id: '1',
+        time: timeStr,
+        text: `啟動 ${uploadedUrls.length} 張照片 AI 串流辨識任務`,
+        type: 'info',
+      }];
+
+      setOcrProgress({
+        step: 'uploading',
+        label: `正在連線 AI 辨識串流端點（共 ${uploadedUrls.length} 張）...`,
+        percent: 5,
+        model: 'gemini-3.1-flash-lite',
+        logs: initialLogs,
+      });
+
+      const response = await fetch('/api/ocr/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: uploadedUrls }),
+      });
+
+      if (!response.ok) {
+        const errorJson = await response.json().catch(() => ({}));
+        throw new Error(errorJson.error || `HTTP 錯誤 ${response.status}`);
+      }
+
+      if (!response.body) {
+        throw new Error('伺服器未回傳串流資料');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split('\n\n');
+        buffer = blocks.pop() || '';
+
+        for (const block of blocks) {
+          if (!block.trim()) continue;
+
+          let eventName = 'message';
+          let dataStr = '';
+
+          for (const line of block.split('\n')) {
+            if (line.startsWith('event: ')) {
+              eventName = line.slice(7).trim();
+            } else if (line.startsWith('data: ')) {
+              dataStr = line.slice(6).trim();
+            }
+          }
+
+          if (!dataStr) continue;
+          let data: any;
+          try {
+            data = JSON.parse(dataStr);
+          } catch {
+            continue;
+          }
+
+          const curTime = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+
+          if (eventName === 'progress') {
+            setOcrProgress(prev => {
+              const prevLogs = prev?.logs || [];
+              const newLogs = [...prevLogs, {
+                id: Math.random().toString(36).slice(2),
+                time: curTime,
+                text: data.message,
+                type: 'info' as const,
+              }].slice(-6);
+
+              let mappedStep: 'uploading' | 'header' | 'batch' | 'nhi' | 'done' = 'batch';
+              if (data.stage === 'init') mappedStep = 'uploading';
+              else if (data.stage === 'header') mappedStep = 'header';
+              else if (data.stage === 'nhi') mappedStep = 'nhi';
+              else if (data.stage === 'done') mappedStep = 'done';
+
+              return {
+                step: mappedStep,
+                label: data.message,
+                percent: data.percent ?? prev?.percent ?? 10,
+                currentBatch: data.page,
+                totalBatches: data.totalPages ?? uploadedUrls.length,
+                model: data.model || prev?.model,
+                retryCountdown: undefined,
+                retryMessage: undefined,
+                logs: newLogs,
+              };
+            });
+          } else if (eventName === 'retry') {
+            setOcrProgress(prev => {
+              const prevLogs = prev?.logs || [];
+              const isFirstCountdown = data.countdown === 5 || data.countdown === 8;
+              let nextLogs = prevLogs;
+              if (isFirstCountdown) {
+                nextLogs = [...prevLogs, {
+                  id: Math.random().toString(36).slice(2),
+                  time: curTime,
+                  text: data.message,
+                  type: 'warning' as const,
+                }].slice(-6);
+              }
+              return {
+                step: 'batch',
+                label: data.message,
+                percent: prev?.percent ?? 30,
+                currentBatch: data.page,
+                totalBatches: uploadedUrls.length,
+                model: data.model,
+                retryCountdown: data.countdown,
+                retryMessage: data.message,
+                logs: nextLogs,
+              };
+            });
+          } else if (eventName === 'warning') {
+            setOcrProgress(prev => {
+              const prevLogs = prev?.logs || [];
+              return {
+                ...prev!,
+                logs: [...prevLogs, {
+                  id: Math.random().toString(36).slice(2),
+                  time: curTime,
+                  text: data.message,
+                  type: 'warning' as const,
+                }].slice(-6),
+              };
+            });
+          } else if (eventName === 'complete') {
+            setOcrProgress(prev => ({
+              step: 'done',
+              label: data.message || '辨識完成！',
+              percent: 100,
+              model: prev?.model,
+              logs: [...(prev?.logs || []), {
+                id: Math.random().toString(36).slice(2),
+                time: curTime,
+                text: data.message || '所有項目解析完成',
+                type: 'success' as const,
+              }],
+            }));
+
+            await new Promise(r => setTimeout(r, 600));
+
+            if (!data.data || !data.data.items || data.data.items.length === 0) {
+              setStatus('error');
+              setMessage('OCR 辨識完成但未取得任何藥品項目，請檢查圖片或重試');
+              setOcrProgress(null);
+              return;
+            }
+
+            setParsedData(data.data);
+            setManifestName(prev => prev.trim() || data.data.order_metadata?.order_number || '');
+            setStatus('idle');
+            setMessage('');
+            setOcrProgress(null);
+            return;
+          } else if (eventName === 'error') {
+            throw new Error(data.message || '辨識失敗');
+          }
+        }
+      }
+    } catch (error: unknown) {
+      console.error('[handleOcrImages Stream] 錯誤:', error);
       setStatus('error');
-      // ⭐ 顯示真實錯誤訊息
       const errMsg = error instanceof Error ? error.message : 'OCR 辨識過程中發生錯誤';
       setMessage(`OCR 辨識失敗: ${errMsg}`);
       setOcrProgress(null);
     }
   };
+
 
   const handleImport = async (items?: ParsedItem[]) => {
     if (!parsedData) return;
@@ -553,24 +704,58 @@ export default function ImportPage() {
                 {ocrProgress && (
                   <div className="tech-card p-4 lg:p-5 space-y-4 border-cyan-500/30 animate-in fade-in slide-in-from-bottom-2 relative overflow-hidden animate-scanline">
                     <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[#00f2fe]/60 to-transparent" />
-                    <div className="flex items-center gap-3 relative z-10">
-                      <div className={`relative ${ocrProgress.step === 'batch' ? 'animate-pulse-glow' : ''} rounded-lg p-1.5`}>
-                        {ocrProgress.step === 'uploading' && <Upload className="w-5 h-5 text-cyan-400" />}
-                        {ocrProgress.step === 'header' && <Cpu className="w-5 h-5 text-[#00f2fe]" />}
-                        {ocrProgress.step === 'batch' && <Cpu className="w-5 h-5 text-[#00f2fe] animate-pulse" />}
-                        {ocrProgress.step === 'done' && <CheckCircle2 className="w-4 h-4 text-green-400" />}
+                    
+                    {/* 頂部狀態與模型 Badge */}
+                    <div className="flex items-center justify-between gap-3 relative z-10">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className={`relative ${ocrProgress.step === 'batch' ? 'animate-pulse-glow' : ''} rounded-lg p-1.5 bg-slate-800/80 border border-cyan-500/30`}>
+                          {ocrProgress.step === 'uploading' && <Upload className="w-5 h-5 text-cyan-400" />}
+                          {ocrProgress.step === 'header' && <Cpu className="w-5 h-5 text-[#00f2fe]" />}
+                          {ocrProgress.step === 'batch' && <Cpu className="w-5 h-5 text-[#00f2fe] animate-pulse" />}
+                          {ocrProgress.step === 'nhi' && <Database className="w-5 h-5 text-cyan-400 animate-pulse" />}
+                          {ocrProgress.step === 'done' && <CheckCircle2 className="w-4 h-4 text-green-400" />}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-white truncate">{ocrProgress.label}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {ocrProgress.model && (
+                              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                                ocrProgress.model.includes('2.5')
+                                  ? 'bg-amber-500/10 text-amber-300 border-amber-500/40 shadow-[0_0_8px_rgba(245,158,11,0.3)]'
+                                  : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30'
+                              }`}>
+                                {ocrProgress.model.includes('2.5') ? '⚡ 備援模型: ' : 'AI 模型: '}{ocrProgress.model}
+                              </span>
+                            )}
+                            {ocrProgress.currentBatch && ocrProgress.totalBatches && (
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                頁次 {ocrProgress.currentBatch} / {ocrProgress.totalBatches}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-white truncate">{ocrProgress.label}</p>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          {ocrProgress.step === 'uploading' && '準備上傳的照片進行 AI 辨識'}
-                          {ocrProgress.step === 'header' && 'Gemini AI 正在辨識出貨單號與日期'}
-                          {ocrProgress.step === 'batch' && ocrProgress.currentBatch && ocrProgress.totalBatches && `正在處理第 ${ocrProgress.currentBatch} / ${ocrProgress.totalBatches} 批（每批最多 3 張圖）`}
-                          {ocrProgress.step === 'done' && 'OCR 辨識完成，正在整理結果...'}
-                        </p>
-                      </div>
-                      <span className="text-[#00f2fe] font-mono text-lg font-bold tabular-nums">{ocrProgress.percent}%</span>
+                      <span className="text-[#00f2fe] font-mono text-lg font-bold tabular-nums shrink-0">
+                        {ocrProgress.percent}%
+                      </span>
                     </div>
+
+                    {/* 503 退避倒數警示橫幅 */}
+                    {ocrProgress.retryCountdown !== undefined && ocrProgress.retryCountdown > 0 && (
+                      <div className="bg-amber-950/40 border border-amber-500/50 rounded-xl p-3 flex items-center justify-between animate-pulse shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+                        <div className="flex items-center gap-2 text-xs text-amber-200">
+                          <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                          <span>AI 服務暫時過載 (503)，系統自動退避重試中...</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-mono text-base font-bold text-amber-300 tabular-nums">
+                            {ocrProgress.retryCountdown} 秒
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 發光進度條 */}
                     <div className="relative h-2.5 bg-slate-800/80 rounded-full overflow-hidden">
                       <div 
                         className="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-500 to-[#00f2fe] rounded-full transition-all duration-500 ease-out"
@@ -587,6 +772,8 @@ export default function ImportPage() {
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
                       )}
                     </div>
+
+                    {/* 步驟指示器 */}
                     <div className="flex items-center gap-0 relative z-10">
                       {OCR_STEPS.map((s, i) => {
                         const stepOrder = [...OCR_STEPS, 'done'];
@@ -628,6 +815,27 @@ export default function ImportPage() {
                         );
                       })}
                     </div>
+
+                    {/* 即時步驟卡片與日誌狀態盒 */}
+                    {ocrProgress.logs && ocrProgress.logs.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-slate-700/50">
+                        <div className="bg-slate-950/70 border border-cyan-500/20 rounded-xl p-2.5 font-mono text-[11px] space-y-1.5 max-h-28 overflow-y-auto">
+                          {ocrProgress.logs.map((log) => (
+                            <div key={log.id} className="flex items-start gap-2 leading-relaxed">
+                              <span className="text-slate-500 shrink-0">[{log.time}]</span>
+                              <span className={`break-all ${
+                                log.type === 'warning' ? 'text-amber-300' :
+                                log.type === 'error' ? 'text-red-400' :
+                                log.type === 'success' ? 'text-green-300 font-bold' :
+                                'text-slate-300'
+                              }`}>
+                                {log.text}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
                 {status === 'error' && (
