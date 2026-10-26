@@ -21,8 +21,12 @@ export async function createGeminiModel(): Promise<ReturnType<GoogleGenerativeAI
   const genAI = new GoogleGenerativeAI(apiKey);
   return genAI.getGenerativeModel({
     model: 'gemini-3.1-flash-lite',
-    // 強制結構化 JSON 輸出，避免品名內未跳脫的雙引號破壞 JSON
-    generationConfig: { responseMimeType: 'application/json' },
+    // 強制結構化 JSON 輸出，設定充足 token 與低隨機度，避免品名截斷或未配對引號破壞 JSON
+    generationConfig: {
+      responseMimeType: 'application/json',
+      maxOutputTokens: 8192,
+      temperature: 0.1,
+    },
   });
 }
 

@@ -29,7 +29,7 @@ export default function PreviewPanel({
 }: PreviewPanelProps) {
   const [editedItems, setEditedItems] = useState<ParsedItem[]>(data.items);
   const [filter, setFilter] = useState<FilterMode>('all');
-  const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
+  const [viewMode, setViewMode] = useState<'table' | 'card'>('card');
   /** 多筆翻譯說明彈窗是否已顯示過 */
   const [introDismissed, setIntroDismissed] = useState(false);
   /** 目前開啟候選選擇視窗的項目 line_number */

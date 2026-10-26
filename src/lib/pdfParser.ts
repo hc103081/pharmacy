@@ -43,6 +43,7 @@ export interface OrderMetadata {
 export interface ParsedPdf {
   order_metadata: OrderMetadata;
   items: ParsedItem[];
+  warnings?: Array<{ missing_count: number; page_number: number }>;
 }
 
 /** 進度回報的詳細步驟資訊 */

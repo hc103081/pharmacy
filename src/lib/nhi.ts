@@ -107,34 +107,47 @@ export async function resolveNhiTranslations(items: NhiResolveInput[]): Promise<
     }
   }
 
-  // 第 2 層：純英文品名匹配度篩選
-  const keywordCache = new Map<string, Array<{ drug_code: string; chinese_name: string | null; english_name: string | null }>>();
-  for (const item of unresolved) {
-    if (!isEnglishOnlyName(item.drug_name)) {
-      results.set(item.line_number, { line_number: item.line_number, status: 'none' });
-      continue;
-    }
-    const keyword = getSearchKeyword(item.drug_name);
-    if (!keyword) {
-      results.set(item.line_number, { line_number: item.line_number, status: 'none' });
-      continue;
-    }
+  // 第 2 層：純英文品名匹配度篩選（並行批次查詢 Supabase，大幅降低等待時間）
+  const englishItems = unresolved.filter(i => isEnglishOnlyName(i.drug_name));
+  const nonEnglishItems = unresolved.filter(i => !isEnglishOnlyName(i.drug_name));
+  for (const item of nonEnglishItems) {
+    results.set(item.line_number, { line_number: item.line_number, status: 'none' });
+  }
 
-    let rows = keywordCache.get(keyword);
-    if (!rows) {
+  // 收集所有唯一的搜尋前綴關鍵字
+  const uniqueKeywords = [...new Set(
+    englishItems
+      .map(i => getSearchKeyword(i.drug_name))
+      .filter((k): k is string => !!k)
+  )];
+
+  const keywordMap = new Map<string, Array<{ drug_code: string; chinese_name: string | null; english_name: string | null }>>();
+
+  // 並行載入所有關鍵字對應的候選清單
+  await Promise.all(
+    uniqueKeywords.map(async (keyword) => {
       try {
         const { data } = await getSupabaseAdmin()
           .from('nhi_drug_lookup')
           .select('drug_code, chinese_name, english_name')
           .ilike('english_name', `${keyword}%`)
           .limit(500);
-        rows = data ?? [];
+        keywordMap.set(keyword, data ?? []);
       } catch {
-        rows = [];
+        keywordMap.set(keyword, []);
       }
-      keywordCache.set(keyword, rows);
+    })
+  );
+
+  // 比對候選項目
+  for (const item of englishItems) {
+    const keyword = getSearchKeyword(item.drug_name);
+    if (!keyword) {
+      results.set(item.line_number, { line_number: item.line_number, status: 'none' });
+      continue;
     }
 
+    const rows = keywordMap.get(keyword) ?? [];
     const candidates = pickCandidates(item.drug_name, rows);
     if (candidates.length === 1) {
       results.set(item.line_number, {
