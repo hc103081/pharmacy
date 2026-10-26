@@ -307,6 +307,7 @@ export default function ImportPage() {
         delivery_date: parsedData.order_metadata.delivery_date,
         source_file: '',
         mergeByBarcode: !isPhotoImport,
+        applyNhiLookup: false,
       });
       console.log('[Import] importDrugs 回傳:', result);
       if (result.success) {
@@ -445,6 +446,7 @@ export default function ImportPage() {
                 validation={validateParsedPdf(parsedData)}
                 onConfirm={handleImport}
                 onRetry={handlePdfRetry}
+                onItemsChange={(items) => setParsedData(prev => (prev ? { ...prev, items } : prev))}
                 isLoading={isParsingPdf}
               />
             </div>

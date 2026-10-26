@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { CheckCircle2, AlertCircle, XCircle, RefreshCcw, Check, Eye, Filter } from 'lucide-react';
+import { CheckCircle2, AlertCircle, XCircle, RefreshCcw, Check, Eye, Filter, X, Languages } from 'lucide-react';
 import { TeachingButton } from '@/components/teaching';
 import { ParsedPdf, ParsedItem } from '@/lib/pdfParser';
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -12,21 +12,29 @@ interface PreviewPanelProps {
   validation: PdfValidationResult;
   onConfirm: (items: ParsedItem[]) => void;
   onRetry: () => void;
+  /** 翻譯選擇變更時回報完整項目清單，供上層持久化（sessionStorage） */
+  onItemsChange?: (items: ParsedItem[]) => void;
   isLoading: boolean;
 }
 
-type FilterMode = 'all' | 'needs_review' | 'errors_only';
+type FilterMode = 'all' | 'needs_review' | 'errors_only' | 'pending_translation';
 
 export default function PreviewPanel({
   data,
   validation,
   onConfirm,
   onRetry,
+  onItemsChange,
   isLoading,
 }: PreviewPanelProps) {
   const [editedItems, setEditedItems] = useState<ParsedItem[]>(data.items);
   const [filter, setFilter] = useState<FilterMode>('all');
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
+  /** 多筆翻譯說明彈窗是否已顯示過 */
+  const [introDismissed, setIntroDismissed] = useState(false);
+  /** 目前開啟候選選擇視窗的項目 line_number */
+  const [pickerLine, setPickerLine] = useState<number | null>(null);
+  const [manualName, setManualName] = useState('');
 
   useEffect(() => {
     setTimeout(() => setEditedItems(data.items), 0);
@@ -69,6 +77,36 @@ export default function PreviewPanel({
     );
   };
 
+  // 待選翻譯（多筆候選且尚未選擇）
+  const pendingItems = useMemo(
+    () => editedItems.filter(item => item.nhi_status === 'pending'),
+    [editedItems]
+  );
+  const pendingCount = pendingItems.length;
+  // 說明彈窗：存在待選翻譯且尚未關閉時顯示
+  const showIntro = pendingCount > 0 && !introDismissed;
+  const pickerItem = pickerLine != null ? editedItems.find(i => i.line_number === pickerLine) ?? null : null;
+
+  const dismissIntro = () => {
+    setIntroDismissed(true);
+    setFilter('pending_translation');
+  };
+
+  /** 套用使用者選擇的翻譯（候選中文名，或保留原名／手動輸入） */
+  const applyTranslation = (lineNumber: number, name: string, status: 'chosen' | 'kept') => {
+    const finalName = name.trim();
+    if (!finalName) return;
+    const next = editedItems.map(i =>
+      i.line_number === lineNumber ? { ...i, drug_name: finalName, nhi_status: status } : i
+    );
+    setEditedItems(next);
+    onItemsChange?.(next);
+    // 最後一筆待選完成後自動切回「全部」
+    if (!next.some(i => i.nhi_status === 'pending')) setFilter('all');
+    setPickerLine(null);
+    setManualName('');
+  };
+
   // 篩選邏輯
   const filteredItems = useMemo(() => {
     return editedItems.filter(item => {
@@ -76,6 +114,7 @@ export default function PreviewPanel({
       const status = val?.status || 'pass';
       const drugRisk = hasDrugNameRisk(item);
 
+      if (filter === 'pending_translation') return item.nhi_status === 'pending';
       if (filter === 'errors_only') return status === 'error';
       if (filter === 'needs_review') return status === 'warn' || status === 'error' || drugRisk;
       return true;
@@ -140,13 +179,14 @@ export default function PreviewPanel({
         </div>
         
         {/* 篩選工具列 */}
-        {needsReviewCount > 0 && (
+        {(needsReviewCount > 0 || pendingCount > 0) && (
           <div className="flex items-center gap-2 pt-2">
             <Eye className="w-4 h-4 text-slate-500" />
             <span className="text-xs text-slate-500">快速篩選：</span>
             <div className="flex gap-1.5">
               {([
                 { key: 'all' as FilterMode, label: '全部', count: editedItems.length },
+                ...(pendingCount > 0 ? [{ key: 'pending_translation' as FilterMode, label: '待選翻譯', count: pendingCount }] : []),
                 { key: 'needs_review' as FilterMode, label: '需確認', count: needsReviewCount },
                 { key: 'errors_only' as FilterMode, label: '僅錯誤', count: validation.summary.errorCount },
               ]).map((opt, index) => (
@@ -165,7 +205,7 @@ export default function PreviewPanel({
                     <TeachingButton module="pdf-preview" variant="inline" className="ml-1" />
                   )}
                   {/* 在按鈕之間添加間隔，除了最後一個按鈕 */}
-                  {index < 2 && <span className="w-0.5" />}
+                  {index < 3 && <span className="w-0.5" />}
                 </React.Fragment>
               ))}
             </div>
@@ -237,6 +277,16 @@ export default function PreviewPanel({
                           />
                           {drugRisk && (
                             <span className="absolute -top-1.5 -right-1 px-1 py-0.5 text-[8px] font-bold bg-orange-500/80 text-white rounded leading-none ring-1 ring-orange-400/50">OCR</span>
+                          )}
+                          {item.nhi_status === 'pending' && (
+                            <button
+                              type="button"
+                              onClick={() => { setPickerLine(item.line_number); setManualName(''); }}
+                              className="mt-1 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold bg-[#ff4b5c]/15 border border-[#ff4b5c]/60 text-[#ff4b5c] animate-pulse active:scale-95 transition-all"
+                            >
+                              <Languages className="w-3 h-3" />
+                              {item.nhi_candidates?.length ?? 0} 條翻譯，點擊選擇
+                            </button>
                           )}
                         </div>
                       </td>
@@ -323,6 +373,16 @@ export default function PreviewPanel({
                           onChange={(e) => handleInputChange(idx, 'drug_name', e.target.value)}
                           className={`w-full bg-transparent text-slate-200 border-none focus:outline-none focus:ring-0 appearance-none truncate ${drugRisk ? 'border-orange-500/50' : ''}`}
                         />
+                        {item.nhi_status === 'pending' && (
+                          <button
+                            type="button"
+                            onClick={() => { setPickerLine(item.line_number); setManualName(''); }}
+                            className="mt-1 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold bg-[#ff4b5c]/15 border border-[#ff4b5c]/60 text-[#ff4b5c] animate-pulse active:scale-95 transition-all"
+                          >
+                            <Languages className="w-3 h-3" />
+                            {item.nhi_candidates?.length ?? 0} 條翻譯，點擊選擇
+                          </button>
+                        )}
                         <div className="flex items-center gap-1 mt-2 flex-nowrap">
                           <span className="text-slate-400 text-xs whitespace-nowrap">補貨量</span>
                           <input type="number" value={item.quantity} onChange={(e) => handleInputChange(idx, 'quantity', e.target.value)} className="w-14 bg-transparent text-slate-200 border-none focus:outline-none focus:ring-0 appearance-none" />
@@ -370,6 +430,12 @@ export default function PreviewPanel({
             有 {needsReviewCount} 項品名經 AI 辨識可能不精準（橘色標記），建議人工確認後再匯入
           </p>
         )}
+        {pendingCount > 0 && (
+          <p className="text-[11px] text-[#ff4b5c] mb-3 flex items-center gap-1.5">
+            <Languages className="w-3.5 h-3.5" />
+            尚有 {pendingCount} 項藥品有多條翻譯待選擇，全部選完才能確認匯入
+          </p>
+        )}
         <div className="flex flex-col sm:flex-row gap-3">
           <button 
             onClick={onRetry}
@@ -380,14 +446,95 @@ export default function PreviewPanel({
           </button>
           <button 
             onClick={() => onConfirm(editedItems)}
-            disabled={isLoading}
+            disabled={isLoading || pendingCount > 0}
             className="flex-1 py-3 px-4 rounded-xl bg-[#00f2fe] text-slate-900 hover:shadow-[0_0_15px_rgba(0,242,254,0.5)] active:scale-95 transition-all flex items-center justify-center gap-2 text-sm font-bold disabled:opacity-50"
           >
             {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-            確認匯入
+            {pendingCount > 0 ? `尚有 ${pendingCount} 項待選翻譯` : '確認匯入'}
           </button>
         </div>
       </div>
+
+      {/* 多筆翻譯說明彈窗 */}
+      {showIntro && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#07142b]/90 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="tech-card w-full max-w-sm p-6 space-y-4 text-center border-[#ff4b5c]/50 shadow-[0_0_40px_rgba(255,75,92,0.2)] animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+            <div className="mx-auto w-14 h-14 rounded-full bg-[#ff4b5c]/15 border border-[#ff4b5c]/60 flex items-center justify-center animate-pulse">
+              <Languages className="w-7 h-7 text-[#ff4b5c]" />
+            </div>
+            <h3 className="text-lg font-bold text-white">有 {pendingCount} 項藥品存在多條翻譯</h3>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              這些藥品的品名在撿貨單上被截斷，健保對照表中有多筆相符結果。
+              請點擊標示紅色的項目，選擇正確的翻譯。全部選完後才能進行下一步。
+            </p>
+            <button
+              type="button"
+              onClick={dismissIntro}
+              className="w-full py-3 rounded-xl bg-[#00f2fe] text-slate-900 font-bold text-sm hover:shadow-[0_0_15px_rgba(0,242,254,0.5)] active:scale-95 transition-all"
+            >
+              開始選擇
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 候選翻譯選擇視窗 */}
+      {pickerItem && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-[#07142b]/90 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="tech-card w-full max-w-lg max-h-[85dvh] flex flex-col border-[#00f2fe]/40 animate-in slide-in-from-bottom-4 zoom-in-95 duration-200">
+            <div className="flex items-start justify-between gap-3 p-4 border-b border-slate-800">
+              <div className="min-w-0">
+                <p className="text-xs text-slate-500">第 {pickerItem.line_number} 項　商品代號 {pickerItem.product_code || pickerItem.barcode || '無'}</p>
+                <p className="text-sm text-slate-200 mt-1 break-words">
+                  <span className="text-slate-500">撿貨單品名：</span>{pickerItem.nhi_original_name || pickerItem.drug_name}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setPickerLine(null); setManualName(''); }}
+                className="shrink-0 p-1.5 rounded-full hover:bg-slate-800 active:scale-95 transition-all"
+                aria-label="關閉"
+              >
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2">
+              {(pickerItem.nhi_candidates ?? []).map(c => (
+                <button
+                  key={c.drug_code}
+                  type="button"
+                  onClick={() => applyTranslation(pickerItem.line_number, c.chinese_name, 'chosen')}
+                  className="w-full text-left p-3 rounded-xl bg-[#162a56] border border-slate-700 hover:border-[#00f2fe] hover:shadow-[0_0_15px_rgba(0,242,254,0.35)] active:scale-95 transition-all"
+                >
+                  <p className="text-sm font-bold text-white break-words">{c.chinese_name}</p>
+                  <p className="text-xs text-slate-400 mt-1 break-words">{c.english_name}</p>
+                  <p className="text-[10px] text-slate-500 mt-1 font-mono">
+                    {c.drug_code}　匹配度 {Math.round(c.score * 100)}%
+                  </p>
+                </button>
+              ))}
+            </div>
+
+            <div className="p-4 border-t border-slate-800 space-y-2">
+              <p className="text-xs text-slate-500">以上皆非：保留原始品名或手動輸入</p>
+              <input
+                value={manualName}
+                onChange={(e) => setManualName(e.target.value)}
+                placeholder={pickerItem.nhi_original_name || pickerItem.drug_name}
+                className="tech-input w-full text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => applyTranslation(pickerItem.line_number, manualName.trim() || pickerItem.nhi_original_name || pickerItem.drug_name, 'kept')}
+                className="w-full py-2.5 rounded-xl border border-slate-600 text-slate-200 hover:bg-slate-800 active:scale-95 transition-all text-sm font-bold"
+              >
+                {manualName.trim() ? '使用手動輸入的品名' : '保留原始品名'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

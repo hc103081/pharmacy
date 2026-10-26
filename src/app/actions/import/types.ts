@@ -24,6 +24,7 @@ export interface ImportOptions {
   source_file?: string;
   source_images?: string[];
   mergeByBarcode?: boolean; // 是否合併相同條碼項目，預設 true
+  applyNhiLookup?: boolean; // 是否於匯入時再次以 NHI 覆蓋品名，預設 true；預覽已確認品名時設為 false
 }
 
 export interface PageItem {

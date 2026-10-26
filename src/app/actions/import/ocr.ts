@@ -2,7 +2,8 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { fetchImageAsBase64, repairGeminiJson, friendlyGeminiError, createGeminiModel } from '@/lib/gemini';
-import { batchLookupNhi } from '@/lib/nhi';
+import { batchLookupNhi, resolveNhiTranslations } from '@/lib/nhi';
+import { applyNhiResults } from '@/lib/nhiMatch';
 import type { ParsedItem, ParsedPdf } from '@/lib/pdfParser';
 import { PageItem, ImportDrugItem } from './types';
 
@@ -701,10 +702,10 @@ export async function processImagesWithGeminiAsPdf({ urls }: { urls: string[] })
     .filter((b): b is string => !!b);
   console.log(`[NHI] OCR mapping start, ${barcodes.length} 條碼`);
 
-  const nhiMap = await batchLookupNhi(barcodes);
+  // 第 1 層代碼精準比對與第 2 層純英文品名匹配度篩選，統一於 resolveNhiTranslations 處理
 
-  const items: ParsedItem[] = ocrResult.drugs.map((drug, idx) => {
-      const chineseName = drug.product_code ? nhiMap.get(drug.product_code.trim()) : undefined;
+  const baseItems: ParsedItem[] = ocrResult.drugs.map((drug, idx) => {
+      const chineseName: string | undefined = undefined;
       return {
         line_number: idx + 1,
         barcode: drug.barcode,
@@ -717,6 +718,16 @@ export async function processImagesWithGeminiAsPdf({ urls }: { urls: string[] })
         warehouse_quantity: drug.warehouse_quantity, // 傳遞倉庫存量
       };
     });
+
+  const nhiResults = await resolveNhiTranslations(
+    baseItems.map(i => ({
+      line_number: i.line_number,
+      product_code: i.product_code,
+      barcode: i.barcode,
+      drug_name: i.drug_name,
+    }))
+  );
+  const items: ParsedItem[] = applyNhiResults(baseItems, nhiResults);
 
   const data: ParsedPdf = {
     order_metadata: {

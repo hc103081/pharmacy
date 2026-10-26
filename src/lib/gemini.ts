@@ -19,7 +19,11 @@ export async function getGeminiKey(): Promise<string> {
 export async function createGeminiModel(): Promise<ReturnType<GoogleGenerativeAI['getGenerativeModel']>> {
   const apiKey = await getGeminiKey();
   const genAI = new GoogleGenerativeAI(apiKey);
-  return genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite' });
+  return genAI.getGenerativeModel({
+    model: 'gemini-3.1-flash-lite',
+    // 強制結構化 JSON 輸出，避免品名內未跳脫的雙引號破壞 JSON
+    generationConfig: { responseMimeType: 'application/json' },
+  });
 }
 
 /**
@@ -51,6 +55,19 @@ export async function repairGeminiJson(text: string): Promise<string> {
     JSON.parse(cleaned);
     return cleaned;
   } catch {}
+
+  // 嘗試修復品名字串內未跳脫的雙引號（如 "STANDARD" 或右邊界截斷的 "Germar）
+  // 以「值之後緊接 , "下一個鍵": 或 }」作為字串結尾，將其中的內部雙引號跳脫
+  const escapedQuotes = cleaned.replace(
+    /("(?:drug_name|name)"\s*:\s*")([\s\S]*?)("\s*(?:,\s*"[A-Za-z_]+"\s*:|\}))/g,
+    (_m, head: string, value: string, tail: string) =>
+      `${head}${value.replace(/(?<!\\)"/g, '\\"').replace(/[\u0000-\u001F]/g, ' ')}${tail}`
+  );
+  try {
+    JSON.parse(escapedQuotes);
+    return escapedQuotes;
+  } catch {}
+  cleaned = escapedQuotes;
 
   // 嘗試在換行處插入逗號
   const withCommas = cleaned.replace(/"\s*\n\s*"/g, '",\n"');
