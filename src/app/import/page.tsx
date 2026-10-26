@@ -624,13 +624,16 @@ export default function ImportPage() {
                     className="tech-input w-full text-sm lg:text-base"
                   />
                 </div>
-                <DrugListUploader
-                  onPdfSelect={handlePdfSelect}
-                  onImagesSelect={handleImagesSelect}
-                  onImagesRemove={removeImage}
-                  selectedImages={selectedImages}
-                  isParsingPdf={isParsingPdf}
-                />
+                {/* 按下 OCR 辨識或解析 PDF 期間隱藏拖曳上傳區塊 */}
+                {!isParsingPdf && !ocrProgress && (
+                  <DrugListUploader
+                    onPdfSelect={handlePdfSelect}
+                    onImagesSelect={handleImagesSelect}
+                    onImagesRemove={removeImage}
+                    selectedImages={selectedImages}
+                    isParsingPdf={isParsingPdf}
+                  />
+                )}
                 {isParsingPdf && pdfProgress && (
                   <div className="tech-card p-4 lg:p-5 space-y-4 border-cyan-500/30 animate-in fade-in slide-in-from-bottom-2 relative overflow-hidden animate-scanline">
                     <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[#00f2fe]/60 to-transparent" />
@@ -894,16 +897,16 @@ export default function ImportPage() {
                   </>
                 )}
                 <div className="flex flex-col gap-3">
-                  {uploadedUrls.length > 0 && !parsedData && (
+                  {uploadedUrls.length > 0 && !parsedData && !ocrProgress && (
                     <button
                       onClick={handleOcrImages}
-                      disabled={status === 'loading' || !!ocrProgress}
-                      className={`tech-button w-full py-3 ${status === 'loading' || !!ocrProgress ? 'bg-slate-700 text-slate-400' : 'tech-button-primary'}`}
+                      disabled={status === 'loading'}
+                      className="tech-button tech-button-primary w-full py-3 flex items-center justify-center gap-2"
                     >
-                      {status === 'loading' || !!ocrProgress ? (
+                      {status === 'loading' ? (
                         <>
                           <Loader2 className="w-5 h-5 animate-spin" />
-                          {ocrProgress ? `OCR 辨識中... ${ocrProgress.percent}%` : 'OCR 辨識中...'}
+                          正在啟動辨識...
                         </>
                       ) : (
                         <>
