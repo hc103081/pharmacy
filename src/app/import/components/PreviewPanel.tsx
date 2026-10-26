@@ -151,7 +151,7 @@ export default function PreviewPanel({
   }, [editedItems, validation]);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
       {/* 表頭資訊 - 固定在頂部 */}
       <div className="flex-shrink-0 tech-card p-4 lg:p-6 rounded-b-none space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">

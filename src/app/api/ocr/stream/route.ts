@@ -31,33 +31,34 @@ function sendSseEvent(
 }
 
 /**
- * 驗證頁面項目數是否符合預期（非末頁必須滿 44 項，任何頁面不可為 0 項）
+ * 驗證頁面項目數是否符合預期（不可為 0 項；若有標註項目數或已達總項目數則不誤報）
  */
 function validatePageItemCount(
   items: PageItem[],
   pageNumber: number | undefined,
-  totalPages: number | undefined
+  totalPages: number | undefined,
+  pageItemsCount?: number
 ): { warning?: { missing_count: number; page_number: number }; error?: string } {
   if (pageNumber == null || totalPages == null) return {};
   const count = items.length;
-  const isLastPage = pageNumber === totalPages;
 
   if (count === 0) {
     return { error: `第 ${pageNumber} 頁未辨識到任何藥品品項` };
   }
 
-  if (!isLastPage) {
-    if (count < 44) {
-      return { warning: { missing_count: 44 - count, page_number: pageNumber } };
+  // 若照片上已標註本頁項目數且完全吻合，絕不誤報
+  if (pageItemsCount != null && pageItemsCount > 0) {
+    if (count < pageItemsCount) {
+      return { warning: { missing_count: pageItemsCount - count, page_number: pageNumber } };
     }
-    if (count > 44) {
-      return { warning: { missing_count: count - 44, page_number: pageNumber } };
-    }
-  } else {
-    if (count > 44) {
-      return { warning: { missing_count: count - 44, page_number: pageNumber } };
-    }
+    return {};
   }
+
+  // 若未標註本頁項目數，僅在超過 44 項時提醒異常
+  if (count > 44) {
+    return { warning: { missing_count: count - 44, page_number: pageNumber } };
+  }
+
   return {};
 }
 
@@ -73,6 +74,8 @@ async function callGeminiForBatch(
   order_number?: string;
   delivery_date?: string;
   total_pages?: number;
+  total_items?: number;
+  page_items_count?: number;
   items?: PageItem[];
   error?: string;
 }> {
@@ -93,9 +96,12 @@ async function callGeminiForBatch(
 
     const prompt = `你是一個精準的醫藥清單 OCR 提取專家。請分析提供的總倉撿貨單截圖（本批次共 ${urls.length} 張圖片）。
 
-請從第一張圖片中找出：
+請從圖片中找出：
 1. 出貨單號 (order_number)，格式如 R012606220001
 2. 列印時間 (delivery_date)，請將日期格式化為 YYYY-MM-DD
+3. 整張單據總項目數 (total_items)，通常印在圖片底部如「共244項」，請提取純整數如 244
+4. 總頁數 (total_pages)，通常印在圖片右下角如「頁次 6 of 6」，請提取純整數如 6
+5. 本頁項目數 (page_items_count)，通常印在圖片左下角如「本頁:24項」或「本頁:44項」，請提取純整數如 24
 
 然後請分析所有 ${urls.length} 張圖片，逐行輸出每一筆藥品項目，不可跳過任何一行。即使某欄位無法辨識（條碼模糊、品名不清），仍需輸出該行，將無法辨識的欄位設為空字串。
 
@@ -123,6 +129,8 @@ JSON 格式範例：
   "order_number": "R012606220001",
   "delivery_date": "2026-06-22",
   "total_pages": 6,
+  "total_items": 244,
+  "page_items_count": 24,
   "items": [
     {
       "barcode": "471020120000",
@@ -186,11 +194,27 @@ JSON 格式範例：
       };
     });
 
+    const parsedTotalItems =
+      typeof parsed.total_items === 'number'
+        ? parsed.total_items
+        : typeof parsed.total_items === 'string'
+        ? parseInt(parsed.total_items.replace(/\D/g, ''), 10) || undefined
+        : undefined;
+
+    const parsedPageItemsCount =
+      typeof parsed.page_items_count === 'number'
+        ? parsed.page_items_count
+        : typeof parsed.page_items_count === 'string'
+        ? parseInt(parsed.page_items_count.replace(/\D/g, ''), 10) || undefined
+        : undefined;
+
     return {
       success: true,
       order_number: parsed.order_number,
       delivery_date: parsed.delivery_date,
       total_pages: parsed.total_pages,
+      total_items: parsedTotalItems,
+      page_items_count: parsedPageItemsCount,
       items,
     };
   } catch (error: unknown) {
@@ -248,6 +272,7 @@ export async function POST(req: NextRequest) {
             order_number?: string;
             delivery_date?: string;
             total_pages?: number;
+            total_items?: number;
             items: PageItem[];
           }> = [];
           const allWarnings: Array<{ missing_count: number; page_number: number }> = [];
@@ -349,14 +374,15 @@ export async function POST(req: NextRequest) {
             const pageValidation = validatePageItemCount(
               result.items,
               pageIndex,
-              result.total_pages ?? totalPages
+              result.total_pages ?? totalPages,
+              result.page_items_count
             );
             if (pageValidation.warning) {
               allWarnings.push(pageValidation.warning);
               sendSseEvent(controller, encoder, 'warning', {
                 page: pageIndex,
                 warning: pageValidation.warning,
-                message: `第 ${pageIndex} 頁提取 ${result.items.length} 項（預期 44 項，短缺 ${pageValidation.warning.missing_count} 項）`,
+                message: `第 ${pageIndex} 頁提取 ${result.items.length} 項（短缺 ${pageValidation.warning.missing_count} 項）`,
               });
             }
 
@@ -365,6 +391,7 @@ export async function POST(req: NextRequest) {
               order_number: result.order_number,
               delivery_date: result.delivery_date,
               total_pages: result.total_pages,
+              total_items: result.total_items,
               items: result.items,
             });
 
@@ -373,6 +400,7 @@ export async function POST(req: NextRequest) {
               page: pageIndex,
               totalPages,
               itemCount: result.items.length,
+              total_items: result.total_items,
               percent: Math.round(10 + ((i + 1) / pageItemsQueue.length) * 70),
               message: `第 ${pageIndex} 頁辨識完成，成功提取 ${result.items.length} 筆藥品`,
               model: currentModel,
@@ -432,11 +460,18 @@ export async function POST(req: NextRequest) {
           const finalItems: ParsedItem[] = applyNhiResults(baseItems, nhiResults);
 
           const firstResult = allBatchResults[0];
+          const declaredTotal = allBatchResults.map((r) => r.total_items).find((n) => n != null && n > 0);
+
+          // 若全單實際提取項目數 >= 宣告總項數（例如 244 === 244），清空所有誤報 warnings
+          if (declaredTotal && finalItems.length >= declaredTotal) {
+            allWarnings.length = 0;
+          }
+
           const parsedData: ParsedPdf = {
             order_metadata: {
               order_number: firstResult.order_number || '未知單號',
               delivery_date: firstResult.delivery_date || '',
-              total_items: finalItems.length,
+              total_items: declaredTotal || finalItems.length,
               source_type: 'images',
               uploaded_image_count: pageItemsQueue.length,
               ocr_page_count: firstResult.total_pages || pageItemsQueue.length,

@@ -26,6 +26,7 @@ export interface PageCardState {
   items?: ParsedItem[];
   order_number?: string;
   delivery_date?: string;
+  total_items?: number;
   errorMessage?: string;
   warning?: { missing_count: number; page_number: number };
 }
@@ -354,12 +355,18 @@ export default function ImportPage() {
       const firstWithOrder = sortedCards.find(c => c.order_number);
       const orderNumber = firstWithOrder?.order_number || manifestName || '未知單號';
       const deliveryDate = firstWithOrder?.delivery_date || '';
+      const declaredTotal = sortedCards.map(c => c.total_items).find(n => n != null && n > 0);
+
+      // 若全單實際提取項目數 >= 宣告總項數（例如紙本標註 244 且實際滿 244 項），清空所有誤報 warnings
+      if (declaredTotal && combinedItems.length >= declaredTotal) {
+        combinedWarnings.length = 0;
+      }
 
       const parsed: ParsedPdf = {
         order_metadata: {
           order_number: orderNumber,
           delivery_date: deliveryDate,
-          total_items: combinedItems.length,
+          total_items: declaredTotal || combinedItems.length,
           source_type: 'images',
           uploaded_image_count: sortedCards.length,
           ocr_page_count: sortedCards.length,
@@ -467,18 +474,21 @@ export default function ImportPage() {
             setPageCards(prev => prev.map(c => c.pageIndex === pageIndex ? {
               ...c,
               itemCount: data.itemCount,
+              total_items: data.total_items ?? c.total_items,
               items: data.items,
               model: data.model || c.model,
             } : c));
           } else if (eventName === 'complete') {
             playAlertTone('success');
             const pageItems: ParsedItem[] = data.data?.items || [];
+            const pageTotalItems = data.data?.order_metadata?.total_items ?? data.total_items;
             setPageCards(prev => {
               const nextCards = prev.map(c => c.pageIndex === pageIndex ? {
                 ...c,
                 status: 'success' as const,
                 percent: 100,
                 itemCount: pageItems.length,
+                total_items: pageTotalItems ?? c.total_items,
                 items: pageItems,
                 order_number: data.data?.order_metadata?.order_number,
                 delivery_date: data.data?.order_metadata?.delivery_date,
@@ -666,53 +676,60 @@ export default function ImportPage() {
           </div>
       
           {parsedData ? (
-            <div className="flex-1 min-h-0">
-              {/* OCR 警告摘要 */}
-              {(parsedData as any).warnings && (parsedData as any).warnings.length > 0 && (
-                <div className="flex-shrink-0 mx-4 lg:mx-6 mt-4 mb-2 animate-in fade-in slide-in-from-top-2">
-                  <div className="tech-card p-4 border-[#ff9f0a]/50 bg-[#ff9f0a]/10">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-[#ff9f0a]/20 flex items-center justify-center mt-0.5">
-                        <span className="text-[10px] font-bold text-[#ff9f0a]">⚠</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-[#ff9f0a] mb-2">OCR 辨識可能有遺漏品項</p>
-                        <p className="text-xs text-slate-400 mb-2">
-                          總頁數 {(parsedData as any).order_metadata?.ocr_page_count || '?'} 頁，辨識 {parsedData.items.length} 項
-                          {(() => {
-                            const expected = ((parsedData as any).order_metadata?.ocr_page_count || 0) * 44;
-                            const diff = expected - parsedData.items.length;
-                            return diff > 0 ? `（預期 ~${expected} 項，可能缺 ${diff} 項）` : '';
-                          })()}
-                        </p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {(parsedData as any).warnings.map((w: { missing_count: number; page_number: number }, i: number) => (
-                            <span key={i} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-[10px] font-medium text-slate-300">
-                              <span className="text-[#ff9f0a] font-bold">第 {w.page_number} 頁</span>
-                              {w.missing_count > 0 ? (
-                                <span>缺 {w.missing_count} 項</span>
-                              ) : (
-                                <span className="text-slate-500">異常多</span>
-                              )}
-                            </span>
-                          ))}
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+              {/* OCR 警告摘要（僅當總提取數小於紙本宣告總數，或確實有短缺時顯示） */}
+              {(() => {
+                const totalDeclared = (parsedData as any).order_metadata?.total_items;
+                const actualCount = parsedData.items.length;
+                const isComplete = totalDeclared != null && totalDeclared > 0 && actualCount >= totalDeclared;
+                const warnings = (parsedData as any).warnings as Array<{ missing_count: number; page_number: number }> | undefined;
+
+                if (isComplete || !warnings || warnings.length === 0) return null;
+
+                const diff = totalDeclared && totalDeclared > actualCount ? totalDeclared - actualCount : undefined;
+
+                return (
+                  <div className="flex-shrink-0 mx-4 lg:mx-6 mt-3 mb-2 animate-in fade-in slide-in-from-top-2">
+                    <div className="tech-card p-3 lg:p-4 border-[#ff9f0a]/50 bg-[#ff9f0a]/10">
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-[#ff9f0a]/20 flex items-center justify-center mt-0.5">
+                          <span className="text-[10px] font-bold text-[#ff9f0a]">⚠</span>
                         </div>
-                        <div className="flex items-center justify-between gap-2 mt-3 pt-2 border-t border-[#ff9f0a]/30">
-                          <p className="text-[10px] text-slate-400">建議人工檢查紙本或點擊重新辨識</p>
-                          <button
-                            type="button"
-                            onClick={handlePdfRetry}
-                            className="px-3 py-1 rounded-lg border border-[#ff9f0a]/60 bg-[#ff9f0a]/20 hover:bg-[#ff9f0a]/30 active:scale-95 text-xs text-[#ff9f0a] font-bold transition-all flex items-center gap-1.5"
-                          >
-                            <RotateCcw className="w-3.5 h-3.5" />
-                            <span>清空並重新上傳</span>
-                          </button>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-[#ff9f0a] mb-1">OCR 辨識可能有遺漏品項</p>
+                          <p className="text-xs text-slate-400 mb-2">
+                            總頁數 {(parsedData as any).order_metadata?.ocr_page_count || '?'} 頁，辨識 {actualCount} 項
+                            {diff ? `（紙本標註共 ${totalDeclared} 項，短缺 ${diff} 項）` : ''}
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {warnings.map((w, i) => (
+                              <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] font-medium text-slate-300">
+                                <span className="text-[#ff9f0a] font-bold">第 {w.page_number} 頁</span>
+                                {w.missing_count > 0 ? (
+                                  <span>缺 {w.missing_count} 項</span>
+                                ) : (
+                                  <span className="text-slate-500">異常多</span>
+                                )}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-[#ff9f0a]/30">
+                            <p className="text-[10px] text-slate-400">建議人工檢查紙本或點擊重新辨識</p>
+                            <button
+                              type="button"
+                              onClick={handlePdfRetry}
+                              className="px-3 py-1 rounded-lg border border-[#ff9f0a]/60 bg-[#ff9f0a]/20 hover:bg-[#ff9f0a]/30 active:scale-95 text-xs text-[#ff9f0a] font-bold transition-all flex items-center gap-1.5"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              <span>清空並重新上傳</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
               <PreviewPanel 
                 data={parsedData}
                 validation={validateParsedPdf(parsedData)}
