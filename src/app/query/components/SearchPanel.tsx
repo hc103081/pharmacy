@@ -123,7 +123,7 @@ export default function SearchPanel({
             <label className="block text-sm font-medium text-gray-300 mb-1">進階篩選</label>
             <button 
               onClick={() => setIsOpen(!isOpen)}
-              className={`w-full text-left flex items-center justify-between px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors text-slate-200 ${
+              className={`w-full text-left flex items-center justify-between px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg hover:bg-slate-800 active:scale-[0.98] active:bg-slate-800 transition-all duration-100 text-slate-200 ${
                 !isOpen ? 'border-t-broken' : ''
               }`}
             >
@@ -145,9 +145,9 @@ export default function SearchPanel({
                     <button
                       key={location}
                       onClick={() => toggleStorageLocation(location)}
-                      className={`px-2 py-1 text-xs rounded bg-slate-800/50 border border-slate-700 hover:bg-slate-800 transition-colors text-slate-200 ${
-                        selectedStorageLocations.includes(location) 
-                          ? 'bg-[#00f2fe]/20 border-[#00f2fe] text-[#00f2fe]' 
+                      className={`px-2 py-1 text-xs rounded bg-slate-800/50 border border-slate-700 hover:bg-slate-800 active:scale-95 active:bg-slate-700 transition-all duration-100 text-slate-200 ${
+                        selectedStorageLocations.includes(location)
+                          ? 'bg-[#00f2fe]/20 border-[#00f2fe] text-[#00f2fe]'
                           : ''
                       }`}
                     >
@@ -165,9 +165,9 @@ export default function SearchPanel({
                     <button
                       key={category}
                       onClick={() => toggleCategory(category)}
-                      className={`px-2 py-1 text-xs rounded bg-slate-800/50 border border-slate-700 hover:bg-slate-800 transition-colors text-slate-200 ${
-                        selectedCategories.includes(category) 
-                          ? 'bg-[#00f2fe]/20 border-[#00f2fe] text-[#00f2fe]' 
+                      className={`px-2 py-1 text-xs rounded bg-slate-800/50 border border-slate-700 hover:bg-slate-800 active:scale-95 active:bg-slate-700 transition-all duration-100 text-slate-200 ${
+                        selectedCategories.includes(category)
+                          ? 'bg-[#00f2fe]/20 border-[#00f2fe] text-[#00f2fe]'
                           : ''
                       }`}
                     >
@@ -241,13 +241,13 @@ export default function SearchPanel({
           <div className="flex flex-col sm:flex-row sm:gap-2">
             <button 
               onClick={resetFilters}
-              className="flex-1 px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors text-sm text-slate-200"
+              className="flex-1 px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg hover:bg-slate-800 active:scale-95 active:bg-slate-700 transition-all duration-100 text-sm text-slate-200"
             >
               重置
             </button>
             <button 
               onClick={applyFilters}
-              className="flex-1 px-3 py-2 bg-[#00f2fe]/20 border border-[#00f2fe] rounded-lg hover:bg-[#00f2fe]/30 transition-colors text-sm text-[#00f2fe]"
+              className="flex-1 px-3 py-2 bg-[#00f2fe]/20 border border-[#00f2fe] rounded-lg hover:bg-[#00f2fe]/30 active:scale-95 active:bg-[#00f2fe]/40 transition-all duration-100 text-sm text-[#00f2fe]"
             >
               套用篩選
             </button>
@@ -260,7 +260,7 @@ export default function SearchPanel({
         <div className="px-4 py-3 bg-slate-800/50 border-t border-slate-800">
           <button 
             onClick={applyFilters}
-            className="w-full px-4 py-2 bg-[#00f2fe]/20 border border-[#00f2fe] rounded-lg hover:bg-[#00f2fe]/30 transition-colors text-[#00f2fe]"
+            className="w-full px-4 py-2 bg-[#00f2fe]/20 border border-[#00f2fe] rounded-lg hover:bg-[#00f2fe]/30 active:scale-95 active:bg-[#00f2fe]/40 transition-all duration-100 text-[#00f2fe]"
           >
             套用篩選並搜尋
           </button>
