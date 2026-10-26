@@ -185,23 +185,23 @@ export default function SearchPanel({
               {/* Date Range */}
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-300 mb-1">日期範圍</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="min-w-0">
                     <label className="block text-xs text-gray-300 mb-1">開始日期</label>
                     <input
                       type="date"
                       value={dateRange.from ?? ''}
                       onChange={(e) => handleDateChange('from', e.target.value || null)}
-                      className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg focus:ring-2 focus:ring-[#00f2fe] focus:bg-slate-800 text-white"
+                      className="w-full min-w-0 px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg focus:ring-2 focus:ring-[#00f2fe] focus:bg-slate-800 text-white"
                     />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label className="block text-xs text-gray-300 mb-1">結束日期</label>
                     <input
                       type="date"
                       value={dateRange.to ?? ''}
                       onChange={(e) => handleDateChange('to', e.target.value || null)}
-                      className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg focus:ring-2 focus:ring-[#00f2fe] focus:bg-slate-800 text-white"
+                      className="w-full min-w-0 px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg focus:ring-2 focus:ring-[#00f2fe] focus:bg-slate-800 text-white"
                     />
                   </div>
                 </div>
