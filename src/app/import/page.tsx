@@ -586,7 +586,17 @@ export default function ImportPage() {
                             </span>
                           ))}
                         </div>
-                        <p className="text-[10px] text-slate-500 mt-2">建議人工檢查上述頁數的紙本，確認是否有遺漏品項</p>
+                        <div className="flex items-center justify-between gap-2 mt-3 pt-2 border-t border-[#ff9f0a]/30">
+                          <p className="text-[10px] text-slate-400">建議人工檢查紙本或點擊重新辨識</p>
+                          <button
+                            type="button"
+                            onClick={handlePdfRetry}
+                            className="px-3 py-1 rounded-lg border border-[#ff9f0a]/60 bg-[#ff9f0a]/20 hover:bg-[#ff9f0a]/30 active:scale-95 text-xs text-[#ff9f0a] font-bold transition-all flex items-center gap-1.5"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>清空並重新上傳</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
