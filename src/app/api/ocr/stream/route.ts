@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { fetchImageAsBase64, repairGeminiJson, friendlyGeminiError, createGeminiModel } from '@/lib/gemini';
 import { resolveNhiTranslations } from '@/lib/nhi';
-import { applyNhiResults } from '@/lib/nhiMatch';
+import { applyNhiResults, sanitizeProductCode, sanitizeBarcode } from '@/lib/nhiMatch';
 import type { ParsedItem, ParsedPdf } from '@/lib/pdfParser';
 import type { PageItem } from '@/app/actions/import/types';
 
@@ -114,6 +114,7 @@ async function callGeminiForBatch(
 4. 儲位格式為字母+數字（如 F3、C2、A1），類別為純數字或單一字母（如 4、1、X、B）
 5. 藥品品名（name）中若有雙引號，請一律替換為單引號 ' 或直接去除，嚴禁在字串內部輸出未跳脫的雙引號
 6. 藥品品名中若有頓號、逗號或換行，請保持原樣
+7. 商品代碼 (product_code) 若為健保碼，末尾字元皆為數字 0（如 AB091021G0、AC426871G0），請嚴格區分數字 0 與英文字母 O，絕不可輸出為字母 O；國際條碼 (barcode) 為純數字
 
 JSON 格式範例：
 {
@@ -173,8 +174,8 @@ JSON 格式範例：
       return {
         storage_location: item.storage_location || '',
         category: item.category || '',
-        barcode: (item.barcode || '').trim(),
-        product_code: item.product_code ? (item.product_code || '').trim() : '',
+        barcode: sanitizeBarcode(item.barcode),
+        product_code: sanitizeProductCode(item.product_code),
         drug_name: item.name || '',
         quantity: expectedQuantity.toString(),
         warehouse_quantity: warehouseQuantity,

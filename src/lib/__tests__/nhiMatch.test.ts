@@ -6,6 +6,8 @@ import {
   pickCandidates,
   getSearchKeyword,
   applyNhiResults,
+  sanitizeProductCode,
+  sanitizeBarcode,
 } from '../nhiMatch';
 import type { NhiCandidate } from '../nhiMatch';
 
@@ -81,5 +83,21 @@ describe('applyNhiResults', () => {
     expect(out[1]).toMatchObject({ drug_name: 'BBB', nhi_status: 'pending' });
     expect(out[1].nhi_candidates).toHaveLength(2);
     expect(out[2]).toMatchObject({ drug_name: 'CCC', nhi_status: 'none' });
+  });
+});
+
+describe('sanitizeProductCode & sanitizeBarcode', () => {
+  it('將健保代碼末尾誤判的英文字母 O 校正為數字 0 (AB091021GO -> AB091021G0)', () => {
+    expect(sanitizeProductCode('AB091021GO')).toBe('AB091021G0');
+    expect(sanitizeProductCode('AC426871GO')).toBe('AC426871G0');
+    expect(sanitizeProductCode('BC171251GO')).toBe('BC171251G0');
+  });
+
+  it('將健保代碼中間藥證數字區間的 O 校正為 0', () => {
+    expect(sanitizeProductCode('ABO91021G0')).toBe('AB091021G0');
+  });
+
+  it('國際條碼純數字清洗 (把 O 轉為 0, I 轉為 1)', () => {
+    expect(sanitizeBarcode('471614O2OO816')).toBe('4716140200816');
   });
 });

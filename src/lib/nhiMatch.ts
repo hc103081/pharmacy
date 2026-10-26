@@ -182,3 +182,46 @@ export function applyNhiResults<T extends TranslatableItem>(items: T[], results:
     return { ...item, nhi_status: 'none' as const };
   });
 }
+
+/**
+ * 清洗與校正商品代碼／健保代碼（NHI Code）
+ * 針對 OCR 常將數字 0 誤判為字母 O 的混淆進行自動校正
+ * 例：AB091021GO → AB091021G0
+ *     AC426871GO → AC426871G0
+ */
+export function sanitizeProductCode(rawCode?: string): string {
+  if (!rawCode) return '';
+  let cleaned = rawCode.trim().toUpperCase();
+
+  // 若符合台灣 10 碼健保碼外觀（8~11 碼，字母開頭）
+  if (/^[A-Z][A-Z0-9]{7,10}$/.test(cleaned)) {
+    // 1. 健保碼末尾（第 9、10 碼包裝碼）絕無英文字母 O，必為數字 0
+    cleaned = cleaned.replace(/O+$/, m => '0'.repeat(m.length));
+
+    // 2. 第 3 至 7 碼為藥證 5 位純數字流水號，若誤判為 O 則校正為 0
+    if (cleaned.length >= 7) {
+      const prefix = cleaned.slice(0, 2);
+      const middle = cleaned.slice(2, 7).replace(/O/g, '0');
+      const suffix = cleaned.slice(7);
+      cleaned = prefix + middle + suffix;
+    }
+  }
+
+  return cleaned;
+}
+
+/**
+ * 清洗與校正國際條碼（Barcode）
+ * 國際條碼為純數字格式，OCR 誤讀為字母 O/o 時自動轉為數字 0，字母 I/l 轉為數字 1
+ */
+export function sanitizeBarcode(rawBarcode?: string): string {
+  if (!rawBarcode) return '';
+  let cleaned = rawBarcode.trim();
+  if (/^[0-9A-Za-z\s-]+$/.test(cleaned)) {
+    cleaned = cleaned
+      .replace(/[Oo]/g, '0')
+      .replace(/[Il|]/g, '1')
+      .replace(/[\s-]/g, '');
+  }
+  return cleaned;
+}

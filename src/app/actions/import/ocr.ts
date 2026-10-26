@@ -3,7 +3,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { fetchImageAsBase64, repairGeminiJson, friendlyGeminiError, createGeminiModel } from '@/lib/gemini';
 import { batchLookupNhi, resolveNhiTranslations } from '@/lib/nhi';
-import { applyNhiResults } from '@/lib/nhiMatch';
+import { applyNhiResults, sanitizeProductCode, sanitizeBarcode } from '@/lib/nhiMatch';
 import type { ParsedItem, ParsedPdf } from '@/lib/pdfParser';
 import { PageItem, ImportDrugItem } from './types';
 
@@ -207,8 +207,8 @@ export async function parseBatchWithGemini(url: string, _batchIndex: number): Pr
       return {
         storage_location: item.storage_location || '',
         category: item.category || '',
-        barcode: (item.barcode || '').trim(),
-        product_code: item.product_code ? (item.product_code || '').trim() : '',
+        barcode: sanitizeBarcode(item.barcode),
+        product_code: sanitizeProductCode(item.product_code),
         drug_name: drugName,
         quantity: rawQuantity,
         warehouse_quantity,

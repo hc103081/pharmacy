@@ -1,7 +1,7 @@
 'use server';
 
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
-import { isEnglishOnlyName, getSearchKeyword, pickCandidates } from '@/lib/nhiMatch';
+import { isEnglishOnlyName, getSearchKeyword, pickCandidates, sanitizeProductCode, sanitizeBarcode } from '@/lib/nhiMatch';
 
 /**
  * 批次查詢 NHI 藥品中文名稱
@@ -92,13 +92,13 @@ export async function resolveNhiTranslations(items: NhiResolveInput[]): Promise<
 
   // 第 1 層：代碼精準比對
   const codes = items
-    .map(i => i.product_code?.trim() || i.barcode?.trim())
+    .map(i => sanitizeProductCode(i.product_code) || sanitizeBarcode(i.barcode))
     .filter((c): c is string => !!c);
   const codeMap = await batchLookupNhi(codes);
 
   const unresolved: NhiResolveInput[] = [];
   for (const item of items) {
-    const code = item.product_code?.trim() || item.barcode?.trim();
+    const code = sanitizeProductCode(item.product_code) || sanitizeBarcode(item.barcode);
     const hit = code ? codeMap.get(code) : undefined;
     if (hit) {
       results.set(item.line_number, { line_number: item.line_number, status: 'auto', chinese_name: hit });
