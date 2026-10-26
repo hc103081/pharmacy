@@ -1,6 +1,8 @@
 'use client';
 
 import * as React from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
+import { cn, variants } from '@/app/query/design-system';
 
 interface TabsProps {
   children: React.ReactNode;
@@ -18,7 +20,8 @@ interface TabProps {
   children: React.ReactNode;
   className?: string;
   index?: number;
-  isActive?: boolean;
+  disabled?: boolean;
+  icon?: React.ReactNode;
 }
 
 interface TabPanelsProps {
@@ -33,18 +36,20 @@ interface TabPanelProps {
 
 export function Tabs({ children, className, defaultIndex = 0, onChange }: TabsProps) {
   const [activeIndex, setActiveIndex] = React.useState(defaultIndex);
+  const reduceMotion = useReducedMotion() ?? false;
   
   const contextValue = React.useMemo(() => ({
     activeIndex,
     setActiveIndex: (index: number) => {
       setActiveIndex(index);
       onChange?.(index);
-    }
-  }), [activeIndex, onChange]);
+    },
+    reduceMotion,
+  }), [activeIndex, onChange, reduceMotion]);
   
   return (
     <TabsContext.Provider value={contextValue}>
-      <div className={className}>{children}</div>
+      <div className={cn(className)}>{children}</div>
     </TabsContext.Provider>
   );
 }
@@ -52,6 +57,7 @@ export function Tabs({ children, className, defaultIndex = 0, onChange }: TabsPr
 const TabsContext = React.createContext<{
   activeIndex: number;
   setActiveIndex: (index: number) => void;
+  reduceMotion: boolean;
 } | null>(null);
 
 function useTabsContext() {
@@ -68,65 +74,124 @@ Tabs.TabPanels = TabPanels;
 Tabs.TabPanel = TabPanel;
 
 function TabList({ children, className }: TabListProps) {
+  const { activeIndex, setActiveIndex, reduceMotion } = useTabsContext();
+  
   return (
-    <div role="tablist" className={`${className} flex overflow-x-auto scrollbar-hide -mx-4 px-4`}>
+    <div 
+      role="tablist" 
+      className={cn(
+        variants.segmentedControl.container,
+        className
+      )}
+      aria-label="主要分頁"
+    >
       {React.Children.map(children, (child, index) => {
         if (!React.isValidElement(child)) return child;
         return React.cloneElement(child as React.ReactElement<any>, { 
           index,
-          isActive: false
+          isActive: index === activeIndex,
+          onSelect: () => setActiveIndex(index),
         });
       })}
     </div>
   );
 }
 
-function Tab({ children, className, index, isActive: _isActive }: TabProps & { index?: number; isActive?: boolean }) {
-  const { activeIndex, setActiveIndex } = useTabsContext();
-  const isActive = index === activeIndex;
+function Tab({ 
+  children, 
+  className, 
+  index, 
+  isActive = false, 
+  onSelect,
+  disabled = false,
+  icon 
+}: TabProps & { index?: number; isActive?: boolean; onSelect?: () => void }) {
+  const { reduceMotion } = useTabsContext();
+  
+  if (index === undefined) return null;
   
   return (
     <button
       role="tab"
       aria-selected={isActive}
+      aria-disabled={disabled}
       tabIndex={isActive ? 0 : -1}
-      onClick={() => index !== undefined && setActiveIndex(index)}
-      className={`
-        flex-1 px-4 py-3 text-sm font-medium transition-all duration-200
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00f2fe]
-        ${isActive 
-          ? 'text-[#00f2fe] border-b-2 border-[#00f2fe] bg-slate-800/50' 
-          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+      disabled={disabled}
+      onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect?.();
         }
-        ${className}
-      `}
+      }}
+      className={cn(
+        isActive ? variants.segmentedControl.itemSelected : variants.segmentedControl.item,
+        disabled && 'opacity-50 cursor-not-allowed',
+        className
+      )}
     >
+      {icon && <span className="flex-shrink-0" aria-hidden="true">{icon}</span>}
       {children}
     </button>
   );
 }
 
 function TabPanels({ children, className }: TabPanelsProps) {
-  const { activeIndex } = useTabsContext();
+  const { activeIndex, reduceMotion } = useTabsContext();
   
   return (
-    <div className={className}>
+    <div className={cn('relative', className)}>
       {React.Children.map(children, (child, index) => {
         if (!React.isValidElement(child)) return child;
         return React.cloneElement(child as React.ReactElement<any>, { 
-          isActive: index === activeIndex 
+          isActive: index === activeIndex,
+          reduceMotion,
         });
       })}
     </div>
   );
 }
 
-function TabPanel({ children, className, isActive = false }: TabPanelProps & { isActive?: boolean }) {
+function TabPanel({ 
+  children, 
+  className, 
+  isActive = false,
+  reduceMotion = false 
+}: TabPanelProps & { isActive?: boolean; reduceMotion?: boolean }) {
   if (!isActive) return null;
   
+  const contentRef = React.useRef<HTMLDivElement>(null);
+  
+  if (reduceMotion) {
+    return (
+      <div 
+        ref={contentRef}
+        role="tabpanel" 
+        tabIndex={0} 
+        className={cn('overflow-y-auto', className)}
+      >
+        {children}
+      </div>
+    );
+  }
+  
   return (
-    <div role="tabpanel" tabIndex={0} className={`${className} overflow-y-auto`}>
+    <motion.div
+      ref={contentRef}
+      role="tabpanel"
+      tabIndex={0}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ 
+        duration: 0.2, 
+        ease: [0.16, 1, 0.3, 1] 
+      }}
+      className={cn('overflow-y-auto', className)}
+    >
       {children}
-    </div>
+    </motion.div>
   );
 }
+
+export default Tabs;
