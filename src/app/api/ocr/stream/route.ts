@@ -73,6 +73,7 @@ async function callGeminiForBatch(
   success: boolean;
   order_number?: string;
   delivery_date?: string;
+  page_number?: number;
   total_pages?: number;
   total_items?: number;
   page_items_count?: number;
@@ -99,9 +100,10 @@ async function callGeminiForBatch(
 請從圖片中找出：
 1. 出貨單號 (order_number)，格式如 R012606220001
 2. 列印時間 (delivery_date)，請將日期格式化為 YYYY-MM-DD
-3. 整張單據總項目數 (total_items)，通常印在圖片底部如「共244項」，請提取純整數如 244
-4. 總頁數 (total_pages)，通常印在圖片右下角如「頁次 6 of 6」，請提取純整數如 6
-5. 本頁項目數 (page_items_count)，通常印在圖片左下角如「本頁:24項」或「本頁:44項」，請提取純整數如 24
+3. 當前頁碼 (page_number)，通常印在圖片右下角如「頁次 6 of 6」，請提取當前頁碼數字如 6
+4. 總頁數 (total_pages)，通常印在圖片右下角如「頁次 6 of 6」，請提取總頁數如 6
+5. 整張單據總項目數 (total_items)，通常印在圖片底部如「共244項」，請提取純整數如 244
+6. 本頁項目數 (page_items_count)，通常印在圖片左下角如「本頁:24項」或「本頁:44項」，請提取純整數如 24
 
 然後請分析所有 ${urls.length} 張圖片，逐行輸出每一筆藥品項目，不可跳過任何一行。即使某欄位無法辨識（條碼模糊、品名不清），仍需輸出該行，將無法辨識的欄位設為空字串。
 
@@ -113,7 +115,7 @@ async function callGeminiForBatch(
 - warehouse_quantity: 總倉庫存量（紙本最右側的右欄，純整數如 1、284、-12）
 - storage_location: 儲位（如 F3），找不到請設為空字串
 - category: 類別（如 4），找不到請設為空字串
-- page_number: 當前項目所在的頁碼數字（從照片底部頁次獲取，如 1）
+- page_number: 當前項目所在的頁碼數字（從照片底部頁次獲取，如 6）
 
 重要提取規則（請嚴格遵守）：
 1. 輸出嚴格純 JSON，不加 markdown 標記（如 \`\`\`json 或 \`\`\`），開頭直接是 {
@@ -128,6 +130,7 @@ JSON 格式範例：
 {
   "order_number": "R012606220001",
   "delivery_date": "2026-06-22",
+  "page_number": 6,
   "total_pages": 6,
   "total_items": 244,
   "page_items_count": 24,
@@ -140,7 +143,7 @@ JSON 格式範例：
       "warehouse_quantity": 284,
       "storage_location": "F3",
       "category": "4",
-      "page_number": 1
+      "page_number": 6
     }
   ]
 }`;
@@ -208,10 +211,25 @@ JSON 格式範例：
         ? parseInt(parsed.page_items_count.replace(/\D/g, ''), 10) || undefined
         : undefined;
 
+    const parsedPageNumber =
+      typeof parsed.page_number === 'number'
+        ? parsed.page_number
+        : typeof parsed.page_number === 'string'
+        ? parseInt(parsed.page_number.replace(/\D/g, ''), 10) || undefined
+        : undefined;
+
+    // 優先使用項目自帶的 page_number，若無則補上頂層解析到的真實頁碼
+    for (const it of items) {
+      if (it.page_number == null && parsedPageNumber != null) {
+        it.page_number = parsedPageNumber;
+      }
+    }
+
     return {
       success: true,
       order_number: parsed.order_number,
       delivery_date: parsed.delivery_date,
+      page_number: parsedPageNumber,
       total_pages: parsed.total_pages,
       total_items: parsedTotalItems,
       page_items_count: parsedPageItemsCount,
@@ -269,6 +287,7 @@ export async function POST(req: NextRequest) {
 
           const allBatchResults: Array<{
             batchIndex: number;
+            page_number?: number;
             order_number?: string;
             delivery_date?: string;
             total_pages?: number;
@@ -363,31 +382,31 @@ export async function POST(req: NextRequest) {
               return;
             }
 
-            // 確保每筆項目的 page_number 均被標註
+            // 優先使用照片中真實辨識出的頁碼（例如照片右下角印著 6 of 6），若無才 fallback 到 pageIndex
+            const detectedPage = result.page_number ?? result.items[0]?.page_number ?? pageIndex;
             for (const item of result.items) {
-              if (item.page_number == null) {
-                item.page_number = pageIndex;
-              }
+              item.page_number = item.page_number ?? detectedPage;
             }
 
-            // 驗證單頁項目數量
+            // 驗證單頁項目數量（傳入 detectedPage 與本頁標註項數）
             const pageValidation = validatePageItemCount(
               result.items,
-              pageIndex,
+              detectedPage,
               result.total_pages ?? totalPages,
               result.page_items_count
             );
             if (pageValidation.warning) {
               allWarnings.push(pageValidation.warning);
               sendSseEvent(controller, encoder, 'warning', {
-                page: pageIndex,
+                page: detectedPage,
                 warning: pageValidation.warning,
-                message: `第 ${pageIndex} 頁提取 ${result.items.length} 項（短缺 ${pageValidation.warning.missing_count} 項）`,
+                message: `第 ${detectedPage} 頁提取 ${result.items.length} 項（短缺 ${pageValidation.warning.missing_count} 項）`,
               });
             }
 
             allBatchResults.push({
-              batchIndex: pageIndex - 1,
+              batchIndex: detectedPage - 1,
+              page_number: detectedPage,
               order_number: result.order_number,
               delivery_date: result.delivery_date,
               total_pages: result.total_pages,
@@ -398,18 +417,19 @@ export async function POST(req: NextRequest) {
             sendSseEvent(controller, encoder, 'page_done', {
               stage: 'ocr_page_done',
               page: pageIndex,
-              totalPages,
+              realPageNumber: detectedPage,
+              totalPages: result.total_pages ?? totalPages,
               itemCount: result.items.length,
               total_items: result.total_items,
               percent: Math.round(10 + ((i + 1) / pageItemsQueue.length) * 70),
-              message: `第 ${pageIndex} 頁辨識完成，成功提取 ${result.items.length} 筆藥品`,
+              message: `第 ${detectedPage} 頁辨識完成，成功提取 ${result.items.length} 筆藥品`,
               model: currentModel,
               items: result.items,
             });
           }
 
-          // 合併所有項目並排序
-          allBatchResults.sort((a, b) => a.batchIndex - b.batchIndex);
+          // 合併所有項目並依照真實頁碼排序
+          allBatchResults.sort((a, b) => (a.page_number ?? a.batchIndex) - (b.page_number ?? b.batchIndex));
           const rawItems: PageItem[] = allBatchResults.flatMap((r) => r.items);
 
           if (rawItems.length === 0) {
@@ -462,8 +482,8 @@ export async function POST(req: NextRequest) {
           const firstResult = allBatchResults[0];
           const declaredTotal = allBatchResults.map((r) => r.total_items).find((n) => n != null && n > 0);
 
-          // 若全單實際提取項目數 >= 宣告總項數（例如 244 === 244），清空所有誤報 warnings
-          if (declaredTotal && finalItems.length >= declaredTotal) {
+          // 若全單實際提取項目數 >= 宣告總項數（例如 244 === 244），或為單頁測試模式，清空誤報 warnings
+          if ((declaredTotal && finalItems.length >= declaredTotal) || isSinglePageMode) {
             allWarnings.length = 0;
           }
 
@@ -485,6 +505,7 @@ export async function POST(req: NextRequest) {
             stage: 'done',
             percent: 100,
             message: `辨識完成！共成功載入 ${finalItems.length} 項藥品。`,
+            realPageNumber: firstResult.page_number,
             data: parsedData,
           });
         } catch (err: unknown) {

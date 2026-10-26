@@ -27,6 +27,8 @@ export interface PageCardState {
   order_number?: string;
   delivery_date?: string;
   total_items?: number;
+  total_pages?: number;
+  realPageIndex?: number;
   errorMessage?: string;
   warning?: { missing_count: number; page_number: number };
 }
@@ -355,21 +357,37 @@ export default function ImportPage() {
       const firstWithOrder = sortedCards.find(c => c.order_number);
       const orderNumber = firstWithOrder?.order_number || manifestName || '未知單號';
       const deliveryDate = firstWithOrder?.delivery_date || '';
-      const declaredTotal = sortedCards.map(c => c.total_items).find(n => n != null && n > 0);
 
-      // 若全單實際提取項目數 >= 宣告總項數（例如紙本標註 244 且實際滿 244 項），清空所有誤報 warnings
-      if (declaredTotal && combinedItems.length >= declaredTotal) {
+      // 嚴謹解析全單宣告總項目數：
+      // 1. 若上傳多頁，宣告總項數絕不可能小於本次提取總數 (combinedItems.length)
+      // 2. 若上傳單頁測試 (sortedCards.length === 1)，本次提取數為本頁項數
+      const validDeclaredTotals = sortedCards
+        .map(c => c.total_items)
+        .filter((n): n is number => n != null && n >= combinedItems.length);
+      const maxDeclared = validDeclaredTotals.length > 0 ? Math.max(...validDeclaredTotals) : undefined;
+      const isSinglePageTest = sortedCards.length === 1;
+
+      // 若為單頁測試，total_items 代表本次提取項數，避免誤顯示 44/244；多頁時取真實宣告總數或提取總數
+      const finalTotalItems = isSinglePageTest ? combinedItems.length : (maxDeclared || combinedItems.length);
+
+      // 若全單實際提取項目數 >= 宣告總項數（例如 244 === 244），或為單頁測試，清空所有誤報 warnings
+      if ((maxDeclared && combinedItems.length >= maxDeclared) || isSinglePageTest) {
         combinedWarnings.length = 0;
       }
+
+      const totalPagesReported = Math.max(
+        sortedCards.length,
+        ...sortedCards.map(c => c.total_pages || 0)
+      );
 
       const parsed: ParsedPdf = {
         order_metadata: {
           order_number: orderNumber,
           delivery_date: deliveryDate,
-          total_items: declaredTotal || combinedItems.length,
+          total_items: finalTotalItems,
           source_type: 'images',
           uploaded_image_count: sortedCards.length,
-          ocr_page_count: sortedCards.length,
+          ocr_page_count: totalPagesReported,
           ocr_request_count: sortedCards.length,
         },
         items: combinedItems,
@@ -471,10 +489,14 @@ export default function ImportPage() {
               warning: data.warning,
             } : c));
           } else if (eventName === 'page_done') {
+            const detectedPage = data.realPageNumber ?? data.page;
             setPageCards(prev => prev.map(c => c.pageIndex === pageIndex ? {
               ...c,
+              realPageIndex: detectedPage,
+              pageIndex: detectedPage ?? c.pageIndex,
               itemCount: data.itemCount,
               total_items: data.total_items ?? c.total_items,
+              total_pages: data.totalPages ?? c.total_pages,
               items: data.items,
               model: data.model || c.model,
             } : c));
@@ -482,13 +504,17 @@ export default function ImportPage() {
             playAlertTone('success');
             const pageItems: ParsedItem[] = data.data?.items || [];
             const pageTotalItems = data.data?.order_metadata?.total_items ?? data.total_items;
+            const detectedPage = data.realPageNumber ?? data.data?.items?.[0]?.page_number;
             setPageCards(prev => {
               const nextCards = prev.map(c => c.pageIndex === pageIndex ? {
                 ...c,
+                realPageIndex: detectedPage,
+                pageIndex: detectedPage ?? c.pageIndex,
                 status: 'success' as const,
                 percent: 100,
                 itemCount: pageItems.length,
                 total_items: pageTotalItems ?? c.total_items,
+                total_pages: data.data?.order_metadata?.ocr_page_count ?? c.total_pages,
                 items: pageItems,
                 order_number: data.data?.order_metadata?.order_number,
                 delivery_date: data.data?.order_metadata?.delivery_date,

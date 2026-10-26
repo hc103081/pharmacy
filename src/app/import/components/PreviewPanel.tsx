@@ -172,7 +172,19 @@ export default function PreviewPanel({
               <div className="flex items-center gap-2">
                 <span className="text-slate-500">提取項目:</span>
                 <span className="text-slate-200 font-bold">
-                  {data.items.length} / {data.order_metadata.total_items}
+                  {(() => {
+                    const actualCount = data.items.length;
+                    const declaredTotal = data.order_metadata.total_items;
+                    const uploadCount = data.order_metadata.uploaded_image_count || 1;
+                    const ocrPageCount = data.order_metadata.ocr_page_count || 1;
+                    const isSinglePageTest = uploadCount === 1 && ocrPageCount > 1;
+
+                    if (isSinglePageTest) {
+                      return `${actualCount} 項（單頁測試，全單共 ${ocrPageCount} 頁）`;
+                    }
+
+                    return `${actualCount} / ${declaredTotal}`;
+                  })()}
                   {(() => {
                     const mergedItems = data.items.filter(i => i.merged_count && i.merged_count > 1);
                     const totalMerged = mergedItems.reduce((sum, i) => sum + (i.merged_count || 1) - 1, 0);
