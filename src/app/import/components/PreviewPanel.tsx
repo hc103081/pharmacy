@@ -29,12 +29,29 @@ export default function PreviewPanel({
 }: PreviewPanelProps) {
   const [editedItems, setEditedItems] = useState<ParsedItem[]>(data.items);
   const [filter, setFilter] = useState<FilterMode>('all');
+  const [selectedPage, setSelectedPage] = useState<'all' | number>('all');
   const [viewMode, setViewMode] = useState<'table' | 'card'>('card');
   /** 多筆翻譯說明彈窗是否已顯示過 */
   const [introDismissed, setIntroDismissed] = useState(false);
   /** 目前開啟候選選擇視窗的項目 line_number */
   const [pickerLine, setPickerLine] = useState<number | null>(null);
   const [manualName, setManualName] = useState('');
+
+  /** 統計所有頁碼與每頁項數 */
+  const { availablePages, pageCountMap } = useMemo(() => {
+    const pages = new Set<number>();
+    const countMap: Record<number, number> = {};
+    for (const item of editedItems) {
+      if (item.page_number != null) {
+        pages.add(item.page_number);
+        countMap[item.page_number] = (countMap[item.page_number] || 0) + 1;
+      }
+    }
+    return {
+      availablePages: Array.from(pages).sort((a, b) => a - b),
+      pageCountMap: countMap,
+    };
+  }, [editedItems]);
 
   useEffect(() => {
     setTimeout(() => setEditedItems(data.items), 0);
@@ -110,6 +127,9 @@ export default function PreviewPanel({
   // 篩選邏輯
   const filteredItems = useMemo(() => {
     return editedItems.filter(item => {
+      if (selectedPage !== 'all' && item.page_number !== selectedPage) {
+        return false;
+      }
       const val = validation.itemValidations.find(v => v.line_number === item.line_number);
       const status = val?.status || 'pass';
       const drugRisk = hasDrugNameRisk(item);
@@ -119,7 +139,7 @@ export default function PreviewPanel({
       if (filter === 'needs_review') return status === 'warn' || status === 'error' || drugRisk;
       return true;
     });
-  }, [editedItems, filter, validation]);
+  }, [editedItems, filter, validation, selectedPage]);
 
   // 統計：需要人工確認的項目數
   const needsReviewCount = useMemo(() => {
@@ -178,6 +198,40 @@ export default function PreviewPanel({
           </div>
         </div>
         
+        {/* 頁次分區標籤列 */}
+        {availablePages.length > 0 && (
+          <div className="flex items-center gap-2 pt-1 pb-1">
+            <span className="text-xs text-slate-400 shrink-0 font-medium">頁次分區：</span>
+            <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full scrollbar-thin">
+              <button
+                type="button"
+                onClick={() => setSelectedPage('all')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all active:scale-95 shrink-0 ${
+                  selectedPage === 'all'
+                    ? 'bg-[#00f2fe]/20 border border-[#00f2fe]/60 text-[#00f2fe] shadow-[0_0_12px_rgba(0,242,254,0.3)]'
+                    : 'bg-slate-800/70 border border-slate-700/60 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                全部 ({editedItems.length})
+              </button>
+              {availablePages.map((pageNum) => (
+                <button
+                  key={pageNum}
+                  type="button"
+                  onClick={() => setSelectedPage(pageNum)}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all active:scale-95 shrink-0 ${
+                    selectedPage === pageNum
+                      ? 'bg-[#00f2fe]/20 border border-[#00f2fe]/60 text-[#00f2fe] shadow-[0_0_12px_rgba(0,242,254,0.3)]'
+                      : 'bg-slate-800/70 border border-slate-700/60 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  第 {pageNum} 頁 ({pageCountMap[pageNum] ?? 0})
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* 篩選工具列 */}
         {(needsReviewCount > 0 || pendingCount > 0) && (
           <div className="flex items-center gap-2 pt-2">
@@ -241,7 +295,12 @@ export default function PreviewPanel({
                   
                   return (
                     <tr key={item.line_number} className={`group transition-colors ${status === 'error' ? 'bg-red-500/5' : drugRisk ? 'bg-orange-500/5' : status === 'warn' ? 'bg-yellow-500/5' : ''}`}>
-                      <td className="py-3 px-2 text-slate-400 font-mono">{item.line_number}</td>
+                      <td className="py-3 px-2 text-slate-400 font-mono">
+                        <span>{item.line_number}</span>
+                        {item.page_number && (
+                          <span className="ml-1 text-[10px] text-cyan-400/80">P.{item.page_number}</span>
+                        )}
+                      </td>
                       <td className="py-3 px-2">
                         <input 
                           value={item.storage_location || ''} 
@@ -350,7 +409,14 @@ export default function PreviewPanel({
                 <div key={item.line_number} className={`flex items-start px-[10px] py-[10px] mx-[5px] bg-[#162a56] rounded-xl border-2 border-[#00f2fe] shadow-sm overflow-hidden ${status === 'error' ? 'bg-red-500/5' : drugRisk ? 'bg-orange-500/5' : status === 'warn' ? 'bg-yellow-500/5' : ''}`}>
                   <div className="flex w-full min-w-0">
                     <div className="flex flex-col w-1/3 shrink-0">
-                      <div className="text-sm text-[#00f2fe] text-left">{item.line_number}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm text-[#00f2fe] font-mono">{item.line_number}</span>
+                        {item.page_number && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+                            P.{item.page_number}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-xs text-slate-400 mt-1">國際條碼：{item.barcode || ''}</div>
                   {item.product_code && item.product_code !== item.barcode && (
                     <div className="text-xs text-[#00f2fe]/70 mt-1">商品代碼：{item.product_code}</div>

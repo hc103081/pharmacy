@@ -10,7 +10,9 @@ export const dynamic = 'force-dynamic';
 
 const PRIMARY_MODEL = 'gemini-3.1-flash-lite';
 const FALLBACK_MODEL = 'gemini-2.5-flash';
-const MAX_RETRIES = 2;
+/** 輪詢模型順序：3.1 首選 -> 2.5 備援 -> 輪詢喚回 3.1 -> 備援 2.5 */
+const MODEL_SEQUENCE = [PRIMARY_MODEL, FALLBACK_MODEL, PRIMARY_MODEL, FALLBACK_MODEL];
+const MAX_RETRIES = 3;
 
 /**
  * 輔助函數：向 SSE Stream 送出格式化事件
@@ -29,7 +31,7 @@ function sendSseEvent(
 }
 
 /**
- * 驗證頁面項目數是否符合預期（非末頁必須滿 44 項）
+ * 驗證頁面項目數是否符合預期（非末頁必須滿 44 項，任何頁面不可為 0 項）
  */
 function validatePageItemCount(
   items: PageItem[],
@@ -41,7 +43,7 @@ function validatePageItemCount(
   const isLastPage = pageNumber === totalPages;
 
   if (count === 0) {
-    return { error: `第 ${pageNumber} 頁未辨識到任何品項` };
+    return { error: `第 ${pageNumber} 頁未辨識到任何藥品品項` };
   }
 
   if (!isLastPage) {
@@ -109,7 +111,7 @@ async function callGeminiForBatch(
 
 重要提取規則（請嚴格遵守）：
 1. 輸出嚴格純 JSON，不加 markdown 標記（如 \`\`\`json 或 \`\`\`），開頭直接是 {
-2. 不要跳過任何一行，紙本清單每頁固定為 44 項，請確保提取項目數完整
+2. 不要跳過任何一行，紙本清單每頁通常為 44 項，末頁亦有相應藥品，不可輸出空清單
 3. 欄位找不到請一律輸出空字串，不要自創欄位
 4. 儲位格式為字母+數字（如 F3、C2、A1），類別為純數字或單一字母（如 4、1、X、B）
 5. 藥品品名（name）中若有雙引號，請一律替換為單引號 ' 或直接去除，嚴禁在字串內部輸出未跳脫的雙引號
@@ -203,10 +205,25 @@ JSON 格式範例：
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const urls: string[] = body.urls;
 
-    if (!Array.isArray(urls) || urls.length === 0) {
-      return new Response(JSON.stringify({ error: '請提供有效的圖片 URL 列表' }), {
+    // 支援單頁請求模式 { url: string, pageIndex: number, totalPages: number }
+    // 或多頁請求模式 { urls: string[] }
+    let pageItemsQueue: Array<{ url: string; pageIndex: number; totalPages: number }> = [];
+
+    if (typeof body.url === 'string' && body.url.trim()) {
+      pageItemsQueue = [{
+        url: body.url.trim(),
+        pageIndex: Number(body.pageIndex) || 1,
+        totalPages: Number(body.totalPages) || 1,
+      }];
+    } else if (Array.isArray(body.urls) && body.urls.length > 0) {
+      pageItemsQueue = body.urls.map((u: string, idx: number) => ({
+        url: u,
+        pageIndex: idx + 1,
+        totalPages: body.urls.length,
+      }));
+    } else {
+      return new Response(JSON.stringify({ error: '請提供有效的圖片 URL 或單頁參數' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json; charset=utf-8' },
       });
@@ -217,10 +234,12 @@ export async function POST(req: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         try {
+          const isSinglePageMode = pageItemsQueue.length === 1;
+
           sendSseEvent(controller, encoder, 'progress', {
             stage: 'init',
             percent: 5,
-            message: `已接收 ${urls.length} 張照片，初始化辨識引擎...`,
+            message: `初始化辨識引擎（待處理 ${pageItemsQueue.length} 頁）...`,
             model: PRIMARY_MODEL,
           });
 
@@ -233,41 +252,52 @@ export async function POST(req: NextRequest) {
           }> = [];
           const allWarnings: Array<{ missing_count: number; page_number: number }> = [];
 
-          // 逐頁／逐批處理（每批 1 張照片，確保 44 項完整不截斷）
-          for (let i = 0; i < urls.length; i++) {
-            const pageIndex = i + 1;
-            const singleBatch = [urls[i]];
-            let currentModel = PRIMARY_MODEL;
+          // 逐頁處理
+          for (let i = 0; i < pageItemsQueue.length; i++) {
+            const currentItem = pageItemsQueue[i];
+            const pageIndex = currentItem.pageIndex;
+            const totalPages = currentItem.totalPages;
+            const singleBatch = [currentItem.url];
 
-            const basePercent = Math.round(10 + (i / urls.length) * 70);
+            let currentModel = PRIMARY_MODEL;
+            const basePercent = Math.round(10 + (i / pageItemsQueue.length) * 70);
+
             sendSseEvent(controller, encoder, 'progress', {
               stage: 'ocr',
               page: pageIndex,
-              totalPages: urls.length,
+              totalPages,
               percent: basePercent,
-              message: `正在辨識第 ${pageIndex} / ${urls.length} 頁（使用模型：${currentModel}）...`,
+              message: `正在辨識第 ${pageIndex} / ${totalPages} 頁（模型：${currentModel}）...`,
               model: currentModel,
             });
 
-            let result = await callGeminiForBatch(singleBatch, i, currentModel);
+            let result = await callGeminiForBatch(singleBatch, pageIndex - 1, currentModel);
 
-            // 錯誤與 503 重試判定
+            // 錯誤與空項檢查（包含 503 與 items 為空時的輪詢喚回 3.1 機制）
             let retryCount = 0;
-            while ((!result.success || !result.items) && retryCount < MAX_RETRIES) {
+            while (
+              (!result.success || !result.items || result.items.length === 0) &&
+              retryCount < MAX_RETRIES
+            ) {
               retryCount++;
+              // 輪詢模型：3.1 -> 2.5 -> 3.1
+              currentModel = MODEL_SEQUENCE[retryCount] || PRIMARY_MODEL;
+
               const is503 =
                 result.error?.includes('503') ||
                 result.error?.includes('high demand') ||
                 result.error?.includes('Service Unavailable');
+              const isEmpty = result.success && (!result.items || result.items.length === 0);
 
-              // 第 1 次 503 重試時切換為備援模型
-              if (is503 && retryCount === 1) {
-                currentModel = FALLBACK_MODEL;
-              }
+              const reasonText = is503
+                ? 'AI 服務暫時過載 (503)'
+                : isEmpty
+                ? '提取項目為空 (0 項)'
+                : (result.error || '辨識未回傳結果');
 
-              const backoffSeconds = is503 ? (retryCount === 1 ? 5 : 8) : 2;
+              const backoffSeconds = is503 ? (retryCount === 1 ? 4 : 6) : 2;
 
-              // 透過 SSE 倒數計時推送，讓前端即時呈現動態秒數
+              // 透過 SSE 倒數計時推送
               for (let s = backoffSeconds; s > 0; s--) {
                 sendSseEvent(controller, encoder, 'retry', {
                   stage: 'retry_backoff',
@@ -276,11 +306,9 @@ export async function POST(req: NextRequest) {
                   maxRetries: MAX_RETRIES,
                   countdown: s,
                   model: currentModel,
-                  switchedModel: currentModel !== PRIMARY_MODEL ? currentModel : undefined,
-                  reason: is503 ? 'AI 服務暫時過載 (503)' : '辨識未回傳結果',
-                  message: is503
-                    ? `AI 服務負載過高 (503)，${currentModel !== PRIMARY_MODEL ? `已切換至備援模型 (${currentModel})，` : ''}倒數 ${s} 秒後進行第 ${retryCount}/${MAX_RETRIES} 次重試...`
-                    : `正在重試第 ${pageIndex} 頁（${s} 秒後重試 ${retryCount}/${MAX_RETRIES}）...`,
+                  switchedModel: currentModel,
+                  reason: reasonText,
+                  message: `${reasonText}，輪詢切換至模型 (${currentModel})，倒數 ${s} 秒後重試 (${retryCount}/${MAX_RETRIES})...`,
                 });
                 await new Promise((r) => setTimeout(r, 1000));
               }
@@ -288,31 +316,40 @@ export async function POST(req: NextRequest) {
               sendSseEvent(controller, encoder, 'progress', {
                 stage: 'ocr',
                 page: pageIndex,
-                totalPages: urls.length,
+                totalPages,
                 percent: basePercent,
                 message: `正在重新辨識第 ${pageIndex} 頁（模型：${currentModel}，第 ${retryCount} 次重試）...`,
                 model: currentModel,
               });
 
-              result = await callGeminiForBatch(singleBatch, i, currentModel);
+              result = await callGeminiForBatch(singleBatch, pageIndex - 1, currentModel);
             }
 
-            if (!result.success || !result.items) {
-              const friendly = await friendlyGeminiError(result.error || '未知錯誤');
+            if (!result.success || !result.items || result.items.length === 0) {
+              const friendly = result.error
+                ? await friendlyGeminiError(result.error)
+                : '未能提取出有效藥品項目';
               sendSseEvent(controller, encoder, 'error', {
                 code: result.error?.includes('503') ? '503' : 'OCR_FAILED',
                 page: pageIndex,
-                message: `第 ${pageIndex} 頁 OCR 辨識失敗: ${friendly}`,
+                message: `第 ${pageIndex} 頁辨識失敗: ${friendly}`,
               });
               controller.close();
               return;
             }
 
-            // 驗證單頁項目數量（44 項檢查）
+            // 確保每筆項目的 page_number 均被標註
+            for (const item of result.items) {
+              if (item.page_number == null) {
+                item.page_number = pageIndex;
+              }
+            }
+
+            // 驗證單頁項目數量
             const pageValidation = validatePageItemCount(
               result.items,
-              result.items[0]?.page_number ?? pageIndex,
-              result.total_pages ?? urls.length
+              pageIndex,
+              result.total_pages ?? totalPages
             );
             if (pageValidation.warning) {
               allWarnings.push(pageValidation.warning);
@@ -324,20 +361,22 @@ export async function POST(req: NextRequest) {
             }
 
             allBatchResults.push({
-              batchIndex: i,
+              batchIndex: pageIndex - 1,
               order_number: result.order_number,
               delivery_date: result.delivery_date,
               total_pages: result.total_pages,
               items: result.items,
             });
 
-            sendSseEvent(controller, encoder, 'progress', {
+            sendSseEvent(controller, encoder, 'page_done', {
               stage: 'ocr_page_done',
               page: pageIndex,
-              totalPages: urls.length,
-              percent: Math.round(10 + ((i + 1) / urls.length) * 70),
+              totalPages,
+              itemCount: result.items.length,
+              percent: Math.round(10 + ((i + 1) / pageItemsQueue.length) * 70),
               message: `第 ${pageIndex} 頁辨識完成，成功提取 ${result.items.length} 筆藥品`,
               model: currentModel,
+              items: result.items,
             });
           }
 
@@ -378,6 +417,7 @@ export async function POST(req: NextRequest) {
             storage_location: drug.storage_location || '',
             category: drug.category || '',
             warehouse_quantity: drug.warehouse_quantity,
+            page_number: drug.page_number,
           }));
 
           const nhiResults = await resolveNhiTranslations(
@@ -398,9 +438,9 @@ export async function POST(req: NextRequest) {
               delivery_date: firstResult.delivery_date || '',
               total_items: finalItems.length,
               source_type: 'images',
-              uploaded_image_count: urls.length,
-              ocr_page_count: firstResult.total_pages || urls.length,
-              ocr_request_count: urls.length,
+              uploaded_image_count: pageItemsQueue.length,
+              ocr_page_count: firstResult.total_pages || pageItemsQueue.length,
+              ocr_request_count: pageItemsQueue.length,
             },
             items: finalItems,
             warnings: allWarnings.length > 0 ? allWarnings : undefined,

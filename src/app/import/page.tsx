@@ -6,12 +6,79 @@ import type { ImportDrugItem } from '@/app/actions/import/types';
 import { processImagesWithGemini, processImagesWithGeminiAsPdf } from '@/app/actions/import/ocr';
 import { deleteImportImages } from '@/app/actions/import/storage';
 import { clientUploadImportImages } from '@/lib/clientUpload';
-import { FileUp, Loader2, CheckCircle2, ArrowLeft, Image as ImageIcon, FileType, RotateCcw, Cpu, Upload, ScanLine, Database } from 'lucide-react';
+import { FileUp, Loader2, CheckCircle2, ArrowLeft, Image as ImageIcon, FileType, RotateCcw, Cpu, Upload, ScanLine, Database, AlertTriangle, RefreshCw, Check } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { parsePdf, ParsedPdf, ParsedItem, PdfProgressStep } from '@/lib/pdfParser';
 import { validateParsedPdf } from '@/lib/pdfValidator';
+
+/** 單頁辨識卡片狀態介面 */
+export interface PageCardState {
+  pageIndex: number;
+  url: string;
+  status: 'idle' | 'scanning' | 'retry_backoff' | 'success' | 'error';
+  model: string;
+  percent: number;
+  retryCountdown?: number;
+  reason?: string;
+  itemCount?: number;
+  items?: ParsedItem[];
+  order_number?: string;
+  delivery_date?: string;
+  errorMessage?: string;
+  warning?: { missing_count: number; page_number: number };
+}
+
+/** Web Audio API 提示音效產生器（無需外部音訊檔依賴） */
+function playAlertTone(type: 'error' | 'click' | 'success') {
+  if (typeof window === 'undefined') return;
+  try {
+    const AudioContextClass =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    const now = ctx.currentTime;
+    if (type === 'error') {
+      // 警示提示音：雙頻快速下降 440Hz -> 311Hz
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(440, now);
+      osc.frequency.exponentialRampToValueAtTime(311, now + 0.18);
+      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+      osc.start(now);
+      osc.stop(now + 0.25);
+    } else if (type === 'success') {
+      // 成功完成提示音：上升雙頻 587Hz -> 880Hz
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587, now);
+      osc.frequency.exponentialRampToValueAtTime(880, now + 0.15);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+      osc.start(now);
+      osc.stop(now + 0.2);
+    } else {
+      // 輕快點擊反饋短音
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, now);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+      osc.start(now);
+      osc.stop(now + 0.08);
+    }
+  } catch {
+    // 忽略不支援環境或靜音阻擋
+  }
+}
 
 /** OCR 進度步驟類型 */
 export interface OcrProgressLog {
@@ -131,6 +198,8 @@ export default function ImportPage() {
   const [isParsingPdf, setIsParsingPdf] = useState(false);
   const [pdfProgress, setPdfProgress] = useState<PdfProgressStep | null>(null);
   const [ocrProgress, setOcrProgress] = useState<OcrProgressStep | null>(null);
+  const [pageCards, setPageCards] = useState<PageCardState[]>([]);
+  const [isRecognizing, setIsRecognizing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
 
   useEffect(() => {
@@ -223,6 +292,8 @@ export default function ImportPage() {
     setParsedData(null);
     setManifestName('');
     setPdfProgress(null);
+    setPageCards([]);
+    setIsRecognizing(false);
     setStatus('idle');
     clearImportState();
   };
@@ -248,32 +319,85 @@ export default function ImportPage() {
     }
   };
 
-  const handleOcrImages = async () => {
-    if (uploadedUrls.length === 0) return;
+  /**
+   * 檢查是否所有卡片均已辨識完成 (success)
+   */
+  const checkAllCardsCompleted = (cards: PageCardState[]) => {
+    if (cards.length === 0) return;
+    const allSuccess = cards.every(c => c.status === 'success');
+    if (allSuccess) {
+      const sortedCards = [...cards].sort((a, b) => a.pageIndex - b.pageIndex);
+      let currentLineNumber = 1;
+      const combinedItems: ParsedItem[] = [];
+      const combinedWarnings: Array<{ missing_count: number; page_number: number }> = [];
+
+      for (const c of sortedCards) {
+        if (c.warning) combinedWarnings.push(c.warning);
+        if (c.items) {
+          for (const it of c.items) {
+            combinedItems.push({
+              ...it,
+              line_number: currentLineNumber++,
+              page_number: c.pageIndex,
+            });
+          }
+        }
+      }
+
+      if (combinedItems.length === 0) {
+        setStatus('error');
+        setMessage('所有照片辨識完成，但未提取到任何藥品品項');
+        setIsRecognizing(false);
+        return;
+      }
+
+      const firstWithOrder = sortedCards.find(c => c.order_number);
+      const orderNumber = firstWithOrder?.order_number || manifestName || '未知單號';
+      const deliveryDate = firstWithOrder?.delivery_date || '';
+
+      const parsed: ParsedPdf = {
+        order_metadata: {
+          order_number: orderNumber,
+          delivery_date: deliveryDate,
+          total_items: combinedItems.length,
+          source_type: 'images',
+          uploaded_image_count: sortedCards.length,
+          ocr_page_count: sortedCards.length,
+          ocr_request_count: sortedCards.length,
+        },
+        items: combinedItems,
+        warnings: combinedWarnings.length > 0 ? combinedWarnings : undefined,
+      };
+
+      setTimeout(() => {
+        setParsedData(parsed);
+        setManifestName(prev => prev.trim() || orderNumber);
+        setStatus('idle');
+        setMessage('');
+        setIsRecognizing(false);
+      }, 600);
+    }
+  };
+
+  /**
+   * 執行單一頁面的非同步 OCR 辨識
+   */
+  const executeSinglePageOcr = async (pageIndex: number, url: string, totalPages: number) => {
+    setPageCards(prev => prev.map(c => c.pageIndex === pageIndex ? {
+      ...c,
+      status: 'scanning',
+      model: 'gemini-3.1-flash-lite',
+      percent: 15,
+      errorMessage: undefined,
+      retryCountdown: undefined,
+      reason: undefined,
+    } : c));
+
     try {
-      setStatus('loading');
-      setMessage('');
-
-      const timeStr = new Date().toLocaleTimeString('zh-TW', { hour12: false });
-      const initialLogs: OcrProgressLog[] = [{
-        id: '1',
-        time: timeStr,
-        text: `啟動 ${uploadedUrls.length} 張照片 AI 串流辨識任務`,
-        type: 'info',
-      }];
-
-      setOcrProgress({
-        step: 'uploading',
-        label: `正在連線 AI 辨識串流端點（共 ${uploadedUrls.length} 張）...`,
-        percent: 5,
-        model: 'gemini-3.1-flash-lite',
-        logs: initialLogs,
-      });
-
       const response = await fetch('/api/ocr/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: uploadedUrls }),
+        body: JSON.stringify({ url, pageIndex, totalPages }),
       });
 
       if (!response.ok) {
@@ -319,102 +443,50 @@ export default function ImportPage() {
             continue;
           }
 
-          const curTime = new Date().toLocaleTimeString('zh-TW', { hour12: false });
-
           if (eventName === 'progress') {
-            setOcrProgress(prev => {
-              const prevLogs = prev?.logs || [];
-              const newLogs = [...prevLogs, {
-                id: Math.random().toString(36).slice(2),
-                time: curTime,
-                text: data.message,
-                type: 'info' as const,
-              }].slice(-6);
-
-              let mappedStep: 'uploading' | 'header' | 'batch' | 'nhi' | 'done' = 'batch';
-              if (data.stage === 'init') mappedStep = 'uploading';
-              else if (data.stage === 'header') mappedStep = 'header';
-              else if (data.stage === 'nhi') mappedStep = 'nhi';
-              else if (data.stage === 'done') mappedStep = 'done';
-
-              return {
-                step: mappedStep,
-                label: data.message,
-                percent: data.percent ?? prev?.percent ?? 10,
-                currentBatch: data.page,
-                totalBatches: data.totalPages ?? uploadedUrls.length,
-                model: data.model || prev?.model,
-                retryCountdown: undefined,
-                retryMessage: undefined,
-                logs: newLogs,
-              };
-            });
+            setPageCards(prev => prev.map(c => c.pageIndex === pageIndex ? {
+              ...c,
+              status: 'scanning',
+              percent: data.percent ?? c.percent,
+              model: data.model || c.model,
+            } : c));
           } else if (eventName === 'retry') {
-            setOcrProgress(prev => {
-              const prevLogs = prev?.logs || [];
-              const isFirstCountdown = data.countdown === 5 || data.countdown === 8;
-              let nextLogs = prevLogs;
-              if (isFirstCountdown) {
-                nextLogs = [...prevLogs, {
-                  id: Math.random().toString(36).slice(2),
-                  time: curTime,
-                  text: data.message,
-                  type: 'warning' as const,
-                }].slice(-6);
-              }
-              return {
-                step: 'batch',
-                label: data.message,
-                percent: prev?.percent ?? 30,
-                currentBatch: data.page,
-                totalBatches: uploadedUrls.length,
-                model: data.model,
-                retryCountdown: data.countdown,
-                retryMessage: data.message,
-                logs: nextLogs,
-              };
-            });
+            setPageCards(prev => prev.map(c => c.pageIndex === pageIndex ? {
+              ...c,
+              status: 'retry_backoff',
+              retryCountdown: data.countdown,
+              model: data.model || data.switchedModel || c.model,
+              reason: data.reason,
+            } : c));
           } else if (eventName === 'warning') {
-            setOcrProgress(prev => {
-              const prevLogs = prev?.logs || [];
-              return {
-                ...prev!,
-                logs: [...prevLogs, {
-                  id: Math.random().toString(36).slice(2),
-                  time: curTime,
-                  text: data.message,
-                  type: 'warning' as const,
-                }].slice(-6),
-              };
-            });
+            setPageCards(prev => prev.map(c => c.pageIndex === pageIndex ? {
+              ...c,
+              warning: data.warning,
+            } : c));
+          } else if (eventName === 'page_done') {
+            setPageCards(prev => prev.map(c => c.pageIndex === pageIndex ? {
+              ...c,
+              itemCount: data.itemCount,
+              items: data.items,
+              model: data.model || c.model,
+            } : c));
           } else if (eventName === 'complete') {
-            setOcrProgress(prev => ({
-              step: 'done',
-              label: data.message || '辨識完成！',
-              percent: 100,
-              model: prev?.model,
-              logs: [...(prev?.logs || []), {
-                id: Math.random().toString(36).slice(2),
-                time: curTime,
-                text: data.message || '所有項目解析完成',
-                type: 'success' as const,
-              }],
-            }));
+            playAlertTone('success');
+            const pageItems: ParsedItem[] = data.data?.items || [];
+            setPageCards(prev => {
+              const nextCards = prev.map(c => c.pageIndex === pageIndex ? {
+                ...c,
+                status: 'success' as const,
+                percent: 100,
+                itemCount: pageItems.length,
+                items: pageItems,
+                order_number: data.data?.order_metadata?.order_number,
+                delivery_date: data.data?.order_metadata?.delivery_date,
+              } : c);
 
-            await new Promise(r => setTimeout(r, 600));
-
-            if (!data.data || !data.data.items || data.data.items.length === 0) {
-              setStatus('error');
-              setMessage('OCR 辨識完成但未取得任何藥品項目，請檢查圖片或重試');
-              setOcrProgress(null);
-              return;
-            }
-
-            setParsedData(data.data);
-            setManifestName(prev => prev.trim() || data.data.order_metadata?.order_number || '');
-            setStatus('idle');
-            setMessage('');
-            setOcrProgress(null);
+              checkAllCardsCompleted(nextCards);
+              return nextCards;
+            });
             return;
           } else if (eventName === 'error') {
             throw new Error(data.message || '辨識失敗');
@@ -422,12 +494,49 @@ export default function ImportPage() {
         }
       }
     } catch (error: unknown) {
-      console.error('[handleOcrImages Stream] 錯誤:', error);
-      setStatus('error');
-      const errMsg = error instanceof Error ? error.message : 'OCR 辨識過程中發生錯誤';
-      setMessage(`OCR 辨識失敗: ${errMsg}`);
-      setOcrProgress(null);
+      console.error(`[Page ${pageIndex} Stream Error]`, error);
+      playAlertTone('error');
+      const errMsg = error instanceof Error ? error.message : '辨識發生錯誤';
+      setPageCards(prev => prev.map(c => c.pageIndex === pageIndex ? {
+        ...c,
+        status: 'error',
+        errorMessage: errMsg,
+      } : c));
     }
+  };
+
+  /**
+   * 啟動所有圖片的多格非同步辨識
+   */
+  const handleOcrImages = () => {
+    if (uploadedUrls.length === 0) return;
+    setIsRecognizing(true);
+    setStatus('loading');
+    setMessage('');
+
+    const initialCards: PageCardState[] = uploadedUrls.map((url, idx) => ({
+      pageIndex: idx + 1,
+      url,
+      status: 'idle',
+      model: 'gemini-3.1-flash-lite',
+      percent: 0,
+    }));
+    setPageCards(initialCards);
+
+    // 非同步啟動各頁
+    initialCards.forEach(card => {
+      executeSinglePageOcr(card.pageIndex, card.url, initialCards.length);
+    });
+  };
+
+  /**
+   * 單一卡片失敗時點擊重試
+   */
+  const handleRetryCard = (pageIndex: number) => {
+    playAlertTone('click');
+    const card = pageCards.find(c => c.pageIndex === pageIndex);
+    if (!card) return;
+    executeSinglePageOcr(pageIndex, card.url, pageCards.length);
   };
 
 
@@ -498,6 +607,8 @@ export default function ImportPage() {
       setUploadedUrls([]);
       setParsedData(null);
       setPdfProgress(null);
+      setPageCards([]);
+      setIsRecognizing(false);
       setStatus('idle');
       setMessage('');
     }
@@ -624,8 +735,8 @@ export default function ImportPage() {
                     className="tech-input w-full text-sm lg:text-base"
                   />
                 </div>
-                {/* 按下 OCR 辨識或解析 PDF 期間隱藏拖曳上傳區塊 */}
-                {!isParsingPdf && !ocrProgress && (
+                {/* 按下 OCR 辨識、多格非同步處理或解析 PDF 期間隱藏拖曳上傳區塊 */}
+                {!isParsingPdf && !ocrProgress && !isRecognizing && pageCards.length === 0 && (
                   <DrugListUploader
                     onPdfSelect={handlePdfSelect}
                     onImagesSelect={handleImagesSelect}
@@ -851,6 +962,204 @@ export default function ImportPage() {
                     )}
                   </div>
                 )}
+                {/* 多格非同步辨識進度卡片 Grid */}
+                {pageCards.length > 0 && (
+                  <div className="space-y-4 animate-in fade-in duration-300">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <ScanLine className="w-5 h-5 text-[#00f2fe] animate-pulse" />
+                        <h3 className="text-sm font-bold text-white">
+                          多頁非同步辨識進度 ({pageCards.filter((c) => c.status === 'success').length} / {pageCards.length} 完成)
+                        </h3>
+                      </div>
+                      <span className="text-xs text-slate-400 font-mono">
+                        非同步動態處理
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                      {pageCards.map((card) => {
+                        const isScanning = card.status === 'scanning';
+                        const isRetry = card.status === 'retry_backoff';
+                        const isSuccess = card.status === 'success';
+                        const isError = card.status === 'error';
+                        const isWaiting = card.status === 'idle';
+
+                        return (
+                          <div
+                            key={card.pageIndex}
+                            onClick={() => isError && handleRetryCard(card.pageIndex)}
+                            className={`relative overflow-hidden rounded-xl border p-3 flex flex-col justify-between transition-all duration-300 min-h-[175px] select-none ${
+                              isError
+                                ? 'border-[#ff4b5c] bg-[#ff4b5c]/10 shadow-[0_0_18px_rgba(255,75,92,0.35)] cursor-pointer active:scale-95 hover:border-[#ff4b5c]'
+                                : isSuccess
+                                ? 'border-emerald-500/70 bg-emerald-950/20 shadow-[0_0_15px_rgba(16,185,129,0.25)]'
+                                : isRetry
+                                ? 'border-amber-500/80 bg-amber-950/30 shadow-[0_0_15px_rgba(245,158,11,0.25)]'
+                                : isScanning
+                                ? 'border-[#00f2fe]/80 bg-[#162a56]/90 shadow-[0_0_20px_rgba(0,242,254,0.3)]'
+                                : 'border-slate-800 bg-[#162a56]/50'
+                            }`}
+                          >
+                            {/* 背景照片縮圖 */}
+                            <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+                              <img
+                                src={card.url}
+                                alt={`第 ${card.pageIndex} 頁`}
+                                className={`w-full h-full object-cover transition-opacity duration-300 ${
+                                  isSuccess ? 'opacity-25' : isScanning ? 'opacity-20' : 'opacity-15'
+                                }`}
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-[#0b1730] via-transparent to-[#0b1730]/80" />
+                            </div>
+
+                            {/* 掃描雷射光條動畫（辨識中專屬） */}
+                            {isScanning && (
+                              <div className="absolute inset-x-0 h-[2px] bg-[#00f2fe] shadow-[0_0_10px_#00f2fe] animate-scanline pointer-events-none z-10" />
+                            )}
+
+                            {/* 頂部標頭：頁次與狀態 Badge */}
+                            <div className="relative z-10 flex items-center justify-between gap-2">
+                              <span className="px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-slate-900/80 border border-slate-700 text-slate-200">
+                                第 {card.pageIndex} 頁
+                              </span>
+
+                              {isWaiting && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                                  排隊等待中
+                                </span>
+                              )}
+                              {isScanning && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-[#00f2fe] border border-cyan-500/50 flex items-center gap-1 font-bold">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-[#00f2fe] animate-ping" />
+                                  辨識中
+                                </span>
+                              )}
+                              {isRetry && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/50 flex items-center gap-1 font-bold animate-pulse">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                  退避重試
+                                </span>
+                              )}
+                              {isSuccess && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 flex items-center gap-1 font-bold animate-check-pop">
+                                  <Check className="w-3 h-3 text-emerald-400" />
+                                  完成
+                                </span>
+                              )}
+                              {isError && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/20 text-[#ff4b5c] border border-red-500/50 flex items-center gap-1 font-bold animate-pulse">
+                                  <AlertTriangle className="w-3 h-3 text-[#ff4b5c]" />
+                                  辨識失敗
+                                </span>
+                              )}
+                            </div>
+
+                            {/* 中央資訊與模型動態 */}
+                            <div className="relative z-10 my-2 flex flex-col justify-center flex-1">
+                              {/* 模型標籤 */}
+                              <div className="mb-2">
+                                <span
+                                  className={`inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                                    card.model.includes('2.5')
+                                      ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                                      : 'bg-[#00f2fe]/10 text-[#00f2fe] border-[#00f2fe]/30'
+                                  }`}
+                                >
+                                  <Cpu className="w-2.5 h-2.5" />
+                                  {card.model}
+                                </span>
+                              </div>
+
+                              {/* 狀態文字與動畫 */}
+                              {isScanning && (
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center justify-between text-xs text-slate-300">
+                                    <span className="animate-pulse">正在提取藥品條碼...</span>
+                                    <span className="text-[#00f2fe] font-mono font-bold">{card.percent}%</span>
+                                  </div>
+                                  <div className="h-1.5 bg-slate-900/80 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full bg-gradient-to-r from-cyan-500 to-[#00f2fe] rounded-full transition-all duration-300"
+                                      style={{ width: `${card.percent}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                              {isRetry && (
+                                <div className="space-y-1 bg-slate-950/70 p-2 rounded-lg border border-amber-500/30">
+                                  <p className="text-[11px] text-amber-300 font-medium">
+                                    {card.reason || 'AI 過載/空項退避'}
+                                  </p>
+                                  <div className="flex items-center justify-between text-xs">
+                                    <span className="text-slate-400">輪詢切換重試中</span>
+                                    <span className="text-amber-400 font-mono font-bold tabular-nums">
+                                      {card.retryCountdown} 秒
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {isSuccess && (
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-1.5 text-emerald-300 font-bold text-sm">
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                                    <span>成功提取 {card.itemCount ?? 0} 項</span>
+                                  </div>
+                                  {card.warning && (
+                                    <p className="text-[10px] text-amber-300">
+                                      短缺 {card.warning.missing_count} 項（預期 44 項）
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+
+                              {isError && (
+                                <div className="space-y-1.5 bg-red-950/40 p-2 rounded-lg border border-red-500/40">
+                                  <p className="text-[11px] text-red-300 line-clamp-2 leading-tight">
+                                    {card.errorMessage || '辨識失敗'}
+                                  </p>
+                                  <div className="flex items-center gap-1 text-[11px] font-bold text-[#ff4b5c]">
+                                    <RefreshCw className="w-3 h-3 animate-spin" />
+                                    <span>點擊此格立即重試</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* 底部按鈕或進度回饋 */}
+                            <div className="relative z-10 pt-1 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
+                              {isError ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRetryCard(card.pageIndex);
+                                  }}
+                                  className="w-full py-1 rounded bg-[#ff4b5c]/20 hover:bg-[#ff4b5c]/30 text-[#ff4b5c] font-bold flex items-center justify-center gap-1 transition-all active:scale-95"
+                                >
+                                  <RotateCcw className="w-3 h-3" />
+                                  點擊重試此頁
+                                </button>
+                              ) : isSuccess ? (
+                                <div className="w-full flex items-center justify-between text-emerald-400/90 font-mono">
+                                  <span>辨識完成</span>
+                                  <span>100%</span>
+                                </div>
+                              ) : isScanning ? (
+                                <span className="text-cyan-400/70 font-mono">連線 Gemini 串流中</span>
+                              ) : (
+                                <span className="text-slate-500">等待處理</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {status === 'error' && (
                   <div className="mt-3 p-2 bg-red-600 rounded text-center">
                     {message}
@@ -862,7 +1171,7 @@ export default function ImportPage() {
                     </button>
                   </div>
                 )}
-                {(selectedImages.length > 0 || uploadedUrls.length > 0) && (
+                {(selectedImages.length > 0 || (uploadedUrls.length > 0 && pageCards.length === 0)) && (
                   <>
                     {selectedImages.length > 0 && (
                       <button
@@ -897,7 +1206,7 @@ export default function ImportPage() {
                   </>
                 )}
                 <div className="flex flex-col gap-3">
-                  {uploadedUrls.length > 0 && !parsedData && !ocrProgress && (
+                  {uploadedUrls.length > 0 && !parsedData && !ocrProgress && pageCards.length === 0 && (
                     <button
                       onClick={handleOcrImages}
                       disabled={status === 'loading'}
