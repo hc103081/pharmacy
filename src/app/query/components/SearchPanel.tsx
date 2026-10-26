@@ -74,8 +74,13 @@ export default function SearchPanel({
 
   const applyFilters = () => {
     // 將草稿狀態 commit 到共用篩選狀態，觸發 DrugSearchTab 重新查詢
+    // 條碼偵測：8-14 位數字 -> 走 p_barcode 精確比對；其他 -> 走 p_search_text 模糊搜尋
+    const trimmedSearch = searchText.trim();
+    const isBarcode = /^\d{8,14}$/.test(trimmedSearch);
+    
     updateFilters({
-      searchText,
+      searchText: isBarcode ? '' : searchText,
+      barcode: isBarcode ? trimmedSearch : undefined,
       storageLocations: selectedStorageLocations,
       categories: selectedCategories,
       dateFrom: dateRange.from ? `${dateRange.from}T00:00:00.000Z` : undefined,
