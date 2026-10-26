@@ -1087,7 +1087,7 @@ export default function ImportPage() {
                         const isSuccess = card.status === 'success';
                         const isError = card.status === 'error';
                         const isWaiting = card.status === 'idle';
-                        const displayPageNumber = card.realPageNumber ?? card.initialIndex;
+                        const displayLabel = card.realPageNumber != null ? `第 ${card.realPageNumber} 頁` : `編號 #${card.initialIndex}`;
 
                         return (
                           <div
@@ -1109,7 +1109,7 @@ export default function ImportPage() {
                             <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
                               <img
                                 src={card.url}
-                                alt={`第 ${displayPageNumber} 頁`}
+                                alt={displayLabel}
                                 className={`w-full h-full object-cover transition-opacity duration-300 ${
                                   isSuccess ? 'opacity-25' : isScanning ? 'opacity-20' : 'opacity-15'
                                 }`}
@@ -1125,7 +1125,7 @@ export default function ImportPage() {
                             {/* 頂部標頭：頁次與狀態 Badge */}
                             <div className="relative z-10 flex items-center justify-between gap-2">
                               <span className="px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-slate-900/80 border border-slate-700 text-slate-200">
-                                第 {displayPageNumber} 頁
+                                {displayLabel}
                               </span>
 
                               {isWaiting && (
