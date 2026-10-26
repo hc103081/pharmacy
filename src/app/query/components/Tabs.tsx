@@ -69,12 +69,12 @@ Tabs.TabPanel = TabPanel;
 
 function TabList({ children, className }: TabListProps) {
   return (
-    <div role="tablist" className={className}>
+    <div role="tablist" className={`${className} flex overflow-x-auto scrollbar-hide -mx-4 px-4`}>
       {React.Children.map(children, (child, index) => {
         if (!React.isValidElement(child)) return child;
         return React.cloneElement(child as React.ReactElement<any>, { 
           index,
-          isActive: false // Will be overridden by Tab component
+          isActive: false
         });
       })}
     </div>

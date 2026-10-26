@@ -16,6 +16,7 @@ import { QueryErrorBoundary } from './components/QueryErrorBoundary';
 export default function QueryPage() {
   const { user, loading } = useAuth();
   const [isOffline, setIsOffline] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const { isCached, refreshCache } = useOfflineCache();
 
   // Detect online/offline status
@@ -74,11 +75,15 @@ export default function QueryPage() {
           )}
           
           <div className="flex h-[100vh] overflow-hidden">
-            {/* Mobile: collapsible search panel */}
+            {/* Desktop: search panel as sidebar */}
             <SearchPanel className="hidden lg:block lg:w-64 border-r border-slate-800" />
             
             <div className="flex-1 flex flex-col">
-              <QueryHeader user={{ ...user, role: user.role as 'counter' | 'pharmacist' | 'manager' | undefined }} isOffline={isOffline} />
+              <QueryHeader 
+                user={{ ...user, role: user.role as 'counter' | 'pharmacist' | 'manager' | undefined }} 
+                isOffline={isOffline}
+                onMenuClick={() => setIsDrawerOpen(true)}
+              />
               
               <div className="flex-1 overflow-y-auto">
                 <Tabs>
@@ -109,9 +114,22 @@ export default function QueryPage() {
             
             {/* Mobile: search panel as drawer */}
             <SearchPanel 
-              className="lg:block lg:hidden w-64 bg-[#07142b]/90 border-l border-slate-800"
+              className={`lg:hidden fixed inset-y-0 right-0 z-40 w-72 max-w-[85vw] bg-[#07142b] border-l border-slate-800 shadow-xl transform transition-transform duration-300 ${
+                isDrawerOpen ? 'translate-x-0' : 'translate-x-full'
+              }`}
               isDrawer
+              isOpen={isDrawerOpen}
+              onClose={() => setIsDrawerOpen(false)}
             />
+            
+            {/* Overlay backdrop */}
+            {isDrawerOpen && (
+              <div 
+                className="lg:hidden fixed inset-0 bg-black/50 z-30"
+                onClick={() => setIsDrawerOpen(false)}
+                aria-hidden="true"
+              />
+            )}
           </div>
         </div>
       </QueryErrorBoundary>

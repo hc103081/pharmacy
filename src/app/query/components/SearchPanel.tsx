@@ -8,16 +8,23 @@ interface SearchPanelProps {
   className?: string;
   isDrawer?: boolean;
   children?: React.ReactNode;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 export default function SearchPanel({ 
   className = '', 
   isDrawer = false,
-  children 
+  children,
+  isOpen = true,
+  onClose
 }: SearchPanelProps) {
   const { filters, updateFilters, resetFilters: resetContextFilters } = useQueryFilters();
 
-  const [isOpen, setIsOpen] = useState(!isDrawer); // Drawers start closed, regular panels start open
+  // For drawer mode, use controlled isOpen prop; for sidebar mode, use local state
+  const [localIsOpen, setLocalIsOpen] = useState(!isDrawer);
+  const drawerIsOpen = isDrawer ? isOpen : localIsOpen;
+  const setDrawerIsOpen = isDrawer ? (onClose ?? (() => {})) : setLocalIsOpen;
   // 本地草稿狀態：初始值同步自已套用的篩選條件，按「套用篩選」時才 commit 到共用狀態
   const [searchText, setSearchText] = useState(filters.searchText ?? '');
   const [selectedStorageLocations, setSelectedStorageLocations] = useState<string[]>(filters.storageLocations ?? []);
@@ -95,7 +102,7 @@ export default function SearchPanel({
         <div className="flex items-center justify-between px-4 py-3 bg-slate-800/50 border-b border-slate-800">
           <h2 className="text-lg font-bold text-[#00f2fe]">搜尋與篩選</h2>
           <button 
-            onClick={() => setIsOpen(false)}
+            onClick={() => setDrawerIsOpen(false)}
             className="text-gray-300 hover:text-white"
           >
             <X className="w-5 h-5" />
@@ -127,20 +134,20 @@ export default function SearchPanel({
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">進階篩選</label>
             <button 
-              onClick={() => setIsOpen(!isOpen)}
+              onClick={() => setDrawerIsOpen(!drawerIsOpen)}
               className={`w-full text-left flex items-center justify-between px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg hover:bg-slate-800 active:scale-[0.98] active:bg-slate-800 transition-all duration-100 text-slate-200 ${
-                !isOpen ? 'border-t-broken' : ''
+                !drawerIsOpen ? 'border-t-broken' : ''
               }`}
             >
               <div className="flex-1">
-                <span className="text-sm font-medium">{isOpen ? '收起篩選' : '展開進階篩選'}</span>
+                <span className="text-sm font-medium">{drawerIsOpen ? '收起篩選' : '展開進階篩選'}</span>
               </div>
               <ChevronDown className="w-4 h-4 text-gray-300 transition-transform duration-200" 
-                style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0)' }} />
+                style={{ transform: drawerIsOpen ? 'rotate(180deg)' : 'rotate(0)' }} />
             </button>
           </div>
           
-          {isOpen && (
+          {drawerIsOpen && (
             <div className="mt-4 space-y-3">
               {/* Storage Locations */}
               <div className="space-y-2">

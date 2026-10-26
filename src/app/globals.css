@@ -227,3 +227,12 @@ body {
   transform: scale(0.97);
   transition: transform 120ms ease-out;
 }
+
+/* Scrollbar hide utility for horizontal tabs */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari, Opera */
+}
