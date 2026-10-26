@@ -15,7 +15,9 @@ import { validateParsedPdf } from '@/lib/pdfValidator';
 
 /** 單頁辨識卡片狀態介面 */
 export interface PageCardState {
-  pageIndex: number;
+  id: string;
+  initialIndex: number;
+  realPageNumber?: number;
   url: string;
   status: 'idle' | 'scanning' | 'retry_backoff' | 'success' | 'error';
   model: string;
@@ -28,7 +30,6 @@ export interface PageCardState {
   delivery_date?: string;
   total_items?: number;
   total_pages?: number;
-  realPageIndex?: number;
   errorMessage?: string;
   warning?: { missing_count: number; page_number: number };
 }
@@ -203,7 +204,9 @@ export default function ImportPage() {
   const [ocrProgress, setOcrProgress] = useState<OcrProgressStep | null>(null);
   const [pageCards, setPageCards] = useState<PageCardState[]>([]);
   const [isRecognizing, setIsRecognizing] = useState(false);
+  const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -329,19 +332,23 @@ export default function ImportPage() {
     if (cards.length === 0) return;
     const allSuccess = cards.every(c => c.status === 'success');
     if (allSuccess) {
-      const sortedCards = [...cards].sort((a, b) => a.pageIndex - b.pageIndex);
+      // 依據真實頁碼由小到大排序
+      const sortedCards = [...cards].sort(
+        (a, b) => (a.realPageNumber ?? a.initialIndex) - (b.realPageNumber ?? b.initialIndex)
+      );
       let currentLineNumber = 1;
       const combinedItems: ParsedItem[] = [];
       const combinedWarnings: Array<{ missing_count: number; page_number: number }> = [];
 
       for (const c of sortedCards) {
         if (c.warning) combinedWarnings.push(c.warning);
+        const targetPage = c.realPageNumber ?? c.initialIndex;
         if (c.items) {
           for (const it of c.items) {
             combinedItems.push({
               ...it,
               line_number: currentLineNumber++,
-              page_number: c.pageIndex,
+              page_number: targetPage,
             });
           }
         }
@@ -360,7 +367,7 @@ export default function ImportPage() {
 
       // 嚴謹解析全單宣告總項目數：
       // 1. 若上傳多頁，宣告總項數絕不可能小於本次提取總數 (combinedItems.length)
-      // 2. 若上傳單頁測試 (sortedCards.length === 1)，本次提取數為本頁項數
+      // 2. 若上傳單頁測試 (sortedCards.length === 1)，本次提取數即為本頁項數
       const validDeclaredTotals = sortedCards
         .map(c => c.total_items)
         .filter((n): n is number => n != null && n >= combinedItems.length);
@@ -407,8 +414,12 @@ export default function ImportPage() {
   /**
    * 執行單一頁面的非同步 OCR 辨識
    */
-  const executeSinglePageOcr = async (pageIndex: number, url: string, totalPages: number) => {
-    setPageCards(prev => prev.map(c => c.pageIndex === pageIndex ? {
+  const executeSinglePageOcr = async (cardId: string, initialIndex: number, url: string, totalPages: number) => {
+    // 建立並記錄 AbortController
+    const controller = new AbortController();
+    abortControllersRef.current.set(cardId, controller);
+
+    setPageCards(prev => prev.map(c => c.id === cardId ? {
       ...c,
       status: 'scanning',
       model: 'gemini-3.1-flash-lite',
@@ -422,7 +433,8 @@ export default function ImportPage() {
       const response = await fetch('/api/ocr/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, pageIndex, totalPages }),
+        body: JSON.stringify({ url, pageIndex: initialIndex, totalPages }),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -469,14 +481,14 @@ export default function ImportPage() {
           }
 
           if (eventName === 'progress') {
-            setPageCards(prev => prev.map(c => c.pageIndex === pageIndex ? {
+            setPageCards(prev => prev.map(c => c.id === cardId ? {
               ...c,
               status: 'scanning',
               percent: data.percent ?? c.percent,
               model: data.model || c.model,
             } : c));
           } else if (eventName === 'retry') {
-            setPageCards(prev => prev.map(c => c.pageIndex === pageIndex ? {
+            setPageCards(prev => prev.map(c => c.id === cardId ? {
               ...c,
               status: 'retry_backoff',
               retryCountdown: data.countdown,
@@ -484,16 +496,15 @@ export default function ImportPage() {
               reason: data.reason,
             } : c));
           } else if (eventName === 'warning') {
-            setPageCards(prev => prev.map(c => c.pageIndex === pageIndex ? {
+            setPageCards(prev => prev.map(c => c.id === cardId ? {
               ...c,
               warning: data.warning,
             } : c));
           } else if (eventName === 'page_done') {
             const detectedPage = data.realPageNumber ?? data.page;
-            setPageCards(prev => prev.map(c => c.pageIndex === pageIndex ? {
+            setPageCards(prev => prev.map(c => c.id === cardId ? {
               ...c,
-              realPageIndex: detectedPage,
-              pageIndex: detectedPage ?? c.pageIndex,
+              realPageNumber: detectedPage,
               itemCount: data.itemCount,
               total_items: data.total_items ?? c.total_items,
               total_pages: data.totalPages ?? c.total_pages,
@@ -506,10 +517,9 @@ export default function ImportPage() {
             const pageTotalItems = data.data?.order_metadata?.total_items ?? data.total_items;
             const detectedPage = data.realPageNumber ?? data.data?.items?.[0]?.page_number;
             setPageCards(prev => {
-              const nextCards = prev.map(c => c.pageIndex === pageIndex ? {
+              const nextCards = prev.map(c => c.id === cardId ? {
                 ...c,
-                realPageIndex: detectedPage,
-                pageIndex: detectedPage ?? c.pageIndex,
+                realPageNumber: detectedPage,
                 status: 'success' as const,
                 percent: 100,
                 itemCount: pageItems.length,
@@ -530,19 +540,24 @@ export default function ImportPage() {
         }
       }
     } catch (error: unknown) {
-      console.error(`[Page ${pageIndex} Stream Error]`, error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        return;
+      }
+      console.error(`[Card ${cardId} Stream Error]`, error);
       playAlertTone('error');
       const errMsg = error instanceof Error ? error.message : '辨識發生錯誤';
-      setPageCards(prev => prev.map(c => c.pageIndex === pageIndex ? {
+      setPageCards(prev => prev.map(c => c.id === cardId ? {
         ...c,
         status: 'error',
         errorMessage: errMsg,
       } : c));
+    } finally {
+      abortControllersRef.current.delete(cardId);
     }
   };
 
   /**
-   * 啟動所有圖片的多格非同步辨識
+   * 啟動所有圖片的多格非同步辨識（平滑間隔發起，避免同時高併發堵塞）
    */
   const handleOcrImages = () => {
     if (uploadedUrls.length === 0) return;
@@ -551,7 +566,8 @@ export default function ImportPage() {
     setMessage('');
 
     const initialCards: PageCardState[] = uploadedUrls.map((url, idx) => ({
-      pageIndex: idx + 1,
+      id: `page-card-${idx}-${Date.now()}`,
+      initialIndex: idx + 1,
       url,
       status: 'idle',
       model: 'gemini-3.1-flash-lite',
@@ -559,20 +575,22 @@ export default function ImportPage() {
     }));
     setPageCards(initialCards);
 
-    // 非同步啟動各頁
-    initialCards.forEach(card => {
-      executeSinglePageOcr(card.pageIndex, card.url, initialCards.length);
+    // 平滑非同步發起各頁，避免 6 個請求同時衝撞 Gemini
+    initialCards.forEach((card, i) => {
+      setTimeout(() => {
+        executeSinglePageOcr(card.id, card.initialIndex, card.url, initialCards.length);
+      }, i * 350);
     });
   };
 
   /**
    * 單一卡片失敗時點擊重試
    */
-  const handleRetryCard = (pageIndex: number) => {
+  const handleRetryCard = (cardId: string) => {
     playAlertTone('click');
-    const card = pageCards.find(c => c.pageIndex === pageIndex);
+    const card = pageCards.find(c => c.id === cardId);
     if (!card) return;
-    executeSinglePageOcr(pageIndex, card.url, pageCards.length);
+    executeSinglePageOcr(card.id, card.initialIndex, card.url, pageCards.length);
   };
 
 
@@ -625,29 +643,36 @@ export default function ImportPage() {
     }
   };
 
-  const handleReset = async () => {
-    if (confirm('確定要重置所有匯入資訊並取消目前的處理嗎？')) {
-      if (uploadedUrls.length > 0) {
-        try {
-          setStatus('loading');
-          setMessage('正在清理已上傳的檔案...');
-          await deleteImportImages(uploadedUrls);
-        } catch (e) {
-          console.error('Cleanup error:', e);
-        }
+  const executeFullReset = async () => {
+    setShowResetConfirmModal(false);
+    // 中斷所有執行中的 OCR 串流
+    abortControllersRef.current.forEach(ctrl => ctrl.abort());
+    abortControllersRef.current.clear();
+
+    if (uploadedUrls.length > 0) {
+      try {
+        setStatus('loading');
+        setMessage('正在清理已上傳的檔案...');
+        await deleteImportImages(uploadedUrls);
+      } catch (e) {
+        console.error('Cleanup error:', e);
       }
-      clearImportState();
-      setManifestName('');
-      setJsonData('');
-      setSelectedImages([]);
-      setUploadedUrls([]);
-      setParsedData(null);
-      setPdfProgress(null);
-      setPageCards([]);
-      setIsRecognizing(false);
-      setStatus('idle');
-      setMessage('');
     }
+    clearImportState();
+    setManifestName('');
+    setJsonData('');
+    setSelectedImages([]);
+    setUploadedUrls([]);
+    setParsedData(null);
+    setPdfProgress(null);
+    setPageCards([]);
+    setIsRecognizing(false);
+    setStatus('idle');
+    setMessage('');
+  };
+
+  const handleReset = () => {
+    setShowResetConfirmModal(true);
   };
 
   return (
@@ -686,6 +711,41 @@ export default function ImportPage() {
               <span className="text-xs text-slate-600">建立分頁</span>
               <span className="w-2 h-2 rounded-full bg-slate-700" />
               <span className="text-xs text-slate-600">完成</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 終止辨識並重置確認彈窗 Modal */}
+      {showResetConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#07142b]/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="tech-card p-6 max-w-sm w-full space-y-4 border-[#ff4b5c]/50 shadow-[0_0_30px_rgba(255,75,92,0.25)] text-center">
+            <div className="w-12 h-12 mx-auto rounded-full bg-[#ff4b5c]/20 border border-[#ff4b5c]/40 flex items-center justify-center text-[#ff4b5c]">
+              <AlertTriangle className="w-6 h-6 animate-pulse" />
+            </div>
+
+            <div className="space-y-1.5">
+              <h3 className="text-base font-bold text-white">終止辨識並重置？</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                確定要取消目前的辨識流程並清空所有資料嗎？未完成的品項與已上傳的圖片將會被清理。
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowResetConfirmModal(false)}
+                className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all active:scale-95"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={executeFullReset}
+                className="flex-1 py-2 rounded-xl bg-[#ff4b5c]/20 hover:bg-[#ff4b5c]/30 text-[#ff4b5c] border border-[#ff4b5c]/50 text-xs font-bold transition-all active:scale-95 shadow-[0_0_12px_rgba(255,75,92,0.3)]"
+              >
+                確認重置
+              </button>
             </div>
           </div>
         </div>
@@ -1027,11 +1087,12 @@ export default function ImportPage() {
                         const isSuccess = card.status === 'success';
                         const isError = card.status === 'error';
                         const isWaiting = card.status === 'idle';
+                        const displayPageNumber = card.realPageNumber ?? card.initialIndex;
 
                         return (
                           <div
-                            key={card.pageIndex}
-                            onClick={() => isError && handleRetryCard(card.pageIndex)}
+                            key={card.id}
+                            onClick={() => isError && handleRetryCard(card.id)}
                             className={`relative overflow-hidden rounded-xl border p-3 flex flex-col justify-between transition-all duration-300 min-h-[175px] select-none ${
                               isError
                                 ? 'border-[#ff4b5c] bg-[#ff4b5c]/10 shadow-[0_0_18px_rgba(255,75,92,0.35)] cursor-pointer active:scale-95 hover:border-[#ff4b5c]'
@@ -1048,7 +1109,7 @@ export default function ImportPage() {
                             <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
                               <img
                                 src={card.url}
-                                alt={`第 ${card.pageIndex} 頁`}
+                                alt={`第 ${displayPageNumber} 頁`}
                                 className={`w-full h-full object-cover transition-opacity duration-300 ${
                                   isSuccess ? 'opacity-25' : isScanning ? 'opacity-20' : 'opacity-15'
                                 }`}
@@ -1064,7 +1125,7 @@ export default function ImportPage() {
                             {/* 頂部標頭：頁次與狀態 Badge */}
                             <div className="relative z-10 flex items-center justify-between gap-2">
                               <span className="px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-slate-900/80 border border-slate-700 text-slate-200">
-                                第 {card.pageIndex} 頁
+                                第 {displayPageNumber} 頁
                               </span>
 
                               {isWaiting && (
@@ -1178,7 +1239,7 @@ export default function ImportPage() {
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleRetryCard(card.pageIndex);
+                                    handleRetryCard(card.id);
                                   }}
                                   className="w-full py-1 rounded bg-[#ff4b5c]/20 hover:bg-[#ff4b5c]/30 text-[#ff4b5c] font-bold flex items-center justify-center gap-1 transition-all active:scale-95"
                                 >
@@ -1269,9 +1330,10 @@ export default function ImportPage() {
                     </button>
                   )}
                   <button
+                    type="button"
                     onClick={handleReset}
-                    disabled={status === 'loading'}
-                    className="text-slate-500 hover:text-red-400 text-sm font-medium transition-colors flex items-center justify-center gap-2 py-2"
+                    disabled={isImporting}
+                    className="text-slate-400 hover:text-[#ff4b5c] text-sm font-medium transition-colors flex items-center justify-center gap-2 py-2.5 rounded-xl hover:bg-red-500/10 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
                   >
                     <RotateCcw className="w-4 h-4" />
                     重置所有資訊
