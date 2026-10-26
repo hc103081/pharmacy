@@ -28,6 +28,10 @@ export async function createGeminiModel(
       responseMimeType: 'application/json',
       maxOutputTokens: 8192,
       temperature: 0.1,
+      // @ts-ignore
+      thinkingConfig: {
+        thinkingBudget: 0,
+      },
     },
   });
 }
