@@ -17,6 +17,8 @@ interface TabListProps {
 interface TabProps {
   children: React.ReactNode;
   className?: string;
+  index?: number;
+  isActive?: boolean;
 }
 
 interface TabPanelsProps {
@@ -70,7 +72,7 @@ function TabList({ children, className }: TabListProps) {
     <div role="tablist" className={className}>
       {React.Children.map(children, (child, index) => {
         if (!React.isValidElement(child)) return child;
-        return React.cloneElement(child, { 
+        return React.cloneElement(child as React.ReactElement<any>, { 
           index,
           isActive: false // Will be overridden by Tab component
         });
@@ -111,7 +113,7 @@ function TabPanels({ children, className }: TabPanelsProps) {
     <div className={className}>
       {React.Children.map(children, (child, index) => {
         if (!React.isValidElement(child)) return child;
-        return React.cloneElement(child, { 
+        return React.cloneElement(child as React.ReactElement<any>, { 
           isActive: index === activeIndex 
         });
       })}
@@ -123,7 +125,7 @@ function TabPanel({ children, className, isActive = false }: TabPanelProps & { i
   if (!isActive) return null;
   
   return (
-    <div role="tabpanel" tabIndex={0} className={className}>
+    <div role="tabpanel" tabIndex={0} className={`${className} overflow-y-auto`}>
       {children}
     </div>
   );

@@ -77,10 +77,10 @@ export default function QueryPage() {
             {/* Mobile: collapsible search panel */}
             <SearchPanel className="hidden lg:block lg:w-64 border-r border-slate-800" />
             
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 flex flex-col">
               <QueryHeader user={{ ...user, role: user.role as 'counter' | 'pharmacist' | 'manager' | undefined }} isOffline={isOffline} />
               
-              <div className="flex-1 overflow-hidden">
+              <div className="flex-1 overflow-y-auto">
                 <Tabs>
                   <Tabs.TabList className="bg-slate-800/50 border-b border-slate-800">
                     <Tabs.Tab>藥品搜尋</Tabs.Tab>

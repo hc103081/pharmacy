@@ -67,7 +67,7 @@ export default function QueryHeader({ user, isOffline }: QueryHeaderProps) {
         <div className="flex items-center gap-2">
           <button 
             onClick={handleExport}
-            className="flex items-center gap-1 px-3 py-1.5 bg-slate-800/50 border border-slate-700 rounded-xl hover:bg-slate-800 transition-colors text-sm"
+            className="flex items-center gap-1 px-3 py-1.5 bg-slate-800/50 border border-slate-700 rounded-xl hover:bg-slate-800 transition-colors text-sm text-slate-200"
           >
             <Upload className="w-4 h-4" />
             <span>匯出</span>
@@ -75,7 +75,7 @@ export default function QueryHeader({ user, isOffline }: QueryHeaderProps) {
           
           <button 
             onClick={handleSettings}
-            className="flex items-center gap-1 px-3 py-1.5 bg-slate-800/50 border border-slate-700 rounded-xl hover:bg-slate-800 transition-colors text-sm"
+            className="flex items-center gap-1 px-3 py-1.5 bg-slate-800/50 border border-slate-700 rounded-xl hover:bg-slate-800 transition-colors text-sm text-slate-200"
           >
             <Settings className="w-4 h-4" />
             <span>設定</span>
@@ -83,7 +83,7 @@ export default function QueryHeader({ user, isOffline }: QueryHeaderProps) {
           
           <button 
             onClick={handleLogout}
-            className="flex items-center gap-1 px-3 py-1.5 bg-slate-800/50 border border-slate-700 rounded-xl hover:bg-slate-800 transition-colors text-sm"
+            className="flex items-center gap-1 px-3 py-1.5 bg-slate-800/50 border border-slate-700 rounded-xl hover:bg-slate-800 transition-colors text-sm text-slate-200"
           >
             <LogOut className="w-4 h-4" />
             <span>登出</span>
