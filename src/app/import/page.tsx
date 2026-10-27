@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { parsePdf, ParsedPdf, ParsedItem, PdfProgressStep } from '@/lib/pdfParser';
 import { validateParsedPdf } from '@/lib/pdfValidator';
+import { BlackHoleVortexTransition } from './components/BlackHoleVortexTransition';
 
 /** 單頁辨識卡片狀態介面 */
 export interface PageCardState {
@@ -206,6 +207,10 @@ export default function ImportPage() {
   const [isRecognizing, setIsRecognizing] = useState(false);
   const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isBlackHoleActive, setIsBlackHoleActive] = useState(false);
+  const [contentOpacity, setContentOpacity] = useState(1);
+  const [previewOpacity, setPreviewOpacity] = useState(0);
+  const pendingParsedDataRef = useRef<ParsedPdf | null>(null);
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
 
   useEffect(() => {
@@ -300,6 +305,10 @@ export default function ImportPage() {
     setPdfProgress(null);
     setPageCards([]);
     setIsRecognizing(false);
+    setIsBlackHoleActive(false);
+    setContentOpacity(1);
+    setPreviewOpacity(0);
+    pendingParsedDataRef.current = null;
     setStatus('idle');
     clearImportState();
   };
@@ -401,13 +410,17 @@ export default function ImportPage() {
         warnings: combinedWarnings.length > 0 ? combinedWarnings : undefined,
       };
 
-      setTimeout(() => {
-        setParsedData(parsed);
-        setManifestName(prev => prev.trim() || orderNumber);
-        setStatus('idle');
-        setMessage('');
-        setIsRecognizing(false);
-      }, 600);
+      // 觸發黑洞旋轉吸入 5 段式過場動畫
+      pendingParsedDataRef.current = parsed;
+      setManifestName(prev => prev.trim() || orderNumber);
+      setStatus('idle');
+      setMessage('');
+
+      // 1. 先將底層 UI 隱藏
+      setContentOpacity(0);
+      setPreviewOpacity(0);
+      // 2. 啟動黑洞漩渦動畫
+      setIsBlackHoleActive(true);
     }
   };
 
@@ -667,6 +680,10 @@ export default function ImportPage() {
     setPdfProgress(null);
     setPageCards([]);
     setIsRecognizing(false);
+    setIsBlackHoleActive(false);
+    setContentOpacity(1);
+    setPreviewOpacity(0);
+    pendingParsedDataRef.current = null;
     setStatus('idle');
     setMessage('');
   };
@@ -751,6 +768,25 @@ export default function ImportPage() {
         </div>
       )}
 
+      {/* 黑洞漩渦 5 段式過場動畫元件 */}
+      <BlackHoleVortexTransition
+        isActive={isBlackHoleActive}
+        pageCards={pageCards}
+        totalItemsCount={pendingParsedDataRef.current?.items?.length ?? 0}
+        totalPagesCount={pageCards.length}
+        onStartFadeInUi={() => {
+          if (pendingParsedDataRef.current) {
+            setParsedData(pendingParsedDataRef.current);
+          }
+          setIsRecognizing(false);
+          setPreviewOpacity(1);
+        }}
+        onComplete={() => {
+          setIsBlackHoleActive(false);
+          setContentOpacity(1);
+        }}
+      />
+
       <div className="flex-1 min-h-0 overflow-hidden">
         <div className="max-w-3xl mx-auto flex flex-col h-full">
           <div className="flex-shrink-0 flex items-center gap-3 px-4 lg:px-6 py-2 lg:py-3">
@@ -762,7 +798,10 @@ export default function ImportPage() {
           </div>
       
           {parsedData ? (
-            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            <div
+              className="flex-1 min-h-0 flex flex-col overflow-hidden transition-opacity duration-1000 ease-out"
+              style={{ opacity: isBlackHoleActive ? previewOpacity : 1 }}
+            >
               {/* OCR 警告摘要（僅當總提取數小於紙本宣告總數，或確實有短缺時顯示） */}
               {(() => {
                 const totalDeclared = (parsedData as any).order_metadata?.total_items;
@@ -826,7 +865,10 @@ export default function ImportPage() {
               />
             </div>
           ) : (
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-5 lg:space-y-6 p-0 lg:px-6 pb-6">
+            <div
+              className="flex-1 min-h-0 overflow-y-auto space-y-5 lg:space-y-6 p-0 lg:px-6 pb-6 transition-opacity duration-300"
+              style={{ opacity: contentOpacity }}
+            >
               <div className="tech-card p-4 lg:p-6 space-y-5 lg:space-y-6">
                 <div className="space-y-2">
                   <label className="block text-xs lg:text-sm font-medium text-slate-400">清單名稱</label>
