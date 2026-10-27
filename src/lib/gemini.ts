@@ -27,7 +27,7 @@ export async function createGeminiModel(
     generationConfig: {
       responseMimeType: 'application/json',
       maxOutputTokens: 8192,
-      temperature: 0.1,
+      temperature: 0.0,
       // @ts-ignore
       thinkingConfig: {
         thinkingBudget: 0,
