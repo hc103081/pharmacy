@@ -789,12 +789,12 @@ export default function ImportPage() {
 
       <div className="flex-1 min-h-0 overflow-hidden">
         <div className="max-w-3xl mx-auto flex flex-col h-full">
-          <div className="flex-shrink-0 flex items-center gap-3 px-4 lg:px-6 py-2 lg:py-3">
-            <Link href="/" className="p-2 hover:bg-slate-800 rounded-full transition-colors">
-              <ArrowLeft className="w-5 h-5 lg:w-6 lg:h-6 text-slate-400" />
+          <div className={`flex-shrink-0 flex items-center gap-2 sm:gap-3 transition-all ${parsedData ? 'px-3 py-1.5 sm:px-6 sm:py-3' : 'px-4 lg:px-6 py-2 lg:py-3'}`}>
+            <Link href="/" className="p-1.5 sm:p-2 hover:bg-slate-800 rounded-full transition-colors">
+              <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-slate-400" />
             </Link>
-            <h1 className="text-xl lg:text-2xl font-bold text-white">匯入藥品清單</h1>
-            <TeachingButton module="import-function" variant="inline" className="ml-3" />
+            <h1 className={`${parsedData ? 'text-base sm:text-xl lg:text-2xl' : 'text-xl lg:text-2xl'} font-bold text-white`}>匯入藥品清單</h1>
+            <TeachingButton module="import-function" variant="inline" className="ml-2 sm:ml-3" />
           </div>
       
           {parsedData ? (
@@ -814,40 +814,30 @@ export default function ImportPage() {
                 const diff = totalDeclared && totalDeclared > actualCount ? totalDeclared - actualCount : undefined;
 
                 return (
-                  <div className="flex-shrink-0 mx-4 lg:mx-6 mt-3 mb-2 animate-in fade-in slide-in-from-top-2">
-                    <div className="tech-card p-3 lg:p-4 border-[#ff9f0a]/50 bg-[#ff9f0a]/10">
-                      <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-[#ff9f0a]/20 flex items-center justify-center mt-0.5">
+                  <div className="flex-shrink-0 mx-2 sm:mx-6 mt-1 mb-1 animate-in fade-in slide-in-from-top-2">
+                    <div className="tech-card p-2 sm:p-3 border-[#ff9f0a]/50 bg-[#ff9f0a]/10">
+                      <div className="flex items-start gap-2">
+                        <div className="flex-shrink-0 w-5 h-5 rounded-full bg-[#ff9f0a]/20 flex items-center justify-center mt-0.5">
                           <span className="text-[10px] font-bold text-[#ff9f0a]">⚠</span>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-[#ff9f0a] mb-1">OCR 辨識可能有遺漏品項</p>
-                          <p className="text-xs text-slate-400 mb-2">
-                            總頁數 {(parsedData as any).order_metadata?.ocr_page_count || '?'} 頁，辨識 {actualCount} 項
-                            {diff ? `（紙本標註共 ${totalDeclared} 項，短缺 ${diff} 項）` : ''}
-                          </p>
-                          <div className="flex flex-wrap gap-1.5">
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <p className="text-xs font-bold text-[#ff9f0a]">OCR 辨識短缺提醒</p>
+                            <span className="text-[10px] text-slate-400">
+                              共 {actualCount} 項 {diff ? `(缺 ${diff} 項)` : ''}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
                             {warnings.map((w, i) => (
-                              <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] font-medium text-slate-300">
-                                <span className="text-[#ff9f0a] font-bold">第 {w.page_number} 頁</span>
+                              <span key={i} className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-slate-800 border border-slate-700 text-[9px] font-medium text-slate-300">
+                                <span className="text-[#ff9f0a] font-bold">P.{w.page_number}</span>
                                 {w.missing_count > 0 ? (
                                   <span>缺 {w.missing_count} 項</span>
                                 ) : (
-                                  <span className="text-slate-500">異常多</span>
+                                  <span className="text-slate-500">異常</span>
                                 )}
                               </span>
                             ))}
-                          </div>
-                          <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-[#ff9f0a]/30">
-                            <p className="text-[10px] text-slate-400">建議人工檢查紙本或點擊重新辨識</p>
-                            <button
-                              type="button"
-                              onClick={handlePdfRetry}
-                              className="px-3 py-1 rounded-lg border border-[#ff9f0a]/60 bg-[#ff9f0a]/20 hover:bg-[#ff9f0a]/30 active:scale-95 text-xs text-[#ff9f0a] font-bold transition-all flex items-center gap-1.5"
-                            >
-                              <RotateCcw className="w-3.5 h-3.5" />
-                              <span>清空並重新上傳</span>
-                            </button>
                           </div>
                         </div>
                       </div>
