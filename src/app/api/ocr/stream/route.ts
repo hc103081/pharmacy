@@ -8,10 +8,7 @@ import type { PageItem } from '@/app/actions/import/types';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const PRIMARY_MODEL = 'gemini-3.1-flash-lite';
-const FALLBACK_MODEL = 'gemini-2.5-flash';
-/** 輪詢模型順序：3.1 首選 -> 2.5 備援 -> 輪詢喚回 3.1 -> 備援 2.5 */
-const MODEL_SEQUENCE = [PRIMARY_MODEL, FALLBACK_MODEL, PRIMARY_MODEL, FALLBACK_MODEL];
+const OCR_MODEL = 'gemini-3.1-flash-lite';
 const MAX_RETRIES = 3;
 
 /**
@@ -289,7 +286,7 @@ export async function POST(req: NextRequest) {
             stage: 'init',
             percent: 5,
             message: `初始化辨識引擎（待處理 ${pageItemsQueue.length} 頁）...`,
-            model: PRIMARY_MODEL,
+            model: OCR_MODEL,
           });
 
           const allBatchResults: Array<{
@@ -310,7 +307,7 @@ export async function POST(req: NextRequest) {
             const totalPages = currentItem.totalPages;
             const singleBatch = [currentItem.url];
 
-            let currentModel = PRIMARY_MODEL;
+            const currentModel = OCR_MODEL;
             const basePercent = Math.round(10 + (i / pageItemsQueue.length) * 70);
 
             sendSseEvent(controller, encoder, 'progress', {
@@ -324,15 +321,13 @@ export async function POST(req: NextRequest) {
 
             let result = await callGeminiForBatch(singleBatch, pageIndex - 1, currentModel);
 
-            // 錯誤與空項檢查（包含 503 與 items 為空時的輪詢喚回 3.1 機制）
+            // 錯誤與空項檢查：固定以單一 3.1 模型進行階梯退避重試
             let retryCount = 0;
             while (
               (!result.success || !result.items || result.items.length === 0) &&
               retryCount < MAX_RETRIES
             ) {
               retryCount++;
-              // 輪詢模型：3.1 -> 2.5 -> 3.1
-              currentModel = MODEL_SEQUENCE[retryCount] || PRIMARY_MODEL;
 
               const is503 =
                 result.error?.includes('503') ||
@@ -346,7 +341,8 @@ export async function POST(req: NextRequest) {
                 ? '提取項目為空 (0 項)'
                 : (result.error || '辨識未回傳結果');
 
-              const backoffSeconds = is503 ? (retryCount === 1 ? 4 : 6) : 2;
+              // 階梯退避等待秒數：503 尖峰依序為 3s -> 5s -> 7s，一般空項或異常為 2s
+              const backoffSeconds = is503 ? retryCount * 2 + 1 : 2;
 
               // 透過 SSE 倒數計時推送
               for (let s = backoffSeconds; s > 0; s--) {
@@ -359,7 +355,7 @@ export async function POST(req: NextRequest) {
                   model: currentModel,
                   switchedModel: currentModel,
                   reason: reasonText,
-                  message: `${reasonText}，輪詢切換至模型 (${currentModel})，倒數 ${s} 秒後重試 (${retryCount}/${MAX_RETRIES})...`,
+                  message: `${reasonText}，保持主模型 (${currentModel}) 進行退避重試，倒數 ${s} 秒 (${retryCount}/${MAX_RETRIES})...`,
                 });
                 await new Promise((r) => setTimeout(r, 1000));
               }
