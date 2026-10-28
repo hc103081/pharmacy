@@ -299,7 +299,7 @@ function QueryMainContent() {
           ) : (
             <CandidateListView
               records={records}
-              onSelectRecord={(drug: DrugAuditRecord) => setSelectedBarcode(drug.barcode)}
+              onSelectRecord={(drug: DrugAuditRecord) => setSelectedBarcode(drug.id || drug.barcode)}
               isLoading={isLoading}
               query={query}
             />

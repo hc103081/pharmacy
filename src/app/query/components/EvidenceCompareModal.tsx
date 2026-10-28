@@ -65,6 +65,16 @@ export function EvidenceCompareModal({
   const [comparePhotoUrl, setComparePhotoUrl] = useState<string | null>(null);
   const [loadingCurrent, setLoadingCurrent] = useState(false);
   const [loadingCompare, setLoadingCompare] = useState(false);
+  const [currentImgLoaded, setCurrentImgLoaded] = useState(false);
+  const [compareImgLoaded, setCompareImgLoaded] = useState(false);
+
+  useEffect(() => {
+    setCurrentImgLoaded(false);
+  }, [currentPhotoUrl]);
+
+  useEffect(() => {
+    setCompareImgLoaded(false);
+  }, [comparePhotoUrl]);
 
   // Helper function to resolve key to signed url
   const resolvePhotoUrl = useCallback(
@@ -184,7 +194,7 @@ export function EvidenceCompareModal({
                     </span>
                   </div>
 
-                  {loadingCurrent ? (
+                  {loadingCurrent && !currentPhotoUrl ? (
                     <div className="h-32 sm:h-44 max-h-[22dvh] sm:max-h-[28dvh] rounded-xl bg-slate-950 border border-slate-800 flex flex-col items-center justify-center text-center p-3 mt-2">
                       <div className="w-6 h-6 border-2 border-[#00f2fe] border-t-transparent rounded-full animate-spin mb-2" />
                       <span className="text-xs text-slate-400">正在自雲端載入存證照片...</span>
@@ -195,11 +205,21 @@ export function EvidenceCompareModal({
                       className="h-32 sm:h-44 max-h-[22dvh] sm:max-h-[28dvh] rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center mt-2 overflow-hidden relative group cursor-pointer hover:border-[#00f2fe]/60 transition-all"
                       title="點擊放大檢視照片"
                     >
+                      {(!currentImgLoaded || loadingCurrent) && (
+                        <div className="absolute inset-0 z-10 bg-slate-950 flex flex-col items-center justify-center text-center p-3">
+                          <div className="w-6 h-6 border-2 border-[#00f2fe] border-t-transparent rounded-full animate-spin mb-2" />
+                          <span className="text-xs text-slate-400">正在載入照片...</span>
+                        </div>
+                      )}
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={currentPhotoUrl}
                         alt="本次實體盤點照片"
-                        className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
+                        onLoad={() => setCurrentImgLoaded(true)}
+                        onError={() => setCurrentImgLoaded(true)}
+                        className={`w-full h-full object-contain group-hover:scale-105 transition-transform duration-200 ${
+                          currentImgLoaded ? 'opacity-100' : 'opacity-0'
+                        }`}
                       />
                       <div className="absolute top-1.5 right-1.5 px-2 py-0.5 rounded-full bg-black/75 border border-white/20 text-[10px] text-white flex items-center gap-1 shadow-md pointer-events-none">
                         <svg className="w-3 h-3 text-[#00f2fe]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -257,7 +277,7 @@ export function EvidenceCompareModal({
                     )}
                   </div>
 
-                  {loadingCompare ? (
+                  {loadingCompare && !comparePhotoUrl ? (
                     <div className="h-32 sm:h-44 max-h-[22dvh] sm:max-h-[28dvh] rounded-xl bg-slate-950 border border-slate-800 flex flex-col items-center justify-center text-center p-3 mt-2">
                       <div className="w-6 h-6 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin mb-2" />
                       <span className="text-xs text-slate-400">正在自雲端載入歷史照片...</span>
@@ -269,11 +289,21 @@ export function EvidenceCompareModal({
                         className="h-32 sm:h-44 max-h-[22dvh] sm:max-h-[28dvh] rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center mt-2 overflow-hidden relative group cursor-pointer hover:border-emerald-400/60 transition-all"
                         title="點擊放大檢視照片"
                       >
+                        {(!compareImgLoaded || loadingCompare) && (
+                          <div className="absolute inset-0 z-10 bg-slate-950 flex flex-col items-center justify-center text-center p-3">
+                            <div className="w-6 h-6 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin mb-2" />
+                            <span className="text-xs text-slate-400">正在載入歷史照片...</span>
+                          </div>
+                        )}
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={comparePhotoUrl}
                           alt="歷史盤點存證照片"
-                          className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
+                          onLoad={() => setCompareImgLoaded(true)}
+                          onError={() => setCompareImgLoaded(true)}
+                          className={`w-full h-full object-contain group-hover:scale-105 transition-transform duration-200 ${
+                            compareImgLoaded ? 'opacity-100' : 'opacity-0'
+                          }`}
                         />
                         <div className="absolute top-1.5 right-1.5 px-2 py-0.5 rounded-full bg-black/75 border border-white/20 text-[10px] text-white flex items-center gap-1 shadow-md pointer-events-none">
                           <svg className="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -19,10 +19,10 @@ export function DrugAuditTree({
   // Default first month open, others collapsed
   const [collapsedMonths, setCollapsedMonths] = useState<Record<string, boolean>>({});
 
-  const toggleMonth = (monthKey: string) => {
+  const toggleMonth = (monthKey: string, currentCollapsed: boolean) => {
     setCollapsedMonths((prev) => ({
       ...prev,
-      [monthKey]: !prev[monthKey],
+      [monthKey]: !currentCollapsed,
     }));
   };
 
@@ -82,7 +82,7 @@ export function DrugAuditTree({
           </div>
 
           <div className="flex items-center gap-2 text-xs text-slate-400 flex-wrap">
-            <span className="font-mono text-[#00f2fe]">{record.barcode}</span>
+            <span className="font-mono text-[#00f2fe]">{record.barcode || '無商品條碼'}</span>
             {record.storageLocation && (
               <>
                 <span>•</span>
@@ -127,7 +127,7 @@ export function DrugAuditTree({
             >
               {/* Accordion Header */}
               <div
-                onClick={() => toggleMonth(group.monthKey)}
+                onClick={() => toggleMonth(group.monthKey, isCollapsed)}
                 className="px-4 py-3.5 bg-slate-900/90 hover:bg-slate-900 flex items-center justify-between cursor-pointer border-b border-slate-800 transition-colors"
               >
                 <div className="flex items-center gap-2.5">

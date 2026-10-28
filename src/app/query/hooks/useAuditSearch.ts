@@ -121,8 +121,16 @@ export function transformToAuditRecord(
   const totalActual = Number(raw.total_actual) || 0;
   const totalDiscrepancy = totalActual - totalExpected;
 
+  const stableId =
+    raw.barcode && raw.barcode.trim() !== ''
+      ? raw.barcode.trim()
+      : raw.product_code && raw.product_code.trim() !== ''
+      ? `pc_${raw.product_code.trim()}`
+      : `item_${raw.name}_${raw.storage_location || 'default'}`;
+
   return {
-    barcode: raw.barcode,
+    id: stableId,
+    barcode: raw.barcode || '',
     productCode: raw.product_code,
     name: raw.name,
     storageLocation: raw.storage_location,
@@ -140,7 +148,7 @@ export function transformToAuditRecord(
 export function useAuditSearch() {
   const [query, setQuery] = useState('');
   const [records, setRecords] = useState<DrugAuditRecord[]>([]);
-  const [selectedBarcode, setSelectedBarcode] = useState<string | null>(null);
+  const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isFromCache, setIsFromCache] = useState(false);
@@ -149,6 +157,10 @@ export function useAuditSearch() {
   const { isOffline, saveAuditRecord, searchOfflineRecords } = useOfflineAuditCache();
   const searchSeqRef = useRef(0);
 
+  const setSelectedBarcode = useCallback((idOrBarcode: string | null) => {
+    setSelectedRecordId(idOrBarcode);
+  }, []);
+
   const executeSearch = useCallback(
     async (searchTerm: string) => {
       const trimmed = searchTerm.trim();
@@ -156,7 +168,7 @@ export function useAuditSearch() {
 
       if (!trimmed) {
         setRecords([]);
-        setSelectedBarcode(null);
+        setSelectedRecordId(null);
         setError(null);
         setIsLoading(false);
         return;
@@ -172,9 +184,9 @@ export function useAuditSearch() {
         if (currentSeq !== searchSeqRef.current) return;
         setRecords(cached);
         if (cached.length === 1) {
-          setSelectedBarcode(cached[0].barcode);
+          setSelectedRecordId(cached[0].id || cached[0].barcode);
         } else {
-          setSelectedBarcode(null);
+          setSelectedRecordId(null);
         }
         setIsLoading(false);
         return;
@@ -234,9 +246,9 @@ export function useAuditSearch() {
 
         // Auto-select first item if only 1 match or barcode scan
         if (transformed.length === 1 || (isBarcode && transformed.length > 0)) {
-          setSelectedBarcode(transformed[0].barcode);
+          setSelectedRecordId(transformed[0].id || transformed[0].barcode);
         } else {
-          setSelectedBarcode(null);
+          setSelectedRecordId(null);
         }
 
         // Cache results in IndexedDB for offline capability
@@ -252,9 +264,9 @@ export function useAuditSearch() {
         if (currentSeq !== searchSeqRef.current) return;
         setRecords(cached);
         if (cached.length === 1) {
-          setSelectedBarcode(cached[0].barcode);
+          setSelectedRecordId(cached[0].id || cached[0].barcode);
         } else {
-          setSelectedBarcode(null);
+          setSelectedRecordId(null);
           if (cached.length === 0) {
             setError(err instanceof Error ? err.message : '查詢發生未預期錯誤');
           }
@@ -269,16 +281,23 @@ export function useAuditSearch() {
   );
 
   const selectedRecord = useMemo(() => {
-    if (!selectedBarcode) return null;
-    return records.find((r) => r.barcode === selectedBarcode) || null;
-  }, [records, selectedBarcode]);
+    if (!selectedRecordId) return null;
+    return (
+      records.find(
+        (r) =>
+          r.id === selectedRecordId ||
+          (r.barcode && r.barcode === selectedRecordId) ||
+          (r.productCode && r.productCode === selectedRecordId)
+      ) || null
+    );
+  }, [records, selectedRecordId]);
 
   return {
     query,
     setQuery,
     records,
     selectedRecord,
-    selectedBarcode,
+    selectedBarcode: selectedRecordId,
     setSelectedBarcode,
     isLoading,
     error,

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Camera, CheckCircle2, AlertCircle, Loader2, Search, RotateCcw, SkipForward, Edit } from 'lucide-react';
+import { Camera, CheckCircle2, AlertCircle, Loader2, Search, RotateCcw, SkipForward, Edit, MapPin, Barcode, Check, AlertTriangle } from 'lucide-react';
 import type { DrugItem } from '@/types';
 import type { ImageLoadStatus, ImageLoadProgress } from '@/app/scan/hooks/useImageCache';
 
@@ -256,6 +256,11 @@ export default function DrugCard({
 
   // 從 loadProgress 直接取得 objectUrl，作為單一真相來源
   const imageUrl = getImageUrlFromProgress(loadProgress);
+  const [isThumbLoaded, setIsThumbLoaded] = useState(false);
+
+  useEffect(() => {
+    setIsThumbLoaded(false);
+  }, [imageUrl]);
 
   // 使用 ref 追蹤是否已經觸發過載入，避免因 triggerImageLoad 依賴變更導致重複執行
   const hasTriggeredLoadRef = useRef(false);
@@ -356,14 +361,22 @@ export default function DrugCard({
     if (photoKey) setImageLoadStatus?.(photoKey, 'error');
   }, [photoKey, setImageLoadStatus]);
 
+  const seqNumber = String(((drug.item_order - 1) % 44) + 1).padStart(2, '0');
+
   return (
     <div
       data-drug-id={drug.id}
-      className={`tech-card p-4 transition-all duration-300 flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2 select-none ${
-        isMatched ? 'border-[#00f2fe] ring-2 ring-inset ring-[#00f2fe]/50 scale-[1.02] z-10' : ''
-      } ${isError || isRealtimeError ? 'border-[#ff4b5c] bg-[#ff4b5c]/10' : ''} ${
-        isCompleted && !isMatched && !isManuallySelected ? 'opacity-40 grayscale' : ''
-      } ${isManuallySelected ? 'border-[#00f2fe] ring-1 ring-[#00f2fe]/30' : ''}`}
+      className={`rounded-2xl bg-[#162a56]/80 backdrop-blur-md border p-3.5 sm:p-4 transition-all duration-200 flex flex-col justify-between gap-3 animate-in fade-in slide-in-from-bottom-2 select-none shadow-xl ${
+        isMatched
+          ? 'border-[#00f2fe] ring-1 ring-[#00f2fe]/50 shadow-[0_0_20px_rgba(0,242,254,0.22)] scale-[1.01] z-10'
+          : isManuallySelected
+          ? 'border-[#00f2fe] ring-1 ring-[#00f2fe]/30'
+          : 'border-[#233d7a] hover:border-[#00f2fe]/60'
+      } ${
+        isError || isRealtimeError ? 'border-[#ff4b5c] bg-[#ff4b5c]/10 shadow-[0_0_15px_rgba(255,75,92,0.15)]' : ''
+      } ${
+        isCompleted && !isMatched && !isManuallySelected ? 'opacity-45 grayscale-[30%]' : ''
+      }`}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -372,130 +385,129 @@ export default function DrugCard({
       onContextMenu={handleContextMenu}
       style={isNoBarcode && !isCompleted && !isError && !isLocked ? { cursor: 'pointer' } : undefined}
     >
-      {/* 頂部：序號 + 藥品資訊 + 照片縮圖 */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-4 flex-1 min-w-0">
-          {/* 無條碼時顯示「待補碼」徽章 */}
-          {isNoBarcode && !isCompleted && !isError ? (
-            <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-red-500/20 border border-red-500/40">
-              <span className="text-[10px] font-bold text-red-400">待補碼</span>
-            </div>
-          ) : (
-            <div
-              className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${
-                isCompleted
-                  ? 'bg-[#00f2fe] text-slate-900'
-                  : isError
-                    ? 'bg-[#ff4b5c] text-white'
-                    : 'bg-slate-800 text-slate-400'
-              }`}
-            >
-              {isCompleted ? (
-                <CheckCircle2 className="w-5 h-5" />
-              ) : isError ? (
-                <AlertCircle className="w-5 h-5" />
-              ) : (
-                ((drug.item_order - 1) % 44) + 1
-              )}
-            </div>
-          )}
-
-          <div className="min-w-0 flex-1">
-            {/* 儲位+類別小字，空時顯示破折號 */}
-            <div className="text-[11px] text-gray-400 mb-0.5">
-              {isEmptyStorage && !drug.category ? (
-                <span className="text-slate-600">—</span>
-              ) : (
-                [drug.storage_location, drug.category].filter(Boolean).join('-') || <span className="text-slate-600">—</span>
-              )}
-            </div>
-
-            {/* 藥品名稱 */}
-            <div className={`font-bold truncate text-base lg:text-lg ${isMatched || isManuallySelected ? 'text-[#00f2fe]' : 'text-white'}`}>
-              {drug.name}
-            </div>
-
-            {/* 條碼 + 預期數量 + 倉庫數量（同一垂直容器） */}
-            <div className="flex flex-col gap-0.5 min-h-[3.5rem]">
-              {isNoBarcode ? (
-                <span className="text-xs font-mono text-slate-600">無條碼</span>
-              ) : (
-                <>
-                  {/* 條碼區塊：product_code 和 barcode 在同一行顯示，編輯按鈕在最後 */}
-                  {(drug.product_code?.trim() || drug.barcode?.trim()) && (
-                    <div className="flex items-center gap-1 flex-wrap">
-                      {drug.product_code?.trim() && (
-                        <>
-                          <span className="text-lg font-semibold text-[#00f2fe] drop-shadow-[0_0_8px_rgba(0,242,254,0.4)] leading-tight">
-                            {drug.product_code}
-                          </span>
-                          {onFilterByBarcode && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onFilterByBarcode(drug.product_code!);
-                              }}
-                              className="p-1 rounded-full hover:bg-slate-700/50 transition-colors"
-                              title="以商品代碼篩選"
-                            >
-                              <Search className="w-3.5 h-3.5 text-slate-400 hover:text-[#00f2fe]" />
-                            </button>
-                          )}
-                        </>
-                      )}
-                      {drug.barcode?.trim() && drug.barcode !== drug.product_code && (
-                        <>
-                          <span className="text-lg font-semibold text-[#00f2fe]/70 leading-tight">
-                            {drug.barcode}
-                          </span>
-                          {onFilterByBarcode && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onFilterByBarcode(drug.barcode);
-                              }}
-                              className="p-1 rounded-full hover:bg-slate-700/50 transition-colors"
-                              title="以條碼篩選"
-                            >
-                              <Search className="w-3.5 h-3.5 text-slate-400 hover:text-[#00f2fe]" />
-                            </button>
-                          )}
-                        </>
-                      )}
-                      {/* 編輯按鈕：放大鏡右旁，只要有條碼且 pending 就顯示 */}
-                      {onEditDrug && !isLocked && drug.counted_status === 'pending' && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onEditDrug(drug);
-                          }}
-                          className="p-1 rounded-full bg-slate-800/50 text-slate-400 hover:text-[#00f2fe] hover:bg-slate-700 transition-colors"
-                          title="編輯藥品資料"
-                          aria-label="編輯藥品資料"
-                        >
-                          <Edit className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {isError && drug.actual_quantity !== undefined && (
-              <div className="mt-0.5">
-                <span className="text-sm font-bold text-[#ff4b5c]">實際: {drug.actual_quantity}</span>
-              </div>
+      {/* 頂部：序號 + 藥品主體資訊 + 照片縮圖按鈕 */}
+      <div className="flex items-start justify-between gap-3">
+        {/* 左側序號方塊 */}
+        {isNoBarcode && !isCompleted && !isError ? (
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-red-500/20 border border-red-500/40 shadow-inner">
+            <span className="text-[10px] font-bold text-red-400 font-mono">待補碼</span>
+          </div>
+        ) : (
+          <div
+            className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold font-mono text-sm shrink-0 shadow-inner transition-colors ${
+              isCompleted
+                ? 'bg-[#00f2fe] text-slate-900 border border-[#00f2fe]'
+                : isError
+                ? 'bg-[#ff4b5c] text-white border border-[#ff4b5c]'
+                : 'bg-[#0a1936] text-[#00f2fe] border border-[#1e3468]'
+            }`}
+          >
+            {isCompleted ? (
+              <CheckCircle2 className="w-5 h-5" />
+            ) : isError ? (
+              <AlertCircle className="w-5 h-5" />
+            ) : (
+              seqNumber
             )}
           </div>
+        )}
+
+        {/* 中間主體資訊 */}
+        <div className="flex-1 min-w-0 space-y-1">
+          {/* 儲位與版面標籤 */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {drug.storage_location && (
+              <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-300 text-[11px] font-medium border border-amber-500/30 flex items-center gap-1">
+                <MapPin className="w-3 h-3" />
+                <span>儲位 {drug.storage_location}</span>
+              </span>
+            )}
+            {drug.category && (
+              <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 text-[11px] font-medium border border-slate-700">
+                {drug.category}
+              </span>
+            )}
+            <span className="text-[11px] text-slate-400 font-mono">
+              P.{drug.page_number} #{((drug.item_order - 1) % 44) + 1}
+            </span>
+          </div>
+
+          {/* 藥品品名 (純白高對比粗體) */}
+          <div className="font-bold truncate text-base lg:text-lg text-white tracking-wide">
+            {drug.name}
+          </div>
+
+          {/* 條碼晶片徽章與工具鍵 */}
+          <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+            {isNoBarcode ? (
+              <span className="text-xs font-mono text-slate-500 px-2 py-0.5 rounded bg-slate-900 border border-slate-800">
+                無條碼
+              </span>
+            ) : (
+              <>
+                {drug.product_code?.trim() && (
+                  <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded-md bg-[#00f2fe]/10 text-[#00f2fe] border border-[#00f2fe]/30 tracking-wider shadow-sm flex items-center gap-1">
+                    <Barcode className="w-3.5 h-3.5" />
+                    {drug.product_code}
+                  </span>
+                )}
+                {drug.barcode?.trim() && drug.barcode !== drug.product_code && (
+                  <span className="font-mono text-xs font-medium px-2 py-0.5 rounded-md bg-slate-800/80 text-slate-300 border border-slate-700 tracking-wider flex items-center gap-1">
+                    <Barcode className="w-3 h-3 text-slate-400" />
+                    {drug.barcode}
+                  </span>
+                )}
+                {onFilterByBarcode && (drug.barcode || drug.product_code) && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onFilterByBarcode((drug.barcode || drug.product_code)!);
+                    }}
+                    className="p-1 rounded-md bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-[#00f2fe] border border-slate-700/80 transition-colors"
+                    title="以條碼篩選"
+                  >
+                    <Search className="w-3 h-3" />
+                  </button>
+                )}
+                {onEditDrug && !isLocked && drug.counted_status === 'pending' && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEditDrug(drug);
+                    }}
+                    className="p-1 rounded-md bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-[#00f2fe] border border-slate-700/80 transition-colors"
+                    title="編輯藥品資料"
+                    aria-label="編輯藥品資料"
+                  >
+                    <Edit className="w-3 h-3" />
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* 錯誤時的實際數量標示 */}
+          {isError && drug.actual_quantity !== undefined && (
+            <div className="mt-1">
+              <span className="text-xs font-mono font-bold text-[#ff4b5c] px-2 py-0.5 rounded bg-[#ff4b5c]/10 border border-[#ff4b5c]/25">
+                實際盤點: {drug.actual_quantity}
+              </span>
+            </div>
+          )}
         </div>
 
-        {/* 照片縮圖 / 上傳中動畫 / 佔位符 */}
+        {/* 右側照片縮圖按鈕 (含微光等待與載入中進度) */}
         <div
           ref={imgContainerRef}
-          className={`relative w-11 h-11 lg:w-12 lg:h-12 rounded-lg overflow-hidden border shrink-0 shadow-inner bg-slate-900 ${isMatched ? 'border-[#00f2fe]' : 'border-slate-700'}`}
+          onClick={imageUrl ? () => onPreviewPhoto(imageUrl) : onTriggerCamera}
+          className={`relative w-12 h-12 rounded-xl overflow-hidden border shrink-0 shadow-inner bg-[#0a1936] flex flex-col items-center justify-center cursor-pointer transition-all active:scale-95 group ${
+            isMatched ? 'border-[#00f2fe]' : 'border-[#1e3468] hover:border-[#00f2fe]/60'
+          }`}
+          title={imageUrl ? '點擊預覽照片' : '拍攝存證照片'}
         >
-          {/* 上傳中覆蓋層 (最高優先級) */}
+          {/* 上傳中覆蓋層 */}
           {isUploading && (
             <div className="absolute inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm z-10">
               <div className="relative w-6 h-6">
@@ -506,21 +518,35 @@ export default function DrugCard({
             </div>
           )}
 
-          {/* Idle 狀態：無照片或未開始載入 */}
-          {!isUploading && loadProgress.status === 'idle' && (
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-900 text-slate-600">
-              <Camera className="w-5 h-5 opacity-50" />
+          {/* 無照片狀態 */}
+          {!isUploading && !hasPhoto && (
+            <div className="flex flex-col items-center justify-center text-slate-400 group-hover:text-[#00f2fe] transition-colors">
+              <Camera className="w-4 h-4 group-hover:scale-110 transition-transform" />
+              <span className="text-[9px] text-slate-500 group-hover:text-[#00f2fe] mt-0.5 font-medium">拍照</span>
             </div>
           )}
 
+          {/* 有照片但處於排隊等待、取得 URL 或解碼渲染中：顯示極光藍旋轉加載圈 */}
+          {!isUploading && hasPhoto && (
+            loadProgress.status === 'idle' ||
+            loadProgress.status === 'fetching_url' ||
+            (loadProgress.status === 'loaded' && !isThumbLoaded)
+          ) && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
+              <div className="relative w-5 h-5 flex items-center justify-center">
+                <div className="absolute inset-0 rounded-full border-2 border-[#00f2fe]/20" />
+                <div className="absolute inset-0 rounded-full border-2 border-t-[#00f2fe] border-r-transparent border-b-transparent border-l-transparent animate-spin" />
+              </div>
+            </div>
+          )}
 
-          {/* Downloading 階段：環形進度條 (size=32, strokeWidth=4) */}
+          {/* Downloading 階段：環形進度條 */}
           {!isUploading && loadProgress.status === 'downloading' && (
             <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
               <CircularProgress
                 progress={loadProgress.progress}
-                size={32}
-                strokeWidth={4}
+                size={28}
+                strokeWidth={3}
                 strokeColor="#00f2fe"
                 bgColor="#00f2fe30"
                 showText={true}
@@ -528,19 +554,23 @@ export default function DrugCard({
             </div>
           )}
 
-          {/* Loaded 狀態：圖片淡入動畫 - 直接使用 loadProgress.objectUrl，避免競態條件 */}
+          {/* Loaded 狀態：圖片淡入動畫 */}
           {!isUploading && loadProgress.status === 'loaded' && imageUrl && (
             <div
-              onClick={() => onPreviewPhoto(imageUrl)}
               data-no-longpress="true"
               className="absolute inset-0 cursor-pointer"
-              title="點擊預覽照片"
             >
               <img
                 src={imageUrl}
                 alt="Thumbnail"
-                className="w-full h-full object-cover animate-in fade-in duration-300"
-                onError={handleImageError}
+                onLoad={() => setIsThumbLoaded(true)}
+                onError={() => {
+                  setIsThumbLoaded(true);
+                  handleImageError();
+                }}
+                className={`w-full h-full object-cover animate-in fade-in duration-300 ${
+                  isThumbLoaded ? 'opacity-100' : 'opacity-0'
+                }`}
               />
             </div>
           )}
@@ -548,171 +578,163 @@ export default function DrugCard({
           {/* Error 狀態：破圖圖標 */}
           {!isUploading && loadProgress.status === 'error' && (
             <div className="absolute inset-0 flex items-center justify-center bg-slate-800 text-slate-500">
-              <AlertCircle className="w-5 h-5" />
+              <AlertCircle className="w-4 h-4" />
             </div>
-          )}
-
-          {/* 相容舊 API：loading 狀態（當沒有使用新進度 API 時） */}
-          {!isUploading && !getImageLoadProgress && loadStatus === 'loading' && (
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
-              <Loader2 className="w-5 h-5 text-[#00f2fe] animate-spin" />
-            </div>
-          )}
-          {/* 編輯按鈕：僅在未鎖定、未完成、未錯誤、待清點狀態時顯示 */}
-          {onEditDrug && !isLocked && drug.counted_status === 'pending' && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onEditDrug(drug);
-              }}
-              className="absolute top-1 right-1 p-1.5 rounded-full bg-slate-900/80 backdrop-blur-sm text-slate-400 hover:text-[#00f2fe] hover:bg-slate-800 transition-all active:scale-95 opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-[#00f2fe]/50"
-              title="編輯藥品資料"
-              aria-label="編輯藥品資料"
-            >
-              <Edit className="w-4 h-4" />
-            </button>
           )}
         </div>
       </div>
 
       {/* 底部操作區 */}
       {shouldShowActions && !isLocked ? (
-        <div className="flex flex-col lg:flex-row gap-3">
+        <div className="flex flex-col gap-2.5">
           {isCompleted || isError ? (
             /* 已完成/有誤：顯示狀態 + 重試按鈕 */
-            <div className="flex items-center gap-2 flex-wrap bg-slate-950/50 p-3 rounded-xl border border-slate-700">
-              <span className="text-[10px] text-slate-500 uppercase font-bold shrink-0">已確認:</span>
-              <span
-                className={`px-2 py-0.5 rounded text-xs font-bold ${
-                  isCompleted
-                    ? 'bg-[#00f2fe]/20 text-[#00f2fe] border border-[#00f2fe]/30'
-                    : 'bg-[#ff4b5c]/20 text-[#ff4b5c] border border-[#ff4b5c]/30'
-                }`}
-              >
-                {isCompleted ? '正確' : '有誤'}
-              </span>
-              <span className="text-xs text-slate-400">
-                實際: <span className={`font-mono font-bold ${isCompleted ? 'text-[#00f2fe]' : 'text-[#ff4b5c]'}`}>{drug.actual_quantity}</span>
-
-              </span>
+            <div className="flex items-center justify-between gap-2 flex-wrap bg-[#0a1936]/90 p-2.5 sm:p-3 rounded-xl border border-[#1e3468]">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-slate-400 font-medium shrink-0">盤點結果:</span>
+                <span
+                  className={`px-2 py-0.5 rounded text-xs font-bold ${
+                    isCompleted
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : 'bg-[#ff4b5c]/20 text-[#ff4b5c] border border-[#ff4b5c]/30'
+                  }`}
+                >
+                  {isCompleted ? '正確吻合' : '有誤異常'}
+                </span>
+                <span className="text-xs text-slate-300 font-mono">
+                  實盤: <span className={`font-bold ${isCompleted ? 'text-[#00f2fe]' : 'text-[#ff4b5c]'}`}>{drug.actual_quantity}</span>
+                </span>
+              </div>
               {onResetDrug && (
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (confirm('確定要將此藥品恢復為未清點狀態嗎？照片將一併清除。')) {
-                      onResetDrug(drug.id);
-                    }
+                    onResetDrug(drug.id);
                   }}
-                  className="ml-auto shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-slate-400 bg-slate-800 border border-slate-700 hover:text-[#00f2fe] hover:border-[#00f2fe]/40 hover:bg-slate-700 transition-all active:scale-95"
-                  title="重新填寫此藥品"
+                  className="px-2.5 py-1 text-xs text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-700 rounded-lg border border-slate-700/80 transition-all flex items-center gap-1 active:scale-95"
+                  title="重新確認此品項"
                 >
                   <RotateCcw className="w-3 h-3" />
-                  重新填寫
+                  <span>重新盤點</span>
                 </button>
               )}
             </div>
           ) : isPendingPhotoChoice ? (
-            /* 有誤後：顯示「攝影確認」和「跳過拍照」 */
-            <div className="flex flex-col gap-2 flex-1 bg-slate-950/50 p-3 rounded-xl border border-slate-700">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-[#ff4b5c] shrink-0">有誤</span>
-                <span className="text-xs text-slate-400">請選擇是否拍照留存證據</span>
+            /* 有誤：選擇「拍照確認」與「跳過拍照」 */
+            <div className="flex flex-col gap-2 bg-[#0a1936]/90 p-3 rounded-xl border border-[#ff4b5c]/40">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-[#ff4b5c]">發現數量差異</span>
+                <span className="text-xs text-slate-400">請選擇是否拍照留存存證</span>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="grid grid-cols-2 gap-2.5 pt-1">
                 <button
+                  type="button"
                   onClick={() => {
                     onStatusSelect('pending_photo');
                     onTriggerCamera();
                   }}
                   disabled={isUploading || isLocked}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 bg-[#00f2fe] text-slate-900 shadow-[0_0_10px_rgba(0,242,254,0.4)] hover:bg-[#00f2fe]/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 bg-[#00f2fe] text-[#07142b] shadow-[0_0_12px_rgba(0,242,254,0.35)] hover:bg-[#00f2fe]/90 disabled:opacity-50"
                 >
-                  <Camera className="w-4 h-4" />
-                  拍照確認
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>拍照存證</span>
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     onStatusSelect('pending_skip');
                     onActualQuantityChange('');
                     onSkipPhoto();
                   }}
                   disabled={isUploading || isLocked}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 bg-slate-800 text-slate-300 border border-slate-600 hover:bg-slate-700 hover:border-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 disabled:opacity-50"
                 >
-                  <SkipForward className="w-4 h-4" />
-                  跳過拍照
+                  <SkipForward className="w-3.5 h-3.5" />
+                  <span>跳過拍照</span>
                 </button>
               </div>
             </div>
           ) : (
-            /* 未確認：只顯示「正確/有誤」按鈕（不在這裡顯示拍照按鈕） */
-            <div className="flex flex-col gap-2 flex-1 bg-slate-950/50 p-3 rounded-xl border border-slate-700">
-              <div className="flex items-center gap-2">
+            /* 版本 A：未確認雙色微光按鈕 */
+            <div className="flex flex-col gap-2">
+              <div className="pt-2 border-t border-slate-800/80 grid grid-cols-2 gap-2.5">
                 <button
+                  type="button"
                   onClick={() => {
                     onStatusSelect('correct');
                     onActualQuantityChange(String(drug.expected_quantity));
                     onTriggerCamera();
                   }}
                   disabled={isLocked}
-                  className={`flex-1 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 ${
+                  className={`py-2.5 px-3 rounded-xl font-bold text-sm flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-95 ${
                     selectedStatus === 'correct'
-                      ? 'bg-[#00f2fe] text-slate-900 shadow-[0_0_10px_rgba(0,242,254,0.4)]'
-                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                      ? 'bg-[#00f2fe] text-[#07142b] font-extrabold shadow-[0_0_15px_rgba(0,242,254,0.4)]'
+                      : 'bg-emerald-500/10 hover:bg-emerald-500/25 active:bg-emerald-500 active:text-slate-900 text-emerald-400 border border-emerald-500/30 hover:border-emerald-400/80'
                   } ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  正確
+                  <Check className="w-4 h-4 stroke-[3]" />
+                  <span>正確</span>
                 </button>
                 <button
+                  type="button"
                   onClick={() => onStatusSelect('incorrect')}
                   disabled={isLocked}
-                  className={`flex-1 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 ${
+                  className={`py-2.5 px-3 rounded-xl font-bold text-sm flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-95 ${
                     selectedStatus === 'incorrect' || isPendingPhotoChoice
-                      ? 'bg-[#ff4b5c] text-white shadow-[0_0_10px_rgba(255,75,92,0.4)]'
-                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                      ? 'bg-[#ff4b5c] text-white shadow-[0_0_15px_rgba(255,75,92,0.4)]'
+                      : 'bg-[#ff4b5c]/10 hover:bg-[#ff4b5c]/25 active:bg-[#ff4b5c] active:text-white text-[#ff4b5c] border border-[#ff4b5c]/30 hover:border-[#ff4b5c]/80'
                   } ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  有誤
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>有誤</span>
                 </button>
               </div>
+
+              {/* 點擊「有誤」後展開的實際數量輸入框 */}
               {selectedStatus === 'incorrect' && (
-                <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                  <label className="text-xs font-bold text-slate-500 shrink-0">實際數量:</label>
+                <div className="flex items-center gap-2 pt-2 pb-1 border-t border-slate-800/60 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <label className="text-xs font-bold text-[#ff4b5c] shrink-0">實際數量:</label>
                   <input
                     type="number"
                     value={actualQuantity}
                     onChange={(e) => onActualQuantityChange(e.target.value)}
                     disabled={isLocked}
                     autoFocus
-                    className={`flex-1 bg-transparent text-right font-mono text-lg text-[#00f2fe] outline-none border-b border-dashed border-slate-600 focus:border-[#00f2fe] transition-colors py-1 ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    placeholder="0"
+                    className={`flex-1 bg-[#0a1936] border border-[#ff4b5c]/40 rounded-lg px-2.5 py-1 text-right font-mono text-base text-white outline-none focus:border-[#ff4b5c] focus:ring-1 focus:ring-[#ff4b5c] transition-all ${
+                      isLocked ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                    placeholder="輸入實際盤點量"
                   />
                 </div>
               )}
+
               {selectedStatus === 'incorrect' && actualQuantity && !isPendingPhotoChoice && (
-                <div className="flex items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                <div className="grid grid-cols-2 gap-2.5 pt-1 animate-in fade-in slide-in-from-top-1 duration-200">
                   <button
+                    type="button"
                     onClick={() => {
                       onStatusSelect('pending_photo');
                       onTriggerCamera();
                     }}
                     disabled={isUploading || isLocked}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 bg-[#00f2fe] text-slate-900 shadow-[0_0_10px_rgba(0,242,254,0.4)] hover:bg-[#00f2fe]/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 bg-[#00f2fe] text-[#07142b] shadow-[0_0_12px_rgba(0,242,254,0.35)] hover:bg-[#00f2fe]/90 disabled:opacity-50"
                   >
-                    <Camera className="w-4 h-4" />
-                    拍照確認
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>拍照確認</span>
                   </button>
                   <button
+                    type="button"
                     onClick={() => {
                       onStatusSelect('pending_skip');
                       onActualQuantityChange('');
                       onSkipPhoto();
                     }}
                     disabled={isUploading || isLocked}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-bold transition-all active:scale-95 bg-slate-800 text-slate-300 border border-slate-600 hover:bg-slate-700 hover:border-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 disabled:opacity-50"
                   >
-                    <SkipForward className="w-4 h-4" />
-                    跳過拍照
+                    <SkipForward className="w-3.5 h-3.5" />
+                    <span>跳過拍照</span>
                   </button>
                 </div>
               )}
@@ -720,20 +742,18 @@ export default function DrugCard({
           )}
         </div>
       ) : isLocked ? (
-        /* 鎖定狀態 */
-        <div className="flex justify-end">
-          <button disabled className="tech-button px-5 py-3 lg:py-2 bg-slate-800 text-slate-500 cursor-not-allowed">
-            <Camera className="w-5 h-5" />
-            <span className="text-sm font-bold">已封存</span>
-          </button>
+        <div className="flex justify-end pt-2 border-t border-slate-800/80">
+          <div className="px-4 py-2 rounded-xl bg-slate-800/80 text-slate-500 text-xs font-bold border border-slate-700/80 flex items-center gap-1.5 cursor-not-allowed">
+            <Camera className="w-3.5 h-3.5" />
+            <span>已封存</span>
+          </div>
         </div>
       ) : isDimmed ? null : (
-        /* 未匹配時顯示禁用拍照按鈕 */
-        <div className="flex justify-end">
-          <button disabled className="tech-button px-5 py-3 lg:py-2 bg-slate-800 text-slate-500 cursor-not-allowed">
-            <Camera className="w-5 h-5" />
-            <span className="text-sm font-bold">拍照確認</span>
-          </button>
+        <div className="flex justify-end pt-2 border-t border-slate-800/80">
+          <div className="px-4 py-2 rounded-xl bg-slate-800/80 text-slate-500 text-xs font-bold border border-slate-700/80 flex items-center gap-1.5 cursor-not-allowed">
+            <Camera className="w-3.5 h-3.5" />
+            <span>拍照確認</span>
+          </div>
         </div>
       )}
     </div>

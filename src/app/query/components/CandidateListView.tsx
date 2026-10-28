@@ -72,11 +72,13 @@ export function CandidateListView({
       </div>
 
       <div className="space-y-3">
-        {records.map((drug) => {
+        {records.map((drug, index) => {
           const isError = drug.currentDiscrepancy !== 0;
+          const hasBarcode = Boolean(drug.barcode && drug.barcode.trim() && drug.barcode !== '—');
+
           return (
             <div
-              key={drug.barcode}
+              key={drug.id || drug.barcode || `${drug.name}_${index}`}
               onClick={() => onSelectRecord(drug)}
               className="p-4 rounded-2xl bg-[#162a56] border border-slate-700/80 hover:border-[#00f2fe]/60 cursor-pointer shadow-lg active:scale-[0.98] transition-all group"
             >
@@ -101,9 +103,15 @@ export function CandidateListView({
                       </span>
                     )}
 
-                    <span className="px-2 py-0.5 rounded-md bg-[#00f2fe]/10 text-[#00f2fe] text-xs font-mono border border-[#00f2fe]/20">
-                      {drug.barcode}
-                    </span>
+                    {hasBarcode ? (
+                      <span className="px-2 py-0.5 rounded-md bg-[#00f2fe]/10 text-[#00f2fe] text-xs font-mono border border-[#00f2fe]/20">
+                        {drug.barcode}
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 text-xs font-medium border border-slate-700">
+                        無條碼
+                      </span>
+                    )}
                   </div>
 
                   <h3 className="text-base font-bold text-white truncate group-hover:text-[#00f2fe] transition-colors">

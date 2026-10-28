@@ -77,6 +77,7 @@ export interface AuditMonthGroup {
  * F4-A 藥品完整審計時間軸紀錄（包含月份聚合與全量歷程）
  */
 export interface DrugAuditRecord {
+  id: string; // 穩定唯一識別鍵，避免 barcode 為空時遺失選擇狀態
   barcode: string;
   productCode: string | null;
   name: string;
