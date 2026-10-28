@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { vi } from 'vitest';
 import { QueryFiltersProvider, useQueryFilters } from '@/app/query/context/QueryFiltersContext';
 import { DrugSearchFilters } from '@/types/query';
 

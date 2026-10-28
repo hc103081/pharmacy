@@ -44,6 +44,18 @@ export interface JumpTarget {
   barcode: string;
 }
 
+export interface ManifestFolder {
+  id: string;
+  user_id?: string;
+  name: string;
+  parent_id: string | null;
+  folder_type: 'system_date' | 'custom';
+  created_at?: string;
+  updated_at?: string;
+  item_count?: number; // 輔助欄位：資料夾內的清單數量
+  subfolder_count?: number; // 輔助欄位：子資料夾數量
+}
+
 export interface Manifest {
   id: string;
   name: string;
@@ -56,11 +68,12 @@ export interface Manifest {
   total_discrepancy?: number;
   conclusion_type?: string;
   storage_size_bytes?: number;
+  completed_items?: number; // 輔助欄位：已核對完成之項目數
+  folder_id?: string | null;
   // v2: Google Drive 雲端備份相關欄位
   cloud_backup?: boolean;
   gdrive_file_id?: string;
   archived_at?: string;
 }
-
 // Query 系統類型
 export * from './query';

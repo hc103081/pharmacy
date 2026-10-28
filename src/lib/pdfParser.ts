@@ -1,3 +1,6 @@
+import type { NhiCandidate, NhiTranslationStatus } from './nhiMatch';
+import { applyNhiResults } from './nhiMatch';
+
 export interface ParsedItem {
 
   product_code?: string;
@@ -15,6 +18,12 @@ export interface ParsedItem {
   page_number?: number;
   /** 原始上傳順序（頁碼 OCR 失敗時的 fallback） */
   upload_index?: number;
+  /** 健保翻譯狀態 */
+  nhi_status?: NhiTranslationStatus;
+  /** 多筆翻譯候選（nhi_status 為 pending 時使用） */
+  nhi_candidates?: NhiCandidate[];
+  /** OCR 原始品名（翻譯前） */
+  nhi_original_name?: string;
 }
 
 export interface OrderMetadata {
@@ -34,6 +43,7 @@ export interface OrderMetadata {
 export interface ParsedPdf {
   order_metadata: OrderMetadata;
   items: ParsedItem[];
+  warnings?: Array<{ missing_count: number; page_number: number }>;
 }
 
 /** 進度回報的詳細步驟資訊 */
@@ -133,16 +143,30 @@ export async function parsePdf(
     return (a.upload_index ?? 0) - (b.upload_index ?? 0);
   });
 
-  const finalItems: ParsedItem[] = mergedItems.map((item, idx) => ({
+  const baseItems: ParsedItem[] = mergedItems.map((item, idx) => ({
     line_number: idx + 1,
     barcode: item.barcode,
     product_code: item.product_code,
     drug_name: item.drug_name,
-    quantity: item.quantity,
+    quantity: Math.max(0, parseInt(String(item.quantity ?? '').replace(/,/g, '').match(/-?\d+/)?.[0] ?? '0', 10) || 0),
     bonus_quantity: item.bonus_quantity,
     storage_location: item.storage_location,
     category: item.category,
+    warehouse_quantity: item.warehouse_quantity,
   }));
+
+  // ── Step 7: 健保藥品翻譯（代碼精準比對 → 純英文品名匹配度篩選） ──
+  onProgress?.({ step: 'done', label: '正在對照健保藥品中文名稱...', percent: 99 });
+  const { resolveNhiTranslations } = await import('@/lib/nhi');
+  const nhiResults = await resolveNhiTranslations(
+    baseItems.map(i => ({
+      line_number: i.line_number,
+      product_code: i.product_code,
+      barcode: i.barcode,
+      drug_name: i.drug_name,
+    }))
+  );
+  const finalItems: ParsedItem[] = applyNhiResults(baseItems, nhiResults);
 
   onProgress?.({ step: 'done', label: '解析完成！', percent: 100 });
 

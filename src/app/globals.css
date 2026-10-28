@@ -16,7 +16,17 @@
 body {
   background: linear-gradient(135deg, var(--theme-bg), #0a1e3a);
   color: var(--theme-text-main);
+
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+}
+
+/* 全域消除瀏覽器預設 ButtonFace 白底，強制所有 button 預設為 transparent 背景 */
+button,
+[type='button'],
+[type='reset'],
+[type='submit'] {
+  background-color: transparent;
+  color: inherit;
 }
 
 @layer components {

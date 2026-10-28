@@ -10,7 +10,7 @@ const TEST_USER = {
 };
 
 test.describe('查詢頁面 API 功能測試 (直接 API 調用)', () => {
-  let supabase: ReturnType<typeof createClient>;
+  let supabase: any;
   let accessToken: string;
 
   test.beforeAll(async () => {

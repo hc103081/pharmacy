@@ -18,7 +18,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { TeachingButton } from '@/components/teaching';
-import { DrugCard, ErrorDrawer, JumpDialog, PhotoPreview, BarcodeSearchBar, CameraModal } from './components';
+import { DrugCard, ErrorDrawer, JumpDialog, PhotoPreview, BarcodeSearchBar, CameraModal, EditDrugModal } from './components';
 import { useBarcodeMatch, usePhotoCapture, usePagePersistence } from './hooks';
 import { useScanKeyboard } from './hooks/useScanKeyboard';
 import { useImageCache } from './hooks/useImageCache';
@@ -26,6 +26,7 @@ import type { DrugItem, ErrorDrugItem, JumpTarget } from '@/types';
 import { resetDrugStatus } from '@/app/actions/scan/resetDrug';
 import { updateDrugStatus } from '@/app/actions/scan/updatePhoto';
 import { useNavigationProgress } from '@/components/navigation/NavigationProgress';
+import { editDrug } from '@/app/actions/scan/editDrug';
 
 export default function ScanContent() {
   const searchParams = useSearchParams();
@@ -34,7 +35,7 @@ export default function ScanContent() {
   const supabase = createClient();
 
   const pageParam = searchParams.get('page');
-  const initialPage = pageParam ? Math.max(1, parseInt(pageParam, 10)) : 1;
+  const initialPage = pageParam ? Math.max(1, parseInt(pageParam, 10) || 1) : 1;
   const [currentPage, setCurrentPage] = useState(initialPage);
   const barcodeParam = searchParams.get('barcode');
   const [drugs, setDrugs] = useState<DrugItem[]>([]);
@@ -62,6 +63,10 @@ export default function ScanContent() {
   const [pageInputValue, setPageInputValue] = useState<string>('');
   const pageInputRef = useRef<HTMLInputElement>(null);
   const [isStatsExpanded, setIsStatsExpanded] = useState(false);
+
+  // 編輯藥品 Modal 狀態
+  const [editDrugModal, setEditDrugModal] = useState<{ isOpen: boolean; drug: DrugItem | null }>({ isOpen: false, drug: null });
+  const [editDrugLoading, setEditDrugLoading] = useState(false);
 
   // 導航確認 Modal 狀態
   const [showNavConfirm, setShowNavConfirm] = useState(false);
@@ -354,6 +359,57 @@ export default function ScanContent() {
     [matchingItem, actualQuantity, refreshStatsOnly, showToast]
   );
 
+  // 編輯藥品處理
+  const handleEditDrug = useCallback((drug: DrugItem) => {
+    setEditDrugModal({ isOpen: true, drug });
+  }, []);
+
+  const handleEditDrugSave = useCallback(async (updates: {
+    name?: string;
+    barcode?: string;
+    product_code?: string | null;
+    expected_quantity?: number;
+    warehouse_quantity?: number | null;
+    storage_location?: string;
+    category?: string;
+  }) => {
+    if (!editDrugModal.drug) return;
+    const drugIdToRefresh = editDrugModal.drug.id;
+    setEditDrugLoading(true);
+    try {
+      const result = await editDrug({
+        drugId: editDrugModal.drug.id,
+        updates,
+      });
+      if (result.success && result.data) {
+        setEditDrugModal({ isOpen: false, drug: null });
+        // 直接使用 Server Action 回傳的完整資料（包含 product_code），避免額外查詢
+        setDrugs(prev => prev.map(d => d.id === drugIdToRefresh ? result.data! : d));
+        // 同步更新統計
+        const [totalRes, completedRes, errorItemsRes] = await Promise.all([
+          supabase.from('drug_items').select('*', { count: 'exact', head: true }).eq('manifest_id', manifestId),
+          supabase.from('drug_items').select('*', { count: 'exact', head: true }).eq('manifest_id', manifestId).eq('counted_status', 'completed'),
+          supabase.from('drug_items').select('id, page_number, name, barcode, actual_quantity, expected_quantity').eq('manifest_id', manifestId).eq('counted_status', 'error').order('page_number', { ascending: true }),
+        ]);
+        setTotalItems(totalRes.count || 0);
+        setCompletedTotal(completedRes.count || 0);
+        setErrorTotal(errorItemsRes.data?.length || 0);
+        setErrorDrugs(errorItemsRes.data || []);
+        showToast('藥品資料已更新');
+      } else {
+        showToast(result.error || '更新失敗');
+      }
+    } catch (err: any) {
+      showToast(`更新失敗：${err.message}`);
+    } finally {
+      setEditDrugLoading(false);
+    }
+  }, [editDrugModal.drug, manifestId, supabase, showToast]);
+
+  const handleEditDrugClose = useCallback(() => {
+    setEditDrugModal({ isOpen: false, drug: null });
+  }, []);
+
   // 當匹配到已確認的藥品時，自動恢復上次選擇的狀態和實際數量
   useEffect(() => {
     if (matchingItem && matchingItem.counted_status !== 'pending') {
@@ -507,16 +563,25 @@ export default function ScanContent() {
     );
   };
 
-  // 恢復上次的頁碼（若由查詢頁直達指定 page/barcode 則不覆蓋）
+  // 恢復上次的頁碼（若 URL 已指定 page 或 barcode 則以 URL 為準）
   useEffect(() => {
-    if (!manifestId || searchParams.get('page') || searchParams.get('barcode')) return;
+    if (!manifestId) return;
+    const urlPage = searchParams.get('page');
+    if (urlPage) {
+      const parsedPage = parseInt(urlPage, 10);
+      if (!isNaN(parsedPage) && parsedPage > 0) {
+        queueMicrotask(() => setCurrentPage(parsedPage));
+        return;
+      }
+    }
+    if (searchParams.get('barcode')) return;
     const savedPage = restorePage();
     if (savedPage) {
       // 使用 queueMicrotask 避免在 effect 內同步 setState
       queueMicrotask(() => setCurrentPage(savedPage));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [manifestId]);
+  }, [manifestId, searchParams]);
 
   // 恢復來自查詢頁面返回時的藥品捲動位置
   useEffect(() => {
@@ -1001,6 +1066,7 @@ export default function ScanContent() {
                             setManuallySelectedDrugId(id);
                           }}
                           onLongPress={handleCardLongPress}
+                          onEditDrug={handleEditDrug}
                           getImageUrl={imageCache.getUrl}
                           getImageLoadStatus={imageCache.getLoadStatus}
                           setImageLoadStatus={imageCache.setLoadStatus}
@@ -1098,6 +1164,7 @@ export default function ScanContent() {
                               setManuallySelectedDrugId(id);
                             }}
                             onLongPress={handleCardLongPress}
+                            onEditDrug={handleEditDrug}
                             getImageUrl={imageCache.getUrl}
                             getImageLoadStatus={imageCache.getLoadStatus}
                             setImageLoadStatus={imageCache.setLoadStatus}
@@ -1363,6 +1430,7 @@ export default function ScanContent() {
                             setManuallySelectedDrugId(id);
                           }}
                           onLongPress={handleCardLongPress}
+                          onEditDrug={handleEditDrug}
                           getImageUrl={imageCache.getUrl}
                           getImageLoadStatus={imageCache.getLoadStatus}
                           setImageLoadStatus={imageCache.setLoadStatus}
@@ -1460,6 +1528,7 @@ export default function ScanContent() {
                               setManuallySelectedDrugId(id);
                             }}
                             onLongPress={handleCardLongPress}
+                            onEditDrug={handleEditDrug}
                             getImageUrl={imageCache.getUrl}
                             getImageLoadStatus={imageCache.getLoadStatus}
                             setImageLoadStatus={imageCache.setLoadStatus}
@@ -1484,6 +1553,15 @@ export default function ScanContent() {
         onCapture={handleCameraFile}
         onError={setCameraError}
         onCheckingSupport={setCheckingCameraSupport}
+      />
+    )}
+    {editDrugModal.isOpen && (
+      <EditDrugModal
+        isOpen={editDrugModal.isOpen}
+        drug={editDrugModal.drug}
+        onClose={handleEditDrugClose}
+        onSave={handleEditDrugSave}
+        isLoading={editDrugLoading}
       />
     )}
     <NavigationConfirmModal />

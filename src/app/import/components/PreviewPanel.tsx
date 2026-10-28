@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { CheckCircle2, AlertCircle, XCircle, RefreshCcw, Check, Eye, Filter } from 'lucide-react';
+import { CheckCircle2, AlertCircle, XCircle, RefreshCcw, Check, Eye, Filter, X, Languages } from 'lucide-react';
 import { TeachingButton } from '@/components/teaching';
 import { ParsedPdf, ParsedItem } from '@/lib/pdfParser';
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -12,21 +12,46 @@ interface PreviewPanelProps {
   validation: PdfValidationResult;
   onConfirm: (items: ParsedItem[]) => void;
   onRetry: () => void;
+  /** 翻譯選擇變更時回報完整項目清單，供上層持久化（sessionStorage） */
+  onItemsChange?: (items: ParsedItem[]) => void;
   isLoading: boolean;
 }
 
-type FilterMode = 'all' | 'needs_review' | 'errors_only';
+type FilterMode = 'all' | 'needs_review' | 'errors_only' | 'pending_translation';
 
 export default function PreviewPanel({
   data,
   validation,
   onConfirm,
   onRetry,
+  onItemsChange,
   isLoading,
 }: PreviewPanelProps) {
   const [editedItems, setEditedItems] = useState<ParsedItem[]>(data.items);
   const [filter, setFilter] = useState<FilterMode>('all');
-  const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
+  const [selectedPage, setSelectedPage] = useState<'all' | number>('all');
+  const [viewMode, setViewMode] = useState<'table' | 'card'>('card');
+  /** 多筆翻譯說明彈窗是否已顯示過 */
+  const [introDismissed, setIntroDismissed] = useState(false);
+  /** 目前開啟候選選擇視窗的項目 line_number */
+  const [pickerLine, setPickerLine] = useState<number | null>(null);
+  const [manualName, setManualName] = useState('');
+
+  /** 統計所有頁碼與每頁項數 */
+  const { availablePages, pageCountMap } = useMemo(() => {
+    const pages = new Set<number>();
+    const countMap: Record<number, number> = {};
+    for (const item of editedItems) {
+      if (item.page_number != null) {
+        pages.add(item.page_number);
+        countMap[item.page_number] = (countMap[item.page_number] || 0) + 1;
+      }
+    }
+    return {
+      availablePages: Array.from(pages).sort((a, b) => a - b),
+      pageCountMap: countMap,
+    };
+  }, [editedItems]);
 
   useEffect(() => {
     setTimeout(() => setEditedItems(data.items), 0);
@@ -69,18 +94,52 @@ export default function PreviewPanel({
     );
   };
 
+  // 待選翻譯（多筆候選且尚未選擇）
+  const pendingItems = useMemo(
+    () => editedItems.filter(item => item.nhi_status === 'pending'),
+    [editedItems]
+  );
+  const pendingCount = pendingItems.length;
+  // 說明彈窗：存在待選翻譯且尚未關閉時顯示
+  const showIntro = pendingCount > 0 && !introDismissed;
+  const pickerItem = pickerLine != null ? editedItems.find(i => i.line_number === pickerLine) ?? null : null;
+
+  const dismissIntro = () => {
+    setIntroDismissed(true);
+    setFilter('pending_translation');
+  };
+
+  /** 套用使用者選擇的翻譯（候選中文名，或保留原名／手動輸入） */
+  const applyTranslation = (lineNumber: number, name: string, status: 'chosen' | 'kept') => {
+    const finalName = name.trim();
+    if (!finalName) return;
+    const next = editedItems.map(i =>
+      i.line_number === lineNumber ? { ...i, drug_name: finalName, nhi_status: status } : i
+    );
+    setEditedItems(next);
+    onItemsChange?.(next);
+    // 最後一筆待選完成後自動切回「全部」
+    if (!next.some(i => i.nhi_status === 'pending')) setFilter('all');
+    setPickerLine(null);
+    setManualName('');
+  };
+
   // 篩選邏輯
   const filteredItems = useMemo(() => {
     return editedItems.filter(item => {
+      if (selectedPage !== 'all' && item.page_number !== selectedPage) {
+        return false;
+      }
       const val = validation.itemValidations.find(v => v.line_number === item.line_number);
       const status = val?.status || 'pass';
       const drugRisk = hasDrugNameRisk(item);
 
+      if (filter === 'pending_translation') return item.nhi_status === 'pending';
       if (filter === 'errors_only') return status === 'error';
       if (filter === 'needs_review') return status === 'warn' || status === 'error' || drugRisk;
       return true;
     });
-  }, [editedItems, filter, validation]);
+  }, [editedItems, filter, validation, selectedPage]);
 
   // 統計：需要人工確認的項目數
   const needsReviewCount = useMemo(() => {
@@ -92,89 +151,114 @@ export default function PreviewPanel({
   }, [editedItems, validation]);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      {/* 表頭資訊 - 固定在頂部 */}
-      <div className="flex-shrink-0 tech-card p-4 lg:p-6 rounded-b-none space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
-          <div>
-            <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-              <CheckCircle2 className="w-6 h-6 text-[#00f2fe]" />
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      {/* 表頭資訊 - 緊湊固定在頂部 */}
+      <div className="flex-shrink-0 tech-card p-2.5 sm:p-4 lg:p-6 rounded-b-none space-y-2 sm:space-y-3">
+        <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800">
+          <div className="flex items-center gap-2 min-w-0">
+            <CheckCircle2 className="w-5 h-5 text-[#00f2fe] shrink-0" />
+            <h2 className="text-base sm:text-lg font-bold text-white truncate">
               解析結果校驗
             </h2>
-            <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-slate-500">出貨單號:</span>
-                <span className="text-slate-200 font-mono">{data.order_metadata.order_number}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-slate-500">交貨日期:</span>
-                <span className="text-slate-200 font-mono">{data.order_metadata.delivery_date}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-slate-500">提取項目:</span>
-                <span className="text-slate-200 font-bold">
-                  {data.items.length} / {data.order_metadata.total_items}
-                  {(() => {
-                    const mergedItems = data.items.filter(i => i.merged_count && i.merged_count > 1);
-                    const totalMerged = mergedItems.reduce((sum, i) => sum + (i.merged_count || 1) - 1, 0);
-                    return totalMerged > 0 ? ` (-${totalMerged})` : '';
-                  })()}
-                </span>
-              </div>
-              <button
-                onClick={() => setViewMode(viewMode === 'table' ? 'card' : 'table')}
-                className="px-3 py-1 rounded-full bg-slate-800 text-slate-200 hover:bg-slate-700 active:scale-95 transition-all text-sm"
-              >
-                {viewMode === 'table' ? '切換為表格' : '切換為卡片'}
-              </button>
-            </div>
           </div>
           
-          <div className={`px-3 py-1 rounded-full text-xs font-bold border ${
-            validation.overallStatus === 'pass' ? 'bg-green-500/10 border-green-500/30 text-green-400' :
-            validation.overallStatus === 'warn' ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400' :
-            'bg-red-500/10 border-red-500/30 text-red-400'
-          }`}>
-            {validation.overallStatus === 'pass' ? '檢查通過' : validation.overallStatus === 'warn' ? '有潛在問題' : '發現錯誤'}
-          </div>
-        </div>
-        
-        {/* 篩選工具列 */}
-        {needsReviewCount > 0 && (
-          <div className="flex items-center gap-2 pt-2">
-            <Eye className="w-4 h-4 text-slate-500" />
-            <span className="text-xs text-slate-500">快速篩選：</span>
-            <div className="flex gap-1.5">
-              {([
-                { key: 'all' as FilterMode, label: '全部', count: editedItems.length },
-                { key: 'needs_review' as FilterMode, label: '需確認', count: needsReviewCount },
-                { key: 'errors_only' as FilterMode, label: '僅錯誤', count: validation.summary.errorCount },
-              ]).map((opt, index) => (
-                <React.Fragment key={opt.key}>
-                  <button
-                    onClick={() => setFilter(opt.key)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all active:scale-95 ${
-                      filter === opt.key
-                        ? 'bg-[#00f2fe]/20 border border-[#00f2fe]/50 text-[#00f2fe]'
-                        : 'bg-slate-800/50 border border-slate-700 text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    {opt.label} ({opt.count})
-                  </button>
-                  {opt.key === 'errors_only' && (
-                    <TeachingButton module="pdf-preview" variant="inline" className="ml-1" />
-                  )}
-                  {/* 在按鈕之間添加間隔，除了最後一個按鈕 */}
-                  {index < 2 && <span className="w-0.5" />}
-                </React.Fragment>
-              ))}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => setViewMode(viewMode === 'table' ? 'card' : 'table')}
+              className="px-2 py-0.5 sm:px-3 sm:py-1 rounded-full bg-slate-800 text-slate-200 hover:bg-slate-700 active:scale-95 transition-all text-[11px] sm:text-xs"
+            >
+              {viewMode === 'table' ? '表格' : '卡片'}
+            </button>
+            <div className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[11px] sm:text-xs font-bold border shrink-0 ${
+              validation.overallStatus === 'pass' ? 'bg-green-500/10 border-green-500/30 text-green-400' :
+              validation.overallStatus === 'warn' ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400' :
+              'bg-red-500/10 border-red-500/30 text-red-400'
+            }`}>
+              {validation.overallStatus === 'pass' ? '通過' : validation.overallStatus === 'warn' ? '有問題' : '錯誤'}
             </div>
           </div>
-        )}
+        </div>
+
+        {/* 單號、日期與項數簡明條 */}
+        <div className="flex items-center gap-2 text-xs text-slate-400 font-mono overflow-x-auto py-0.5 scrollbar-none whitespace-nowrap">
+          <span>單號: <b className="text-slate-200 font-mono">{data.order_metadata.order_number || '無'}</b></span>
+          <span className="text-slate-600">·</span>
+          <span>{data.order_metadata.delivery_date || '無日期'}</span>
+          <span className="text-slate-600">·</span>
+          <span>提取: <b className="text-[#00f2fe] font-bold">
+            {(() => {
+              const actualCount = data.items.length;
+              const declaredTotal = data.order_metadata.total_items;
+              const uploadCount = data.order_metadata.uploaded_image_count || 1;
+              const ocrPageCount = data.order_metadata.ocr_page_count || 1;
+              const isSinglePageTest = uploadCount === 1 && ocrPageCount > 1;
+
+              if (isSinglePageTest) {
+                return `${actualCount} 項 (單頁測試)`;
+              }
+              return `${actualCount} / ${declaredTotal}`;
+            })()}
+          </b></span>
+        </div>
+        
+        {/* 頁次分區與篩選工具列：合併為單一橫向滾動列，節省垂直高度 */}
+        <div className="flex items-center gap-1.5 overflow-x-auto py-1 scrollbar-none whitespace-nowrap">
+          <span className="text-[11px] text-slate-500 shrink-0 font-medium">頁次:</span>
+          <button
+            type="button"
+            onClick={() => setSelectedPage('all')}
+            className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[11px] font-bold transition-all active:scale-95 shrink-0 ${
+              selectedPage === 'all'
+                ? 'bg-[#00f2fe]/20 border border-[#00f2fe]/60 text-[#00f2fe] shadow-[0_0_8px_rgba(0,242,254,0.3)]'
+                : 'bg-slate-800/70 border border-slate-700/60 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            全部 ({editedItems.length})
+          </button>
+          {availablePages.map((pageNum) => (
+            <button
+              key={pageNum}
+              type="button"
+              onClick={() => setSelectedPage(pageNum)}
+              className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[11px] font-bold transition-all active:scale-95 shrink-0 ${
+                selectedPage === pageNum
+                  ? 'bg-[#00f2fe]/20 border border-[#00f2fe]/60 text-[#00f2fe] shadow-[0_0_8px_rgba(0,242,254,0.3)]'
+                  : 'bg-slate-800/70 border border-slate-700/60 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              第 {pageNum} 頁 ({pageCountMap[pageNum] ?? 0})
+            </button>
+          ))}
+
+          {/* 分隔線 */}
+          {(needsReviewCount > 0 || pendingCount > 0) && (
+            <>
+              <span className="h-3.5 w-px bg-slate-700 shrink-0 mx-0.5" />
+              <span className="text-[11px] text-slate-500 shrink-0 font-medium">篩選:</span>
+              {([
+                ...(pendingCount > 0 ? [{ key: 'pending_translation' as FilterMode, label: '待選翻譯', count: pendingCount }] : []),
+                { key: 'needs_review' as FilterMode, label: '需確認', count: needsReviewCount },
+                { key: 'errors_only' as FilterMode, label: '僅錯誤', count: validation.summary.errorCount },
+              ]).map((opt) => (
+                <button
+                  key={opt.key}
+                  onClick={() => setFilter(filter === opt.key ? 'all' : opt.key)}
+                  className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[11px] font-bold transition-all active:scale-95 shrink-0 ${
+                    filter === opt.key
+                      ? 'bg-[#00f2fe]/20 border border-[#00f2fe]/50 text-[#00f2fe]'
+                      : 'bg-slate-800/50 border border-slate-700 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {opt.label} ({opt.count})
+                </button>
+              ))}
+            </>
+          )}
+        </div>
       </div>
 
-      {/* 項目列表 - 中間可滾動區域 */}
-      <div className="flex-1 min-h-0 overflow-y-auto tech-card p-4 lg:p-6 rounded-none border-t-0 border-b-0">
+      {/* 項目列表 - 中間最大化滾動區域 */}
+      <div className="flex-1 min-h-0 overflow-y-auto tech-card p-2 sm:p-4 lg:p-6 rounded-none border-t-0 border-b-0">
         {viewMode === 'table' && (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -201,7 +285,12 @@ export default function PreviewPanel({
                   
                   return (
                     <tr key={item.line_number} className={`group transition-colors ${status === 'error' ? 'bg-red-500/5' : drugRisk ? 'bg-orange-500/5' : status === 'warn' ? 'bg-yellow-500/5' : ''}`}>
-                      <td className="py-3 px-2 text-slate-400 font-mono">{item.line_number}</td>
+                      <td className="py-3 px-2 text-slate-400 font-mono">
+                        <span>{item.line_number}</span>
+                        {item.page_number && (
+                          <span className="ml-1 text-[10px] text-cyan-400/80">P.{item.page_number}</span>
+                        )}
+                      </td>
                       <td className="py-3 px-2">
                         <input 
                           value={item.storage_location || ''} 
@@ -237,6 +326,16 @@ export default function PreviewPanel({
                           />
                           {drugRisk && (
                             <span className="absolute -top-1.5 -right-1 px-1 py-0.5 text-[8px] font-bold bg-orange-500/80 text-white rounded leading-none ring-1 ring-orange-400/50">OCR</span>
+                          )}
+                          {item.nhi_status === 'pending' && (
+                            <button
+                              type="button"
+                              onClick={() => { setPickerLine(item.line_number); setManualName(''); }}
+                              className="mt-1 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold bg-[#ff4b5c]/15 border border-[#ff4b5c]/60 text-[#ff4b5c] animate-pulse active:scale-95 transition-all"
+                            >
+                              <Languages className="w-3 h-3" />
+                              {item.nhi_candidates?.length ?? 0} 條翻譯，點擊選擇
+                            </button>
                           )}
                         </div>
                       </td>
@@ -300,7 +399,14 @@ export default function PreviewPanel({
                 <div key={item.line_number} className={`flex items-start px-[10px] py-[10px] mx-[5px] bg-[#162a56] rounded-xl border-2 border-[#00f2fe] shadow-sm overflow-hidden ${status === 'error' ? 'bg-red-500/5' : drugRisk ? 'bg-orange-500/5' : status === 'warn' ? 'bg-yellow-500/5' : ''}`}>
                   <div className="flex w-full min-w-0">
                     <div className="flex flex-col w-1/3 shrink-0">
-                      <div className="text-sm text-[#00f2fe] text-left">{item.line_number}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm text-[#00f2fe] font-mono">{item.line_number}</span>
+                        {item.page_number && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+                            P.{item.page_number}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-xs text-slate-400 mt-1">國際條碼：{item.barcode || ''}</div>
                   {item.product_code && item.product_code !== item.barcode && (
                     <div className="text-xs text-[#00f2fe]/70 mt-1">商品代碼：{item.product_code}</div>
@@ -323,6 +429,16 @@ export default function PreviewPanel({
                           onChange={(e) => handleInputChange(idx, 'drug_name', e.target.value)}
                           className={`w-full bg-transparent text-slate-200 border-none focus:outline-none focus:ring-0 appearance-none truncate ${drugRisk ? 'border-orange-500/50' : ''}`}
                         />
+                        {item.nhi_status === 'pending' && (
+                          <button
+                            type="button"
+                            onClick={() => { setPickerLine(item.line_number); setManualName(''); }}
+                            className="mt-1 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold bg-[#ff4b5c]/15 border border-[#ff4b5c]/60 text-[#ff4b5c] animate-pulse active:scale-95 transition-all"
+                          >
+                            <Languages className="w-3 h-3" />
+                            {item.nhi_candidates?.length ?? 0} 條翻譯，點擊選擇
+                          </button>
+                        )}
                         <div className="flex items-center gap-1 mt-2 flex-nowrap">
                           <span className="text-slate-400 text-xs whitespace-nowrap">補貨量</span>
                           <input type="number" value={item.quantity} onChange={(e) => handleInputChange(idx, 'quantity', e.target.value)} className="w-14 bg-transparent text-slate-200 border-none focus:outline-none focus:ring-0 appearance-none" />
@@ -362,32 +478,121 @@ export default function PreviewPanel({
         )}
       </div>
 
-      {/* 底部操作 - 固定在底部 */}
-      <div className="flex-shrink-0 tech-card p-4 lg:p-6 rounded-t-none border-t border-slate-800">
+      {/* 底部操作 - 固定在底部並貼合裝置安全區 */}
+      <div className="flex-shrink-0 tech-card p-2 sm:p-3 lg:p-4 rounded-t-none border-t border-slate-800 bg-[#07142b]/95 backdrop-blur-md pb-[max(10px,env(safe-area-inset-bottom))]">
         {needsReviewCount > 0 && (
-          <p className="text-[11px] text-orange-400 mb-3 flex items-center gap-1.5">
-            <AlertCircle className="w-3.5 h-3.5" />
-            有 {needsReviewCount} 項品名經 AI 辨識可能不精準（橘色標記），建議人工確認後再匯入
+          <p className="text-[10px] text-orange-400 mb-1.5 flex items-center gap-1 truncate">
+            <AlertCircle className="w-3 h-3 shrink-0" />
+            <span className="truncate">有 {needsReviewCount} 項品名辨識可能不精準（橘色標記），建議確認</span>
           </p>
         )}
-        <div className="flex flex-col sm:flex-row gap-3">
+        {pendingCount > 0 && (
+          <p className="text-[10px] text-[#ff4b5c] mb-1.5 flex items-center gap-1 truncate">
+            <Languages className="w-3 h-3 shrink-0" />
+            <span className="truncate">尚有 {pendingCount} 項藥品待選擇翻譯，選完後方可匯入</span>
+          </p>
+        )}
+        <div className="flex items-center gap-2">
           <button 
+            type="button"
             onClick={onRetry}
-            className="flex-1 py-3 px-4 rounded-xl border border-slate-700 text-slate-400 hover:bg-slate-800 active:scale-95 transition-all flex items-center justify-center gap-2 text-sm font-bold"
+            className="flex-1 py-2 px-2.5 rounded-lg border border-slate-700 text-slate-400 hover:bg-slate-800 active:scale-95 transition-all flex items-center justify-center gap-1.5 text-xs font-bold"
           >
-            <RefreshCcw className="w-4 h-4" />
-            退回重試
+            <RefreshCcw className="w-3.5 h-3.5" />
+            <span>退回重試</span>
           </button>
           <button 
+            type="button"
             onClick={() => onConfirm(editedItems)}
-            disabled={isLoading}
-            className="flex-1 py-3 px-4 rounded-xl bg-[#00f2fe] text-slate-900 hover:shadow-[0_0_15px_rgba(0,242,254,0.5)] active:scale-95 transition-all flex items-center justify-center gap-2 text-sm font-bold disabled:opacity-50"
+            disabled={isLoading || pendingCount > 0}
+            className="flex-[2] py-2 px-3 rounded-lg bg-[#00f2fe] text-slate-900 hover:shadow-[0_0_15px_rgba(0,242,254,0.5)] active:scale-95 transition-all flex items-center justify-center gap-1.5 text-xs font-bold disabled:opacity-50"
           >
-            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-            確認匯入
+            {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+            <span>{pendingCount > 0 ? `尚有 ${pendingCount} 項待選` : '確認匯入'}</span>
           </button>
         </div>
       </div>
+
+      {/* 多筆翻譯說明彈窗 */}
+      {showIntro && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#07142b]/90 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="tech-card w-full max-w-sm p-6 space-y-4 text-center border-[#ff4b5c]/50 shadow-[0_0_40px_rgba(255,75,92,0.2)] animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+            <div className="mx-auto w-14 h-14 rounded-full bg-[#ff4b5c]/15 border border-[#ff4b5c]/60 flex items-center justify-center animate-pulse">
+              <Languages className="w-7 h-7 text-[#ff4b5c]" />
+            </div>
+            <h3 className="text-lg font-bold text-white">有 {pendingCount} 項藥品存在多條翻譯</h3>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              這些藥品的品名在撿貨單上被截斷，健保對照表中有多筆相符結果。
+              請點擊標示紅色的項目，選擇正確的翻譯。全部選完後才能進行下一步。
+            </p>
+            <button
+              type="button"
+              onClick={dismissIntro}
+              className="w-full py-3 rounded-xl bg-[#00f2fe] text-slate-900 font-bold text-sm hover:shadow-[0_0_15px_rgba(0,242,254,0.5)] active:scale-95 transition-all"
+            >
+              開始選擇
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 候選翻譯選擇視窗 */}
+      {pickerItem && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-[#07142b]/90 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="tech-card w-full max-w-lg max-h-[85dvh] flex flex-col border-[#00f2fe]/40 animate-in slide-in-from-bottom-4 zoom-in-95 duration-200">
+            <div className="flex items-start justify-between gap-3 p-4 border-b border-slate-800">
+              <div className="min-w-0">
+                <p className="text-xs text-slate-500">第 {pickerItem.line_number} 項　商品代號 {pickerItem.product_code || pickerItem.barcode || '無'}</p>
+                <p className="text-sm text-slate-200 mt-1 break-words">
+                  <span className="text-slate-500">撿貨單品名：</span>{pickerItem.nhi_original_name || pickerItem.drug_name}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setPickerLine(null); setManualName(''); }}
+                className="shrink-0 p-1.5 rounded-full hover:bg-slate-800 active:scale-95 transition-all"
+                aria-label="關閉"
+              >
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2">
+              {(pickerItem.nhi_candidates ?? []).map(c => (
+                <button
+                  key={c.drug_code}
+                  type="button"
+                  onClick={() => applyTranslation(pickerItem.line_number, c.chinese_name, 'chosen')}
+                  className="w-full text-left p-3 rounded-xl bg-[#162a56] border border-slate-700 hover:border-[#00f2fe] hover:shadow-[0_0_15px_rgba(0,242,254,0.35)] active:scale-95 transition-all"
+                >
+                  <p className="text-sm font-bold text-white break-words">{c.chinese_name}</p>
+                  <p className="text-xs text-slate-400 mt-1 break-words">{c.english_name}</p>
+                  <p className="text-[10px] text-slate-500 mt-1 font-mono">
+                    {c.drug_code}　匹配度 {Math.round(c.score * 100)}%
+                  </p>
+                </button>
+              ))}
+            </div>
+
+            <div className="p-4 border-t border-slate-800 space-y-2">
+              <p className="text-xs text-slate-500">以上皆非：保留原始品名或手動輸入</p>
+              <input
+                value={manualName}
+                onChange={(e) => setManualName(e.target.value)}
+                placeholder={pickerItem.nhi_original_name || pickerItem.drug_name}
+                className="tech-input w-full text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => applyTranslation(pickerItem.line_number, manualName.trim() || pickerItem.nhi_original_name || pickerItem.drug_name, 'kept')}
+                className="w-full py-2.5 rounded-xl border border-slate-600 text-slate-200 hover:bg-slate-800 active:scale-95 transition-all text-sm font-bold"
+              >
+                {manualName.trim() ? '使用手動輸入的品名' : '保留原始品名'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

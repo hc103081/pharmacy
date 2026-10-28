@@ -30,10 +30,11 @@ export async function importDrugs(
     const barcodes = mergedDrugs
       .map(d => d.product_code?.trim() || d.barcode?.trim())
       .filter((b): b is string => !!b);
-    const nhiMap = await batchLookupNhi(barcodes);
+    const nhiMap = options.applyNhiLookup === false ? new Map<string, string>() : await batchLookupNhi(barcodes);
     console.log('[importDrugs] NHI 查詢完成，找到:', nhiMap.size);
 
-    const drugsWithChineseName = mergedDrugs.map(drug => {
+    // applyNhiLookup 為 false 時，尊重預覽階段使用者已確認的品名，不再覆蓋
+    const drugsWithChineseName = options.applyNhiLookup === false ? mergedDrugs : mergedDrugs.map(drug => {
       const chineseName = drug.product_code?.trim() 
         ? nhiMap.get(drug.product_code.trim()) 
         : drug.barcode?.trim() ? nhiMap.get(drug.barcode.trim()) : undefined;

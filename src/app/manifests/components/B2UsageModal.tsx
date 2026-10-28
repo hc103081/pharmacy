@@ -67,7 +67,7 @@ export function B2UsageModal({ isOpen, onClose, manifestId }: B2UsageModalProps)
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors active:scale-95"
+            className="p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors active:scale-95"
             aria-label="關閉 B2 容量總覽"
           >
             <ExternalLink className="w-5 h-5" />

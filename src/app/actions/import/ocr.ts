@@ -2,7 +2,8 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { fetchImageAsBase64, repairGeminiJson, friendlyGeminiError, createGeminiModel } from '@/lib/gemini';
-import { batchLookupNhi } from '@/lib/nhi';
+import { batchLookupNhi, resolveNhiTranslations } from '@/lib/nhi';
+import { applyNhiResults, sanitizeProductCode, sanitizeBarcode } from '@/lib/nhiMatch';
 import type { ParsedItem, ParsedPdf } from '@/lib/pdfParser';
 import { PageItem, ImportDrugItem } from './types';
 
@@ -147,6 +148,8 @@ export async function parseBatchWithGemini(url: string, _batchIndex: number): Pr
 
 注意事項：
 1. 這是一份專業的藥局總倉撿貨單，請特別注意中文字形辨識，避免將藥品名稱誤判為無意義的文字。
+2. 藥品名稱中若有雙引號（例如 "PATRON" 或邊界截斷的 "Germar），請一律替換為單引號 ' 或直接去除雙引號，嚴禁在 JSON 值內輸出未跳脫的雙引號。
+3. 請特別留意紙本左下角「本頁：N項」（如「本頁:44項」），輸出品項數必須與紙本行數完全一致，絕不可遺漏最底部的任何一列藥品。
 2. storage_location 和 category 是選填欄位，如果照片中沒有明確顯示，請務必設為空字串，不要猜測。
 3. barcode 是國際條碼，一定是純數字（如 471020120000）；完全看不到數字條碼時請設為空字串。
 4. product_code 是商品條碼／健保碼（通常為字母開頭的健保代碼如 AC16496100，或 EAN-13 商品碼），若無則為空字串。
@@ -204,8 +207,8 @@ export async function parseBatchWithGemini(url: string, _batchIndex: number): Pr
       return {
         storage_location: item.storage_location || '',
         category: item.category || '',
-        barcode: (item.barcode || '').trim(),
-        product_code: item.product_code ? (item.product_code || '').trim() : '',
+        barcode: sanitizeBarcode(item.barcode),
+        product_code: sanitizeProductCode(item.product_code),
         drug_name: drugName,
         quantity: rawQuantity,
         warehouse_quantity,
@@ -322,6 +325,8 @@ async function processSingleBatchWithGemini(urls: string[], batchIndex: number):
 
 注意事項：
 1. 忽略所有表格樣式、頁碼或其他雜訊。
+2. 藥品名稱中若有雙引號（例如 "PATRON" 或邊界截斷的 "Germar），請一律替換為單引號 ' 或直接去除雙引號，嚴禁在 JSON 值內輸出未跳脫的雙引號。
+3. 請特別留意紙本左下角「本頁：N項」（如「本頁:44項」），輸出品項數必須與紙本行數完全一致，絕不可遺漏最底部的任何一列藥品。
 2. 保持項目在截圖中出現的物理順序，逐行輸出，不可跳過任何一行。
 3. storage_location 和 category 是選填欄位，如果圖中沒有明確顯示，請務必設為空字串，不要猜測。
 4. barcode 是國際條碼，一定是純數字（如 471020120000）；完全看不到數字條碼時請設為空字串。
@@ -701,10 +706,10 @@ export async function processImagesWithGeminiAsPdf({ urls }: { urls: string[] })
     .filter((b): b is string => !!b);
   console.log(`[NHI] OCR mapping start, ${barcodes.length} 條碼`);
 
-  const nhiMap = await batchLookupNhi(barcodes);
+  // 第 1 層代碼精準比對與第 2 層純英文品名匹配度篩選，統一於 resolveNhiTranslations 處理
 
-  const items: ParsedItem[] = ocrResult.drugs.map((drug, idx) => {
-      const chineseName = drug.product_code ? nhiMap.get(drug.product_code.trim()) : undefined;
+  const baseItems: ParsedItem[] = ocrResult.drugs.map((drug, idx) => {
+      const chineseName: string | undefined = undefined;
       return {
         line_number: idx + 1,
         barcode: drug.barcode,
@@ -718,6 +723,16 @@ export async function processImagesWithGeminiAsPdf({ urls }: { urls: string[] })
       };
     });
 
+  const nhiResults = await resolveNhiTranslations(
+    baseItems.map(i => ({
+      line_number: i.line_number,
+      product_code: i.product_code,
+      barcode: i.barcode,
+      drug_name: i.drug_name,
+    }))
+  );
+  const items: ParsedItem[] = applyNhiResults(baseItems, nhiResults);
+
   const data: ParsedPdf = {
     order_metadata: {
       order_number: ocrResult.order_number || '未知單號',
@@ -729,6 +744,7 @@ export async function processImagesWithGeminiAsPdf({ urls }: { urls: string[] })
       ocr_request_count: urls.length, // 每張照片一次 API 呼叫
     },
     items,
+    warnings: ocrResult.warnings,
   };
 
   return { success: true, data, warnings: ocrResult.warnings };

@@ -6,21 +6,104 @@ import type { ImportDrugItem } from '@/app/actions/import/types';
 import { processImagesWithGemini, processImagesWithGeminiAsPdf } from '@/app/actions/import/ocr';
 import { deleteImportImages } from '@/app/actions/import/storage';
 import { clientUploadImportImages } from '@/lib/clientUpload';
-import { FileUp, Loader2, CheckCircle2, ArrowLeft, Image as ImageIcon, FileType, RotateCcw, Cpu, Upload, ScanLine, Database } from 'lucide-react';
+import { FileUp, Loader2, CheckCircle2, ArrowLeft, Image as ImageIcon, FileType, RotateCcw, Cpu, Upload, ScanLine, Database, AlertTriangle, RefreshCw, Check } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useNavigationProgress } from '@/components/navigation/NavigationProgress';
 import { useAuth } from '@/components/AuthProvider';
 import { parsePdf, ParsedPdf, ParsedItem, PdfProgressStep } from '@/lib/pdfParser';
 import { validateParsedPdf } from '@/lib/pdfValidator';
+import { BlackHoleVortexTransition } from './components/BlackHoleVortexTransition';
+
+/** 單頁辨識卡片狀態介面 */
+export interface PageCardState {
+  id: string;
+  initialIndex: number;
+  realPageNumber?: number;
+  url: string;
+  status: 'idle' | 'scanning' | 'retry_backoff' | 'success' | 'error';
+  model: string;
+  percent: number;
+  retryCountdown?: number;
+  reason?: string;
+  itemCount?: number;
+  items?: ParsedItem[];
+  order_number?: string;
+  delivery_date?: string;
+  total_items?: number;
+  total_pages?: number;
+  errorMessage?: string;
+  warning?: { missing_count: number; page_number: number };
+}
+
+/** Web Audio API 提示音效產生器（無需外部音訊檔依賴） */
+function playAlertTone(type: 'error' | 'click' | 'success') {
+  if (typeof window === 'undefined') return;
+  try {
+    const AudioContextClass =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    const now = ctx.currentTime;
+    if (type === 'error') {
+      // 警示提示音：雙頻快速下降 440Hz -> 311Hz
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(440, now);
+      osc.frequency.exponentialRampToValueAtTime(311, now + 0.18);
+      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+      osc.start(now);
+      osc.stop(now + 0.25);
+    } else if (type === 'success') {
+      // 成功完成提示音：上升雙頻 587Hz -> 880Hz
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587, now);
+      osc.frequency.exponentialRampToValueAtTime(880, now + 0.15);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+      osc.start(now);
+      osc.stop(now + 0.2);
+    } else {
+      // 輕快點擊反饋短音
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, now);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+      osc.start(now);
+      osc.stop(now + 0.08);
+    }
+  } catch {
+    // 忽略不支援環境或靜音阻擋
+  }
+}
 
 /** OCR 進度步驟類型 */
+export interface OcrProgressLog {
+  id: string;
+  time: string;
+  text: string;
+  type: 'info' | 'warning' | 'error' | 'success';
+}
+
 interface OcrProgressStep {
-  step: 'uploading' | 'header' | 'batch' | 'done';
+  step: 'uploading' | 'header' | 'batch' | 'nhi' | 'done';
   label: string;
   percent: number;
   currentBatch?: number;
   totalBatches?: number;
+  model?: string;
+  retryCountdown?: number;
+  retryMessage?: string;
+  logs: OcrProgressLog[];
 }
 import PreviewPanel from './components/PreviewPanel';
 import { TeachingButton } from '@/components/teaching';
@@ -122,7 +205,15 @@ export default function ImportPage() {
   const [isParsingPdf, setIsParsingPdf] = useState(false);
   const [pdfProgress, setPdfProgress] = useState<PdfProgressStep | null>(null);
   const [ocrProgress, setOcrProgress] = useState<OcrProgressStep | null>(null);
+  const [pageCards, setPageCards] = useState<PageCardState[]>([]);
+  const [isRecognizing, setIsRecognizing] = useState(false);
+  const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isBlackHoleActive, setIsBlackHoleActive] = useState(false);
+  const [contentOpacity, setContentOpacity] = useState(1);
+  const [previewOpacity, setPreviewOpacity] = useState(0);
+  const pendingParsedDataRef = useRef<ParsedPdf | null>(null);
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -214,6 +305,12 @@ export default function ImportPage() {
     setParsedData(null);
     setManifestName('');
     setPdfProgress(null);
+    setPageCards([]);
+    setIsRecognizing(false);
+    setIsBlackHoleActive(false);
+    setContentOpacity(1);
+    setPreviewOpacity(0);
+    pendingParsedDataRef.current = null;
     setStatus('idle');
     clearImportState();
   };
@@ -239,48 +336,278 @@ export default function ImportPage() {
     }
   };
 
-  const handleOcrImages = async () => {
-    if (uploadedUrls.length === 0) return;
-    try {
-      // 進度顯示（Server Action 不支援 streaming 進度回傳，顯示靜態訊息）
-      setOcrProgress({ step: 'uploading', label: `正在 AI 辨識 ${uploadedUrls.length} 張照片...`, percent: 10 });
-      await new Promise(r => setTimeout(r, 300));
+  /**
+   * 檢查是否所有卡片均已辨識完成 (success)
+   */
+  const checkAllCardsCompleted = (cards: PageCardState[]) => {
+    if (cards.length === 0) return;
+    const allSuccess = cards.every(c => c.status === 'success');
+    if (allSuccess) {
+      // 依據真實頁碼由小到大排序
+      const sortedCards = [...cards].sort(
+        (a, b) => (a.realPageNumber ?? a.initialIndex) - (b.realPageNumber ?? b.initialIndex)
+      );
+      let currentLineNumber = 1;
+      const combinedItems: ParsedItem[] = [];
+      const combinedWarnings: Array<{ missing_count: number; page_number: number }> = [];
 
-      setOcrProgress({ step: 'batch', label: `AI 逐批辨識藥品中（共 ${uploadedUrls.length} 張，每張約 44 項）...`, percent: 30 });
-      
-      const result = await processImagesWithGeminiAsPdf({ urls: uploadedUrls });
-      console.log('OCR result:', result);
-      
-      setOcrProgress({ step: 'done', label: 'OCR 辨識完成！', percent: 100 });
-      await new Promise(r => setTimeout(r, 500));
-      
-      if (!result.success || !result.data) {
+      for (const c of sortedCards) {
+        if (c.warning) combinedWarnings.push(c.warning);
+        const targetPage = c.realPageNumber ?? c.initialIndex;
+        if (c.items) {
+          for (const it of c.items) {
+            combinedItems.push({
+              ...it,
+              line_number: currentLineNumber++,
+              page_number: targetPage,
+            });
+          }
+        }
+      }
+
+      if (combinedItems.length === 0) {
         setStatus('error');
-        // ⭐ 關鍵修復：顯示後端真實錯誤
-        setMessage(`OCR 辨識失敗: ${result.error || '未知錯誤'}`);
-        setOcrProgress(null);
+        setMessage('所有照片辨識完成，但未提取到任何藥品品項');
+        setIsRecognizing(false);
         return;
       }
-      if (!result.data.items || result.data.items.length === 0) {
-        setStatus('error');
-        setMessage('OCR 辨識成功但未取得任何藥品項目，請檢查圖片或重試');
-        setOcrProgress(null);
-        return;
+
+      const firstWithOrder = sortedCards.find(c => c.order_number);
+      const orderNumber = firstWithOrder?.order_number || manifestName || '未知單號';
+      const deliveryDate = firstWithOrder?.delivery_date || '';
+
+      // 嚴謹解析全單宣告總項目數：
+      // 1. 若上傳多頁，宣告總項數絕不可能小於本次提取總數 (combinedItems.length)
+      // 2. 若上傳單頁測試 (sortedCards.length === 1)，本次提取數即為本頁項數
+      const validDeclaredTotals = sortedCards
+        .map(c => c.total_items)
+        .filter((n): n is number => n != null && n >= combinedItems.length);
+      const maxDeclared = validDeclaredTotals.length > 0 ? Math.max(...validDeclaredTotals) : undefined;
+      const isSinglePageTest = sortedCards.length === 1;
+
+      // 若為單頁測試，total_items 代表本次提取項數，避免誤顯示 44/244；多頁時取真實宣告總數或提取總數
+      const finalTotalItems = isSinglePageTest ? combinedItems.length : (maxDeclared || combinedItems.length);
+
+      // 若全單實際提取項目數 >= 宣告總項數（例如 244 === 244），或為單頁測試，清空所有誤報 warnings
+      if ((maxDeclared && combinedItems.length >= maxDeclared) || isSinglePageTest) {
+        combinedWarnings.length = 0;
       }
-      setParsedData(result.data);
-      setManifestName(prev => prev.trim() || result.data!.order_metadata.order_number || '');
+
+      const totalPagesReported = Math.max(
+        sortedCards.length,
+        ...sortedCards.map(c => c.total_pages || 0)
+      );
+
+      const parsed: ParsedPdf = {
+        order_metadata: {
+          order_number: orderNumber,
+          delivery_date: deliveryDate,
+          total_items: finalTotalItems,
+          source_type: 'images',
+          uploaded_image_count: sortedCards.length,
+          ocr_page_count: totalPagesReported,
+          ocr_request_count: sortedCards.length,
+        },
+        items: combinedItems,
+        warnings: combinedWarnings.length > 0 ? combinedWarnings : undefined,
+      };
+
+      // 觸發黑洞旋轉吸入 5 段式過場動畫
+      pendingParsedDataRef.current = parsed;
+      setManifestName(prev => prev.trim() || orderNumber);
       setStatus('idle');
       setMessage('');
-      setOcrProgress(null);
-    } catch (error: unknown) {  // ⭐ 捕獲 error 參數
-      console.error('[handleOcrImages] 錯誤:', error);  // ⭐ 印出完整錯誤到 Console
-      setStatus('error');
-      // ⭐ 顯示真實錯誤訊息
-      const errMsg = error instanceof Error ? error.message : 'OCR 辨識過程中發生錯誤';
-      setMessage(`OCR 辨識失敗: ${errMsg}`);
-      setOcrProgress(null);
+
+      // 1. 先將底層 UI 隱藏
+      setContentOpacity(0);
+      setPreviewOpacity(0);
+      // 2. 啟動黑洞漩渦動畫
+      setIsBlackHoleActive(true);
     }
   };
+
+  /**
+   * 執行單一頁面的非同步 OCR 辨識
+   */
+  const executeSinglePageOcr = async (cardId: string, initialIndex: number, url: string, totalPages: number) => {
+    // 建立並記錄 AbortController
+    const controller = new AbortController();
+    abortControllersRef.current.set(cardId, controller);
+
+    setPageCards(prev => prev.map(c => c.id === cardId ? {
+      ...c,
+      status: 'scanning',
+      model: 'gemini-3.1-flash-lite',
+      percent: 15,
+      errorMessage: undefined,
+      retryCountdown: undefined,
+      reason: undefined,
+    } : c));
+
+    try {
+      const response = await fetch('/api/ocr/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, pageIndex: initialIndex, totalPages }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const errorJson = await response.json().catch(() => ({}));
+        throw new Error(errorJson.error || `HTTP 錯誤 ${response.status}`);
+      }
+
+      if (!response.body) {
+        throw new Error('伺服器未回傳串流資料');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split('\n\n');
+        buffer = blocks.pop() || '';
+
+        for (const block of blocks) {
+          if (!block.trim()) continue;
+
+          let eventName = 'message';
+          let dataStr = '';
+
+          for (const line of block.split('\n')) {
+            if (line.startsWith('event: ')) {
+              eventName = line.slice(7).trim();
+            } else if (line.startsWith('data: ')) {
+              dataStr = line.slice(6).trim();
+            }
+          }
+
+          if (!dataStr) continue;
+          let data: any;
+          try {
+            data = JSON.parse(dataStr);
+          } catch {
+            continue;
+          }
+
+          if (eventName === 'progress') {
+            setPageCards(prev => prev.map(c => c.id === cardId ? {
+              ...c,
+              status: 'scanning',
+              percent: data.percent ?? c.percent,
+              model: data.model || c.model,
+            } : c));
+          } else if (eventName === 'retry') {
+            setPageCards(prev => prev.map(c => c.id === cardId ? {
+              ...c,
+              status: 'retry_backoff',
+              retryCountdown: data.countdown,
+              model: data.model || data.switchedModel || c.model,
+              reason: data.reason,
+            } : c));
+          } else if (eventName === 'warning') {
+            setPageCards(prev => prev.map(c => c.id === cardId ? {
+              ...c,
+              warning: data.warning,
+            } : c));
+          } else if (eventName === 'page_done') {
+            const detectedPage = data.realPageNumber ?? data.page;
+            setPageCards(prev => prev.map(c => c.id === cardId ? {
+              ...c,
+              realPageNumber: detectedPage,
+              itemCount: data.itemCount,
+              total_items: data.total_items ?? c.total_items,
+              total_pages: data.totalPages ?? c.total_pages,
+              items: data.items,
+              model: data.model || c.model,
+            } : c));
+          } else if (eventName === 'complete') {
+            playAlertTone('success');
+            const pageItems: ParsedItem[] = data.data?.items || [];
+            const pageTotalItems = data.data?.order_metadata?.total_items ?? data.total_items;
+            const detectedPage = data.realPageNumber ?? data.data?.items?.[0]?.page_number;
+            setPageCards(prev => {
+              const nextCards = prev.map(c => c.id === cardId ? {
+                ...c,
+                realPageNumber: detectedPage,
+                status: 'success' as const,
+                percent: 100,
+                itemCount: pageItems.length,
+                total_items: pageTotalItems ?? c.total_items,
+                total_pages: data.data?.order_metadata?.ocr_page_count ?? c.total_pages,
+                items: pageItems,
+                order_number: data.data?.order_metadata?.order_number,
+                delivery_date: data.data?.order_metadata?.delivery_date,
+              } : c);
+
+              checkAllCardsCompleted(nextCards);
+              return nextCards;
+            });
+            return;
+          } else if (eventName === 'error') {
+            throw new Error(data.message || '辨識失敗');
+          }
+        }
+      }
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return;
+      }
+      console.error(`[Card ${cardId} Stream Error]`, error);
+      playAlertTone('error');
+      const errMsg = error instanceof Error ? error.message : '辨識發生錯誤';
+      setPageCards(prev => prev.map(c => c.id === cardId ? {
+        ...c,
+        status: 'error',
+        errorMessage: errMsg,
+      } : c));
+    } finally {
+      abortControllersRef.current.delete(cardId);
+    }
+  };
+
+  /**
+   * 啟動所有圖片的多格非同步辨識（平滑間隔發起，避免同時高併發堵塞）
+   */
+  const handleOcrImages = () => {
+    if (uploadedUrls.length === 0) return;
+    setIsRecognizing(true);
+    setStatus('loading');
+    setMessage('');
+
+    const initialCards: PageCardState[] = uploadedUrls.map((url, idx) => ({
+      id: `page-card-${idx}-${Date.now()}`,
+      initialIndex: idx + 1,
+      url,
+      status: 'idle',
+      model: 'gemini-3.1-flash-lite',
+      percent: 0,
+    }));
+    setPageCards(initialCards);
+
+    // 平滑非同步發起各頁，避免 6 個請求同時衝撞 Gemini
+    initialCards.forEach((card, i) => {
+      setTimeout(() => {
+        executeSinglePageOcr(card.id, card.initialIndex, card.url, initialCards.length);
+      }, i * 350);
+    });
+  };
+
+  /**
+   * 單一卡片失敗時點擊重試
+   */
+  const handleRetryCard = (cardId: string) => {
+    playAlertTone('click');
+    const card = pageCards.find(c => c.id === cardId);
+    if (!card) return;
+    executeSinglePageOcr(card.id, card.initialIndex, card.url, pageCards.length);
+  };
+
 
   const handleImport = async (items?: ParsedItem[]) => {
     if (!parsedData) return;
@@ -309,6 +636,7 @@ export default function ImportPage() {
         delivery_date: parsedData.order_metadata.delivery_date,
         source_file: '',
         mergeByBarcode: !isPhotoImport,
+        applyNhiLookup: false,
       });
       console.log('[Import] importDrugs 回傳:', result);
       if (result.success) {
@@ -333,27 +661,40 @@ export default function ImportPage() {
     }
   };
 
-  const handleReset = async () => {
-    if (confirm('確定要重置所有匯入資訊並取消目前的處理嗎？')) {
-      if (uploadedUrls.length > 0) {
-        try {
-          setStatus('loading');
-          setMessage('正在清理已上傳的檔案...');
-          await deleteImportImages(uploadedUrls);
-        } catch (e) {
-          console.error('Cleanup error:', e);
-        }
+  const executeFullReset = async () => {
+    setShowResetConfirmModal(false);
+    // 中斷所有執行中的 OCR 串流
+    abortControllersRef.current.forEach(ctrl => ctrl.abort());
+    abortControllersRef.current.clear();
+
+    if (uploadedUrls.length > 0) {
+      try {
+        setStatus('loading');
+        setMessage('正在清理已上傳的檔案...');
+        await deleteImportImages(uploadedUrls);
+      } catch (e) {
+        console.error('Cleanup error:', e);
       }
-      clearImportState();
-      setManifestName('');
-      setJsonData('');
-      setSelectedImages([]);
-      setUploadedUrls([]);
-      setParsedData(null);
-      setPdfProgress(null);
-      setStatus('idle');
-      setMessage('');
     }
+    clearImportState();
+    setManifestName('');
+    setJsonData('');
+    setSelectedImages([]);
+    setUploadedUrls([]);
+    setParsedData(null);
+    setPdfProgress(null);
+    setPageCards([]);
+    setIsRecognizing(false);
+    setIsBlackHoleActive(false);
+    setContentOpacity(1);
+    setPreviewOpacity(0);
+    pendingParsedDataRef.current = null;
+    setStatus('idle');
+    setMessage('');
+  };
+
+  const handleReset = () => {
+    setShowResetConfirmModal(true);
   };
 
   return (
@@ -397,64 +738,132 @@ export default function ImportPage() {
         </div>
       )}
 
+      {/* 終止辨識並重置確認彈窗 Modal */}
+      {showResetConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#07142b]/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="tech-card p-6 max-w-sm w-full space-y-4 border-[#ff4b5c]/50 shadow-[0_0_30px_rgba(255,75,92,0.25)] text-center">
+            <div className="w-12 h-12 mx-auto rounded-full bg-[#ff4b5c]/20 border border-[#ff4b5c]/40 flex items-center justify-center text-[#ff4b5c]">
+              <AlertTriangle className="w-6 h-6 animate-pulse" />
+            </div>
+
+            <div className="space-y-1.5">
+              <h3 className="text-base font-bold text-white">終止辨識並重置？</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                確定要取消目前的辨識流程並清空所有資料嗎？未完成的品項與已上傳的圖片將會被清理。
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowResetConfirmModal(false)}
+                className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all active:scale-95"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={executeFullReset}
+                className="flex-1 py-2 rounded-xl bg-[#ff4b5c]/20 hover:bg-[#ff4b5c]/30 text-[#ff4b5c] border border-[#ff4b5c]/50 text-xs font-bold transition-all active:scale-95 shadow-[0_0_12px_rgba(255,75,92,0.3)]"
+              >
+                確認重置
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 黑洞漩渦 5 段式過場動畫元件 */}
+      <BlackHoleVortexTransition
+        isActive={isBlackHoleActive}
+        pageCards={pageCards}
+        totalItemsCount={pendingParsedDataRef.current?.items?.length ?? 0}
+        totalPagesCount={pageCards.length}
+        onStartFadeInUi={() => {
+          if (pendingParsedDataRef.current) {
+            setParsedData(pendingParsedDataRef.current);
+          }
+          setIsRecognizing(false);
+          setPreviewOpacity(1);
+        }}
+        onComplete={() => {
+          setIsBlackHoleActive(false);
+          setContentOpacity(1);
+        }}
+      />
+
       <div className="flex-1 min-h-0 overflow-hidden">
         <div className="max-w-3xl mx-auto flex flex-col h-full">
-          <div className="flex-shrink-0 flex items-center gap-3 px-4 lg:px-6 py-2 lg:py-3">
-            <Link href="/" className="p-2 hover:bg-slate-800 rounded-full transition-colors">
-              <ArrowLeft className="w-5 h-5 lg:w-6 lg:h-6 text-slate-400" />
+          <div className={`flex-shrink-0 flex items-center gap-2 sm:gap-3 transition-all ${parsedData ? 'px-3 py-1.5 sm:px-6 sm:py-3' : 'px-4 lg:px-6 py-2 lg:py-3'}`}>
+            <Link href="/" className="p-1.5 sm:p-2 hover:bg-slate-800 rounded-full transition-colors">
+              <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-slate-400" />
             </Link>
-            <h1 className="text-xl lg:text-2xl font-bold text-white">匯入藥品清單</h1>
-            <TeachingButton module="import-function" variant="inline" className="ml-3" />
+            <h1 className={`${parsedData ? 'text-base sm:text-xl lg:text-2xl' : 'text-xl lg:text-2xl'} font-bold text-white`}>匯入藥品清單</h1>
+            <TeachingButton module="import-function" variant="inline" className="ml-2 sm:ml-3" />
           </div>
       
           {parsedData ? (
-            <div className="flex-1 min-h-0">
-              {/* OCR 警告摘要 */}
-              {(parsedData as any).warnings && (parsedData as any).warnings.length > 0 && (
-                <div className="flex-shrink-0 mx-4 lg:mx-6 mt-4 mb-2 animate-in fade-in slide-in-from-top-2">
-                  <div className="tech-card p-4 border-[#ff9f0a]/50 bg-[#ff9f0a]/10">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-[#ff9f0a]/20 flex items-center justify-center mt-0.5">
-                        <span className="text-[10px] font-bold text-[#ff9f0a]">⚠</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-[#ff9f0a] mb-2">OCR 辨識可能有遺漏品項</p>
-                        <p className="text-xs text-slate-400 mb-2">
-                          總頁數 {(parsedData as any).order_metadata?.ocr_page_count || '?'} 頁，辨識 {parsedData.items.length} 項
-                          {(() => {
-                            const expected = ((parsedData as any).order_metadata?.ocr_page_count || 0) * 44;
-                            const diff = expected - parsedData.items.length;
-                            return diff > 0 ? `（預期 ~${expected} 項，可能缺 ${diff} 項）` : '';
-                          })()}
-                        </p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {(parsedData as any).warnings.map((w: { missing_count: number; page_number: number }, i: number) => (
-                            <span key={i} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-[10px] font-medium text-slate-300">
-                              <span className="text-[#ff9f0a] font-bold">第 {w.page_number} 頁</span>
-                              {w.missing_count > 0 ? (
-                                <span>缺 {w.missing_count} 項</span>
-                              ) : (
-                                <span className="text-slate-500">異常多</span>
-                              )}
-                            </span>
-                          ))}
+            <div
+              className="flex-1 min-h-0 flex flex-col overflow-hidden transition-opacity duration-1000 ease-out"
+              style={{ opacity: isBlackHoleActive ? previewOpacity : 1 }}
+            >
+              {/* OCR 警告摘要（僅當總提取數小於紙本宣告總數，或確實有短缺時顯示） */}
+              {(() => {
+                const totalDeclared = (parsedData as any).order_metadata?.total_items;
+                const actualCount = parsedData.items.length;
+                const isComplete = totalDeclared != null && totalDeclared > 0 && actualCount >= totalDeclared;
+                const warnings = (parsedData as any).warnings as Array<{ missing_count: number; page_number: number }> | undefined;
+
+                if (isComplete || !warnings || warnings.length === 0) return null;
+
+                const diff = totalDeclared && totalDeclared > actualCount ? totalDeclared - actualCount : undefined;
+
+                return (
+                  <div className="flex-shrink-0 mx-2 sm:mx-6 mt-1 mb-1 animate-in fade-in slide-in-from-top-2">
+                    <div className="tech-card p-2 sm:p-3 border-[#ff9f0a]/50 bg-[#ff9f0a]/10">
+                      <div className="flex items-start gap-2">
+                        <div className="flex-shrink-0 w-5 h-5 rounded-full bg-[#ff9f0a]/20 flex items-center justify-center mt-0.5">
+                          <span className="text-[10px] font-bold text-[#ff9f0a]">⚠</span>
                         </div>
-                        <p className="text-[10px] text-slate-500 mt-2">建議人工檢查上述頁數的紙本，確認是否有遺漏品項</p>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <p className="text-xs font-bold text-[#ff9f0a]">OCR 辨識短缺提醒</p>
+                            <span className="text-[10px] text-slate-400">
+                              共 {actualCount} 項 {diff ? `(缺 ${diff} 項)` : ''}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {warnings.map((w, i) => (
+                              <span key={i} className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-slate-800 border border-slate-700 text-[9px] font-medium text-slate-300">
+                                <span className="text-[#ff9f0a] font-bold">P.{w.page_number}</span>
+                                {w.missing_count > 0 ? (
+                                  <span>缺 {w.missing_count} 項</span>
+                                ) : (
+                                  <span className="text-slate-500">異常</span>
+                                )}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
               <PreviewPanel 
                 data={parsedData}
                 validation={validateParsedPdf(parsedData)}
                 onConfirm={handleImport}
                 onRetry={handlePdfRetry}
+                onItemsChange={(items) => setParsedData(prev => (prev ? { ...prev, items } : prev))}
                 isLoading={isParsingPdf}
               />
             </div>
           ) : (
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-5 lg:space-y-6 p-0 lg:px-6 pb-6">
+            <div
+              className="flex-1 min-h-0 overflow-y-auto space-y-5 lg:space-y-6 p-0 lg:px-6 pb-6 transition-opacity duration-300"
+              style={{ opacity: contentOpacity }}
+            >
               <div className="tech-card p-4 lg:p-6 space-y-5 lg:space-y-6">
                 <div className="space-y-2">
                   <label className="block text-xs lg:text-sm font-medium text-slate-400">清單名稱</label>
@@ -466,13 +875,16 @@ export default function ImportPage() {
                     className="tech-input w-full text-sm lg:text-base"
                   />
                 </div>
-                <DrugListUploader
-                  onPdfSelect={handlePdfSelect}
-                  onImagesSelect={handleImagesSelect}
-                  onImagesRemove={removeImage}
-                  selectedImages={selectedImages}
-                  isParsingPdf={isParsingPdf}
-                />
+                {/* 按下 OCR 辨識、多格非同步處理或解析 PDF 期間隱藏拖曳上傳區塊 */}
+                {!isParsingPdf && !ocrProgress && !isRecognizing && pageCards.length === 0 && (
+                  <DrugListUploader
+                    onPdfSelect={handlePdfSelect}
+                    onImagesSelect={handleImagesSelect}
+                    onImagesRemove={removeImage}
+                    selectedImages={selectedImages}
+                    isParsingPdf={isParsingPdf}
+                  />
+                )}
                 {isParsingPdf && pdfProgress && (
                   <div className="tech-card p-4 lg:p-5 space-y-4 border-cyan-500/30 animate-in fade-in slide-in-from-bottom-2 relative overflow-hidden animate-scanline">
                     <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[#00f2fe]/60 to-transparent" />
@@ -556,24 +968,58 @@ export default function ImportPage() {
                 {ocrProgress && (
                   <div className="tech-card p-4 lg:p-5 space-y-4 border-cyan-500/30 animate-in fade-in slide-in-from-bottom-2 relative overflow-hidden animate-scanline">
                     <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[#00f2fe]/60 to-transparent" />
-                    <div className="flex items-center gap-3 relative z-10">
-                      <div className={`relative ${ocrProgress.step === 'batch' ? 'animate-pulse-glow' : ''} rounded-lg p-1.5`}>
-                        {ocrProgress.step === 'uploading' && <Upload className="w-5 h-5 text-cyan-400" />}
-                        {ocrProgress.step === 'header' && <Cpu className="w-5 h-5 text-[#00f2fe]" />}
-                        {ocrProgress.step === 'batch' && <Cpu className="w-5 h-5 text-[#00f2fe] animate-pulse" />}
-                        {ocrProgress.step === 'done' && <CheckCircle2 className="w-4 h-4 text-green-400" />}
+                    
+                    {/* 頂部狀態與模型 Badge */}
+                    <div className="flex items-center justify-between gap-3 relative z-10">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className={`relative ${ocrProgress.step === 'batch' ? 'animate-pulse-glow' : ''} rounded-lg p-1.5 bg-slate-800/80 border border-cyan-500/30`}>
+                          {ocrProgress.step === 'uploading' && <Upload className="w-5 h-5 text-cyan-400" />}
+                          {ocrProgress.step === 'header' && <Cpu className="w-5 h-5 text-[#00f2fe]" />}
+                          {ocrProgress.step === 'batch' && <Cpu className="w-5 h-5 text-[#00f2fe] animate-pulse" />}
+                          {ocrProgress.step === 'nhi' && <Database className="w-5 h-5 text-cyan-400 animate-pulse" />}
+                          {ocrProgress.step === 'done' && <CheckCircle2 className="w-4 h-4 text-green-400" />}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-white truncate">{ocrProgress.label}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {ocrProgress.model && (
+                              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                                ocrProgress.model.includes('2.5')
+                                  ? 'bg-amber-500/10 text-amber-300 border-amber-500/40 shadow-[0_0_8px_rgba(245,158,11,0.3)]'
+                                  : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30'
+                              }`}>
+                                {ocrProgress.model.includes('2.5') ? '⚡ 備援模型: ' : 'AI 模型: '}{ocrProgress.model}
+                              </span>
+                            )}
+                            {ocrProgress.currentBatch && ocrProgress.totalBatches && (
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                頁次 {ocrProgress.currentBatch} / {ocrProgress.totalBatches}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-white truncate">{ocrProgress.label}</p>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          {ocrProgress.step === 'uploading' && '準備上傳的照片進行 AI 辨識'}
-                          {ocrProgress.step === 'header' && 'Gemini AI 正在辨識出貨單號與日期'}
-                          {ocrProgress.step === 'batch' && ocrProgress.currentBatch && ocrProgress.totalBatches && `正在處理第 ${ocrProgress.currentBatch} / ${ocrProgress.totalBatches} 批（每批最多 3 張圖）`}
-                          {ocrProgress.step === 'done' && 'OCR 辨識完成，正在整理結果...'}
-                        </p>
-                      </div>
-                      <span className="text-[#00f2fe] font-mono text-lg font-bold tabular-nums">{ocrProgress.percent}%</span>
+                      <span className="text-[#00f2fe] font-mono text-lg font-bold tabular-nums shrink-0">
+                        {ocrProgress.percent}%
+                      </span>
                     </div>
+
+                    {/* 503 退避倒數警示橫幅 */}
+                    {ocrProgress.retryCountdown !== undefined && ocrProgress.retryCountdown > 0 && (
+                      <div className="bg-amber-950/40 border border-amber-500/50 rounded-xl p-3 flex items-center justify-between animate-pulse shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+                        <div className="flex items-center gap-2 text-xs text-amber-200">
+                          <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                          <span>AI 服務暫時過載 (503)，系統自動退避重試中...</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-mono text-base font-bold text-amber-300 tabular-nums">
+                            {ocrProgress.retryCountdown} 秒
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 發光進度條 */}
                     <div className="relative h-2.5 bg-slate-800/80 rounded-full overflow-hidden">
                       <div 
                         className="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-500 to-[#00f2fe] rounded-full transition-all duration-500 ease-out"
@@ -590,6 +1036,8 @@ export default function ImportPage() {
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
                       )}
                     </div>
+
+                    {/* 步驟指示器 */}
                     <div className="flex items-center gap-0 relative z-10">
                       {OCR_STEPS.map((s, i) => {
                         const stepOrder = [...OCR_STEPS, 'done'];
@@ -631,8 +1079,228 @@ export default function ImportPage() {
                         );
                       })}
                     </div>
+
+                    {/* 即時步驟卡片與日誌狀態盒 */}
+                    {ocrProgress.logs && ocrProgress.logs.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-slate-700/50">
+                        <div className="bg-slate-950/70 border border-cyan-500/20 rounded-xl p-2.5 font-mono text-[11px] space-y-1.5 max-h-28 overflow-y-auto">
+                          {ocrProgress.logs.map((log) => (
+                            <div key={log.id} className="flex items-start gap-2 leading-relaxed">
+                              <span className="text-slate-500 shrink-0">[{log.time}]</span>
+                              <span className={`break-all ${
+                                log.type === 'warning' ? 'text-amber-300' :
+                                log.type === 'error' ? 'text-red-400' :
+                                log.type === 'success' ? 'text-green-300 font-bold' :
+                                'text-slate-300'
+                              }`}>
+                                {log.text}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
+                {/* 多格非同步辨識進度卡片 Grid */}
+                {pageCards.length > 0 && (
+                  <div className="space-y-4 animate-in fade-in duration-300">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <ScanLine className="w-5 h-5 text-[#00f2fe] animate-pulse" />
+                        <h3 className="text-sm font-bold text-white">
+                          多頁非同步辨識進度 ({pageCards.filter((c) => c.status === 'success').length} / {pageCards.length} 完成)
+                        </h3>
+                      </div>
+                      <span className="text-xs text-slate-400 font-mono">
+                        非同步動態處理
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                      {pageCards.map((card) => {
+                        const isScanning = card.status === 'scanning';
+                        const isRetry = card.status === 'retry_backoff';
+                        const isSuccess = card.status === 'success';
+                        const isError = card.status === 'error';
+                        const isWaiting = card.status === 'idle';
+                        const displayLabel = card.realPageNumber != null ? `第 ${card.realPageNumber} 頁` : `編號 #${card.initialIndex}`;
+
+                        return (
+                          <div
+                            key={card.id}
+                            onClick={() => isError && handleRetryCard(card.id)}
+                            className={`relative overflow-hidden rounded-xl border p-3 flex flex-col justify-between transition-all duration-300 min-h-[175px] select-none ${
+                              isError
+                                ? 'border-[#ff4b5c] bg-[#ff4b5c]/10 shadow-[0_0_18px_rgba(255,75,92,0.35)] cursor-pointer active:scale-95 hover:border-[#ff4b5c]'
+                                : isSuccess
+                                ? 'border-emerald-500/70 bg-emerald-950/20 shadow-[0_0_15px_rgba(16,185,129,0.25)]'
+                                : isRetry
+                                ? 'border-amber-500/80 bg-amber-950/30 shadow-[0_0_15px_rgba(245,158,11,0.25)]'
+                                : isScanning
+                                ? 'border-[#00f2fe]/80 bg-[#162a56]/90 shadow-[0_0_20px_rgba(0,242,254,0.3)]'
+                                : 'border-slate-800 bg-[#162a56]/50'
+                            }`}
+                          >
+                            {/* 背景照片縮圖 */}
+                            <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+                              <img
+                                src={card.url}
+                                alt={displayLabel}
+                                className={`w-full h-full object-cover transition-opacity duration-300 ${
+                                  isSuccess ? 'opacity-25' : isScanning ? 'opacity-20' : 'opacity-15'
+                                }`}
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-[#0b1730] via-transparent to-[#0b1730]/80" />
+                            </div>
+
+                            {/* 掃描雷射光條動畫（辨識中專屬） */}
+                            {isScanning && (
+                              <div className="absolute inset-x-0 h-[2px] bg-[#00f2fe] shadow-[0_0_10px_#00f2fe] animate-scanline pointer-events-none z-10" />
+                            )}
+
+                            {/* 頂部標頭：頁次與狀態 Badge */}
+                            <div className="relative z-10 flex items-center justify-between gap-2">
+                              <span className="px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-slate-900/80 border border-slate-700 text-slate-200">
+                                {displayLabel}
+                              </span>
+
+                              {isWaiting && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                                  排隊等待中
+                                </span>
+                              )}
+                              {isScanning && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-[#00f2fe] border border-cyan-500/50 flex items-center gap-1 font-bold">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-[#00f2fe] animate-ping" />
+                                  辨識中
+                                </span>
+                              )}
+                              {isRetry && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/50 flex items-center gap-1 font-bold animate-pulse">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                  退避重試
+                                </span>
+                              )}
+                              {isSuccess && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 flex items-center gap-1 font-bold animate-check-pop">
+                                  <Check className="w-3 h-3 text-emerald-400" />
+                                  完成
+                                </span>
+                              )}
+                              {isError && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/20 text-[#ff4b5c] border border-red-500/50 flex items-center gap-1 font-bold animate-pulse">
+                                  <AlertTriangle className="w-3 h-3 text-[#ff4b5c]" />
+                                  辨識失敗
+                                </span>
+                              )}
+                            </div>
+
+                            {/* 中央資訊與模型動態 */}
+                            <div className="relative z-10 my-2 flex flex-col justify-center flex-1">
+                              {/* 模型標籤 */}
+                              <div className="mb-2">
+                                <span
+                                  className={`inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                                    card.model.includes('2.5')
+                                      ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                                      : 'bg-[#00f2fe]/10 text-[#00f2fe] border-[#00f2fe]/30'
+                                  }`}
+                                >
+                                  <Cpu className="w-2.5 h-2.5" />
+                                  {card.model}
+                                </span>
+                              </div>
+
+                              {/* 狀態文字與動畫 */}
+                              {isScanning && (
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center justify-between text-xs text-slate-300">
+                                    <span className="animate-pulse">正在提取藥品條碼...</span>
+                                    <span className="text-[#00f2fe] font-mono font-bold">{card.percent}%</span>
+                                  </div>
+                                  <div className="h-1.5 bg-slate-900/80 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full bg-gradient-to-r from-cyan-500 to-[#00f2fe] rounded-full transition-all duration-300"
+                                      style={{ width: `${card.percent}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                              {isRetry && (
+                                <div className="space-y-1 bg-slate-950/70 p-2 rounded-lg border border-amber-500/30">
+                                  <p className="text-[11px] text-amber-300 font-medium">
+                                    {card.reason || 'AI 過載/空項退避'}
+                                  </p>
+                                  <div className="flex items-center justify-between text-xs">
+                                    <span className="text-slate-400">輪詢切換重試中</span>
+                                    <span className="text-amber-400 font-mono font-bold tabular-nums">
+                                      {card.retryCountdown} 秒
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {isSuccess && (
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-1.5 text-emerald-300 font-bold text-sm">
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                                    <span>成功提取 {card.itemCount ?? 0} 項</span>
+                                  </div>
+                                  {card.warning && (
+                                    <p className="text-[10px] text-amber-300">
+                                      短缺 {card.warning.missing_count} 項（預期 44 項）
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+
+                              {isError && (
+                                <div className="space-y-1.5 bg-red-950/40 p-2 rounded-lg border border-red-500/40">
+                                  <p className="text-[11px] text-red-300 line-clamp-2 leading-tight">
+                                    {card.errorMessage || '辨識失敗'}
+                                  </p>
+                                  <div className="flex items-center gap-1 text-[11px] font-bold text-[#ff4b5c]">
+                                    <RefreshCw className="w-3 h-3 animate-spin" />
+                                    <span>點擊此格立即重試</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* 底部按鈕或進度回饋 */}
+                            <div className="relative z-10 pt-1 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
+                              {isError ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRetryCard(card.id);
+                                  }}
+                                  className="w-full py-1 rounded bg-[#ff4b5c]/20 hover:bg-[#ff4b5c]/30 text-[#ff4b5c] font-bold flex items-center justify-center gap-1 transition-all active:scale-95"
+                                >
+                                  <RotateCcw className="w-3 h-3" />
+                                  點擊重試此頁
+                                </button>
+                              ) : isSuccess ? (
+                                <div className="w-full flex items-center justify-between text-emerald-400/90 font-mono">
+                                  <span>辨識完成</span>
+                                  <span>100%</span>
+                                </div>
+                              ) : isScanning ? (
+                                <span className="text-cyan-400/70 font-mono">連線 Gemini 串流中</span>
+                              ) : (
+                                <span className="text-slate-500">等待處理</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {status === 'error' && (
                   <div className="mt-3 p-2 bg-red-600 rounded text-center">
                     {message}
@@ -644,7 +1312,7 @@ export default function ImportPage() {
                     </button>
                   </div>
                 )}
-                {(selectedImages.length > 0 || uploadedUrls.length > 0) && (
+                {(selectedImages.length > 0 || (uploadedUrls.length > 0 && pageCards.length === 0)) && (
                   <>
                     {selectedImages.length > 0 && (
                       <button
@@ -679,16 +1347,16 @@ export default function ImportPage() {
                   </>
                 )}
                 <div className="flex flex-col gap-3">
-                  {uploadedUrls.length > 0 && !parsedData && (
+                  {uploadedUrls.length > 0 && !parsedData && !ocrProgress && pageCards.length === 0 && (
                     <button
                       onClick={handleOcrImages}
-                      disabled={status === 'loading' || !!ocrProgress}
-                      className={`tech-button w-full py-3 ${status === 'loading' || !!ocrProgress ? 'bg-slate-700 text-slate-400' : 'tech-button-primary'}`}
+                      disabled={status === 'loading'}
+                      className="tech-button tech-button-primary w-full py-3 flex items-center justify-center gap-2"
                     >
-                      {status === 'loading' || !!ocrProgress ? (
+                      {status === 'loading' ? (
                         <>
                           <Loader2 className="w-5 h-5 animate-spin" />
-                          {ocrProgress ? `OCR 辨識中... ${ocrProgress.percent}%` : 'OCR 辨識中...'}
+                          正在啟動辨識...
                         </>
                       ) : (
                         <>
@@ -699,9 +1367,10 @@ export default function ImportPage() {
                     </button>
                   )}
                   <button
+                    type="button"
                     onClick={handleReset}
-                    disabled={status === 'loading'}
-                    className="text-slate-500 hover:text-red-400 text-sm font-medium transition-colors flex items-center justify-center gap-2 py-2"
+                    disabled={isImporting}
+                    className="text-slate-400 hover:text-[#ff4b5c] text-sm font-medium transition-colors flex items-center justify-center gap-2 py-2.5 rounded-xl hover:bg-red-500/10 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
                   >
                     <RotateCcw className="w-4 h-4" />
                     重置所有資訊
