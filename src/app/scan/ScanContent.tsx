@@ -32,7 +32,14 @@ export default function ScanContent() {
   const manifestId = searchParams.get('manifestId');
   const supabase = createClient();
 
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(() => {
+    const p = searchParams.get('page');
+    if (p) {
+      const parsed = parseInt(p, 10);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+    return 1;
+  });
   const [drugs, setDrugs] = useState<DrugItem[]>([]);
   const [barcodeInput, setBarcodeInput] = useState('');
   const [loading, setLoading] = useState(true);
@@ -516,16 +523,24 @@ export default function ScanContent() {
     );
   };
 
-  // 恢復上次的頁碼
+  // 恢復上次的頁碼（若 URL 已指定 page 參數則以 URL 為準）
   useEffect(() => {
     if (!manifestId) return;
+    const urlPage = searchParams.get('page');
+    if (urlPage) {
+      const parsedPage = parseInt(urlPage, 10);
+      if (!isNaN(parsedPage) && parsedPage > 0) {
+        queueMicrotask(() => setCurrentPage(parsedPage));
+        return;
+      }
+    }
     const savedPage = restorePage();
     if (savedPage) {
       // 使用 queueMicrotask 避免在 effect 內同步 setState
       queueMicrotask(() => setCurrentPage(savedPage));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [manifestId]);
+  }, [manifestId, searchParams]);
 
   // 頁碼變更時持久化並載入資料
   useEffect(() => {

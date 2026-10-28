@@ -22,6 +22,12 @@ import {
   Sparkles,
   FolderInput,
   MoreVertical,
+  Search,
+  X,
+  FileText,
+  CheckSquare,
+  Square,
+  Globe,
 } from 'lucide-react';
 import { Manifest, ManifestFolder } from '@/types';
 import { useManifestOperations } from './hooks/useManifestOperations';
@@ -34,7 +40,9 @@ import { MoveToFolderModal } from './components/MoveToFolderModal';
 import { AiOrganizeDrawer } from './components/AiOrganizeDrawer';
 import { CreateFolderDialog } from './components/CreateFolderDialog';
 import { FolderActionModal } from './components/FolderActionModal';
-import { calculateRecursiveFolderCount } from '@/lib/folderUtils';
+import { PaperJumpModal } from './components/PaperJumpModal';
+import { BatchActionBar } from './components/BatchActionBar';
+import { calculateRecursiveFolderCount, calculatePaperPages } from '@/lib/folderUtils';
 import {
   getAllFolders,
   createFolder,
@@ -123,6 +131,18 @@ export default function ManifestsPage() {
   const [actionModalFolder, setActionModalFolder] = useState<ManifestFolder | null>(null);
   const [activeMenuManifestId, setActiveMenuManifestId] = useState<string | null>(null);
 
+  // --- 新增四大功能狀態 ---
+  // 1. 單號與條碼即時搜尋
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchScope, setSearchScope] = useState<'current' | 'all'>('current');
+
+  // 2. 多選批次模式
+  const [isBatchMode, setIsBatchMode] = useState(false);
+  const [selectedManifestIds, setSelectedManifestIds] = useState<Set<string>>(new Set());
+
+  // 3. 紙本對位頁次直達 Modal
+  const [paperJumpManifest, setPaperJumpManifest] = useState<Manifest | null>(null);
+
   // 監聽全局點擊以立即收合清單更多操作選單 (解決 CSS containing block 與手機端遮罩失效問題)
   useEffect(() => {
     if (!activeMenuManifestId) return;
@@ -200,31 +220,19 @@ export default function ManifestsPage() {
                 );
                 if (quotaResponse.ok) {
                   const quotaData = await quotaResponse.json();
-                  storageQuota = quotaData.storageQuota;
-                } else {
-                  storageQuotaError = '無法取得儲存空間用量';
+                  if (quotaData.storageQuota) {
+                    storageQuota = {
+                      limit: quotaData.storageQuota.limit || '0',
+                      usage: quotaData.storageQuota.usage || '0',
+                    };
+                  }
                 }
               } catch {
-                storageQuotaError = '儲存空間用量載入失敗';
-              }
-
-              if (!rootFolderId) {
-                try {
-                  const rootFolderRes = await fetch(
-                    `${window.location.origin}/api/gdrive/ensure-root-folder`,
-                    { method: 'POST' }
-                  );
-                  if (rootFolderRes.ok) {
-                    const rootFolderData = await rootFolderRes.json();
-                    rootFolderId = rootFolderData.root_folder_id;
-                  }
-                } catch {
-                  // Ignore root folder fetch error
-                }
+                // Ignore quota error
               }
             }
           } catch {
-            storageQuotaError = '儲存空間用量載入失敗';
+            storageQuotaError = '無法取得儲存容量';
           }
         }
 
@@ -300,16 +308,36 @@ export default function ManifestsPage() {
       ? 'warning'
       : 'none';
 
-  // 1. 取得清單資料 (單次批次)
+  // 1. 取得清單資料 (單次批次，支援聚合清點項目數)
   const fetchManifests = useCallback(async () => {
     setLoading(true);
     try {
+      // 嘗試關聯查詢 drug_items(counted_status) 聚合進度
       const { data, error } = await supabase
         .from('manifests')
-        .select('*')
+        .select('*, drug_items(counted_status)')
         .order('created_at', { ascending: false });
-      if (error) throw error;
-      setManifests(data || []);
+
+      if (error) {
+        // 若關聯失敗，安全 Fallback 至基本查詢
+        const fallbackRes = await supabase
+          .from('manifests')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (fallbackRes.error) throw fallbackRes.error;
+        setManifests(fallbackRes.data || []);
+      } else if (data) {
+        const formatted = data.map((m: any) => {
+          const completedCount = Array.isArray(m.drug_items)
+            ? m.drug_items.filter((d: any) => d.counted_status === 'completed').length
+            : (m.completed_items ?? 0);
+          return {
+            ...m,
+            completed_items: completedCount,
+          };
+        });
+        setManifests(formatted);
+      }
     } catch (error) {
       console.error('Error fetching manifests:', error);
     } finally {
@@ -320,7 +348,6 @@ export default function ManifestsPage() {
   // 2. 一次性取得所有資料夾 (SWR 優先直連 + 本地持久化快取)
   const fetchAllFolders = useCallback(async () => {
     try {
-      // 優先使用已建立連線的客戶端 Supabase 實例直查（速度最快，免冷啟動）
       const { data, error } = await supabase
         .from('manifest_folders')
         .select('*')
@@ -390,7 +417,6 @@ export default function ManifestsPage() {
     return allFolders
       .filter((f) => (currentFolderId === null ? !f.parent_id : f.parent_id === currentFolderId))
       .map((f) => {
-        // 遞迴統計：包含此資料夾以及其下所有子孫資料夾內的清單總數（Requirement 1）
         const recursiveItemCount = calculateRecursiveFolderCount(f.id, allFolders, manifests);
         const subfolderCount = allFolders.filter((sub) => sub.parent_id === f.id).length;
         return {
@@ -406,15 +432,42 @@ export default function ManifestsPage() {
     return manifests.filter((m) => !m.folder_id).length;
   }, [manifests]);
 
-  // 目前目錄下的清單列表（不分在辦/封存，全數直接顯示並依狀態變更外觀，直屬此目錄）
+  // 資料夾 Map (供全域搜尋時標註目錄名稱)
+  const folderNameMap = useMemo(() => {
+    return new Map(allFolders.map(f => [f.id, f.name]));
+  }, [allFolders]);
+
+  // 搜尋與篩選邏輯
+  const trimmedSearch = searchTerm.trim().toLowerCase();
+
+  const scopedManifests = useMemo(() => {
+    if (trimmedSearch && searchScope === 'all') {
+      return manifests;
+    }
+    if (currentFolderId === null) {
+      return manifests.filter((m) => !m.folder_id);
+    }
+    return manifests.filter((m) => m.folder_id === currentFolderId);
+  }, [manifests, currentFolderId, trimmedSearch, searchScope]);
+
   const displayedManifests = useMemo(() => {
-    return manifests.filter((m) => {
-      if (currentFolderId === null) {
-        return !m.folder_id; // 根目錄顯示未分類清單
-      }
-      return m.folder_id === currentFolderId; // 子資料夾顯示直屬清單
+    if (!trimmedSearch) return scopedManifests;
+    return scopedManifests.filter((m) => {
+      const nameMatch = m.name?.toLowerCase().includes(trimmedSearch);
+      const orderMatch = m.order_number?.toLowerCase().includes(trimmedSearch);
+      return nameMatch || orderMatch;
     });
-  }, [manifests, currentFolderId]);
+  }, [scopedManifests, trimmedSearch]);
+
+  // 全域符合搜尋的總數（當前目錄為 0 時提示引導）
+  const globalSearchMatches = useMemo(() => {
+    if (!trimmedSearch || searchScope === 'all') return 0;
+    return manifests.filter((m) => {
+      const nameMatch = m.name?.toLowerCase().includes(trimmedSearch);
+      const orderMatch = m.order_number?.toLowerCase().includes(trimmedSearch);
+      return nameMatch || orderMatch;
+    }).length;
+  }, [manifests, trimmedSearch, searchScope]);
 
   const {
     startOperation,
@@ -500,8 +553,107 @@ export default function ManifestsPage() {
       return;
     }
     toast.success(`成功移動 ${targetMoveManifestIds.length} 份清單`);
+    setSelectedManifestIds(new Set());
+    setIsBatchMode(false);
+    await fetchManifests();
+    await fetchAllFolders();
+  };
+
+  // --- 多選批次動作處理 ---
+  const handleToggleSelect = (id: string) => {
+    setSelectedManifestIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const isAllSelected = displayedManifests.length > 0 && selectedManifestIds.size === displayedManifests.length;
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedManifestIds(new Set());
+    } else {
+      setSelectedManifestIds(new Set(displayedManifests.map(m => m.id)));
+    }
+  };
+
+  const handleBatchMove = () => {
+    if (selectedManifestIds.size === 0) return;
+    setTargetMoveManifestIds(Array.from(selectedManifestIds));
+    setMoveToModalOpen(true);
+  };
+
+  const handleBatchArchive = async () => {
+    const ids = Array.from(selectedManifestIds);
+    const activeIds = manifests.filter(m => ids.includes(m.id) && m.status === 'active').map(m => m.id);
+    if (activeIds.length === 0) {
+      toast.info('所選清單中無在辦清單');
+      return;
+    }
+
+    const toastId = toast.loading(`批次封存中 (0/${activeIds.length})...`);
+    let successCount = 0;
+    for (let i = 0; i < activeIds.length; i++) {
+      try {
+        const res = await fetch('/api/manifest-operation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ operation: 'archive', manifestId: activeIds[i] }),
+        });
+        if (res.ok) successCount++;
+      } catch (e) {
+        console.error('Batch archive error:', e);
+      }
+      toast.loading(`批次封存中 (${i + 1}/${activeIds.length})...`, { id: toastId });
+    }
+    toast.success(`成功封存 ${successCount} 份清單`, { id: toastId });
+    setSelectedManifestIds(new Set());
+    setIsBatchMode(false);
     await fetchManifests();
   };
+
+  const handleBatchRestore = async () => {
+    const ids = Array.from(selectedManifestIds);
+    const archivedIds = manifests.filter(m => ids.includes(m.id) && m.status === 'archived').map(m => m.id);
+    if (archivedIds.length === 0) {
+      toast.info('所選清單中無已封存清單');
+      return;
+    }
+
+    const toastId = toast.loading(`批次還原中 (0/${archivedIds.length})...`);
+    let successCount = 0;
+    for (let i = 0; i < archivedIds.length; i++) {
+      try {
+        const res = await fetch('/api/manifest-operation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ operation: 'restore', manifestId: archivedIds[i] }),
+        });
+        if (res.ok) successCount++;
+      } catch (e) {
+        console.error('Batch restore error:', e);
+      }
+      toast.loading(`批次還原中 (${i + 1}/${archivedIds.length})...`, { id: toastId });
+    }
+    toast.success(`成功還原 ${successCount} 份清單`, { id: toastId });
+    setSelectedManifestIds(new Set());
+    setIsBatchMode(false);
+    await fetchManifests();
+  };
+
+  const selectedList = useMemo(() => {
+    return manifests.filter(m => selectedManifestIds.has(m.id));
+  }, [manifests, selectedManifestIds]);
+
+  const hasActiveSelected = useMemo(() => {
+    return selectedList.some(m => m.status === 'active');
+  }, [selectedList]);
+
+  const hasArchivedSelected = useMemo(() => {
+    return selectedList.some(m => m.status === 'archived');
+  }, [selectedList]);
 
   // --- AI 智慧整理動作處理 ---
   const handleStartAiScan = async () => {
@@ -614,7 +766,7 @@ export default function ManifestsPage() {
         </header>
 
         {/* Scrollable Content (獨立捲動區，自然銜接在 Header 正下方，零重疊) */}
-        <main className="flex-1 min-h-0 overflow-y-auto py-3.5 sm:py-4 pb-12 px-3.5 sm:px-4 lg:px-6">
+        <main className="flex-1 min-h-0 overflow-y-auto py-3.5 sm:py-4 pb-20 px-3.5 sm:px-4 lg:px-6">
           <div className="max-w-3xl mx-auto space-y-3">
 
             {/* Storage Warning Banner */}
@@ -650,7 +802,7 @@ export default function ManifestsPage() {
               </div>
             </div>
 
-            {/* --- 版本 A 核心：子目錄橫向膠囊滑動列 (高度僅 34px，釋放 220px 空間) --- */}
+            {/* --- 子目錄橫向膠囊滑動列 (高度僅 34px，釋放空間) --- */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs text-slate-400 px-1 font-medium">
                 <div className="flex items-center gap-1.5 min-w-0">
@@ -761,17 +913,102 @@ export default function ManifestsPage() {
               )}
             </div>
 
-            {/* --- 清單列表區塊 (高度已釋放，首屏直接清晰可見) --- */}
+            {/* --- 搜尋與多選動作列 (Task 2 & Task 4) --- */}
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center gap-2">
+                {/* 搜尋輸入框 */}
+                <div className="relative flex-1">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <Search className="w-3.5 h-3.5" />
+                  </div>
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder={searchScope === 'all' ? '搜尋所有清單名稱、單號...' : '搜尋當前目錄清單名稱、單號...'}
+                    className="w-full pl-8 pr-8 py-2 rounded-xl bg-slate-900/90 border border-slate-700/80 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#00f2fe] focus:shadow-[0_0_15px_rgba(0,242,254,0.3)] transition-all"
+                  />
+                  {searchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchTerm('')}
+                      className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-white"
+                      aria-label="清除搜尋"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* 搜尋範圍切換 (當前目錄 vs 全域搜尋) */}
+                <button
+                  type="button"
+                  onClick={() => setSearchScope((prev) => (prev === 'current' ? 'all' : 'current'))}
+                  className={`flex items-center gap-1.5 px-2.5 py-2 rounded-xl border text-xs font-medium transition-all active:scale-95 whitespace-nowrap ${
+                    searchScope === 'all'
+                      ? 'bg-[#00f2fe]/15 text-[#00f2fe] border-[#00f2fe]/40 shadow-[0_0_10px_rgba(0,242,254,0.2)]'
+                      : 'bg-slate-800/80 text-slate-400 border-slate-700 hover:text-slate-200'
+                  }`}
+                  title={searchScope === 'all' ? '目前為全域搜尋，點擊切換為僅搜尋當前目錄' : '目前為目錄搜尋，點擊切換為搜尋全部清單'}
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">{searchScope === 'all' ? '全域搜尋' : '當前目錄'}</span>
+                </button>
+
+                {/* 批次多選模式開關 */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsBatchMode(!isBatchMode);
+                    if (isBatchMode) setSelectedManifestIds(new Set());
+                  }}
+                  className={`flex items-center gap-1.5 px-2.5 py-2 rounded-xl border text-xs font-semibold transition-all active:scale-95 whitespace-nowrap ${
+                    isBatchMode
+                      ? 'bg-[#00f2fe] text-slate-950 border-[#00f2fe] shadow-[0_0_12px_rgba(0,242,254,0.4)]'
+                      : 'bg-slate-800/80 text-slate-300 border-slate-700/80 hover:text-white hover:border-slate-600'
+                  }`}
+                  title="切換多選批次管理模式"
+                >
+                  <CheckSquare className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">批次選取</span>
+                </button>
+              </div>
+
+              {/* 跨目錄搜尋友善提示 */}
+              {trimmedSearch && searchScope === 'current' && displayedManifests.length === 0 && globalSearchMatches > 0 && (
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200 animate-in fade-in duration-200">
+                  <span>當前目錄無相符項目，但在其他目錄找到 {globalSearchMatches} 筆清單</span>
+                  <button
+                    type="button"
+                    onClick={() => setSearchScope('all')}
+                    className="text-[#00f2fe] font-semibold underline underline-offset-2 ml-2 hover:text-white whitespace-nowrap"
+                  >
+                    切換全域搜尋
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* --- 清單列表區塊 --- */}
             <div className="space-y-2.5 pt-1">
               <div className="flex items-center justify-between px-1">
                 <h2 className="text-xs font-semibold text-slate-400 tracking-wider uppercase flex items-center gap-1.5">
                   <Package className="w-3.5 h-3.5 text-[#00f2fe]" />
                   <span>
-                    {currentFolderId === null
-                      ? `未分類清單 (${displayedManifests.length})`
-                      : `清單項目 (${displayedManifests.length})`}
+                    {trimmedSearch
+                      ? `搜尋結果 (${displayedManifests.length})`
+                      : currentFolderId === null
+                        ? `未分類清單 (${displayedManifests.length})`
+                        : `清單項目 (${displayedManifests.length})`}
                   </span>
                 </h2>
+
+                {/* 顯示目前總藥品項目統計 */}
+                {displayedManifests.length > 0 && (
+                  <span className="text-[11px] text-slate-500 font-mono">
+                    共 {displayedManifests.reduce((sum, m) => sum + (m.total_items || 0), 0)} 項藥品
+                  </span>
+                )}
               </div>
 
               {loading ? (
@@ -784,19 +1021,32 @@ export default function ManifestsPage() {
                   <Package className="w-9 h-9 text-slate-600 mx-auto" />
                   <div className="space-y-1">
                     <p className="text-slate-300 text-xs sm:text-sm font-medium">
-                      {currentFolderId === null
-                        ? currentFolders.length > 0
-                          ? '根目錄無未分類清單（所有清單皆已歸入目錄）'
-                          : '目前沒有可用的清單'
-                        : '此目錄內暫無清單'}
+                      {trimmedSearch
+                        ? `查無符合「${searchTerm}」的清單`
+                        : currentFolderId === null
+                          ? currentFolders.length > 0
+                            ? '根目錄無未分類清單（所有清單皆已歸入目錄）'
+                            : '目前沒有可用的清單'
+                          : '此目錄內暫無清單'}
                     </p>
                     <p className="text-[11px] text-slate-500">
-                      {currentFolderId === null
-                        ? '可點上方膠囊標籤進入各目錄查看清單'
-                        : '可將其他目錄清單移動至此處'}
+                      {trimmedSearch
+                        ? '請嘗試使用其他關鍵字搜尋或切換全域搜尋'
+                        : currentFolderId === null
+                          ? '可點上方膠囊標籤進入各目錄查看清單'
+                          : '可將其他目錄清單移動至此處'}
                     </p>
                   </div>
-                  {currentFolderId === null && currentFolders.length === 0 && (
+                  {trimmedSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchTerm('')}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white text-xs border border-slate-700 transition-colors"
+                    >
+                      清除搜尋關鍵字
+                    </button>
+                  )}
+                  {!trimmedSearch && currentFolderId === null && currentFolders.length === 0 && (
                     <Link
                       href="/import"
                       className="tech-button tech-button-primary inline-flex px-4 py-1.5 text-xs font-semibold"
@@ -823,15 +1073,32 @@ export default function ManifestsPage() {
                         : 'animate-restore-scan'
                       : '';
 
+                    // 實體紙本 44 項對位換算 (Requirement 4)
+                    const { totalPages: paperPagesCount } = calculatePaperPages(m.total_items);
+
+                    // 盤點進度百分比 (Requirement 3)
+                    const totalDrugCount = m.total_items || 0;
+                    const completedDrugCount = m.completed_items ?? 0;
+                    const progressPercent =
+                      totalDrugCount > 0
+                        ? Math.min(100, Math.round((completedDrugCount / totalDrugCount) * 100))
+                        : 0;
+                    const isFullyCompleted = totalDrugCount > 0 && completedDrugCount >= totalDrugCount;
+
+                    // 多選狀態
+                    const isSelected = selectedManifestIds.has(m.id);
+
                     return (
                       <div
                         key={m.id}
-                        className={`p-3 sm:p-3.5 group rounded-2xl flex items-center justify-between relative transition-all duration-300 ${
+                        className={`p-3 sm:p-3.5 group rounded-2xl flex flex-col gap-2 relative transition-all duration-300 ${
                           activeMenuManifestId === m.id ? 'z-30' : 'z-0'
                         } ${
-                          isArchived
-                            ? 'bg-[repeating-linear-gradient(-45deg,#0b162c,#0b162c_8px,#091224_8px,#091224_16px)] border border-dashed border-slate-700/80 opacity-75 hover:opacity-100 hover:border-slate-600'
-                            : 'tech-card hover:border-[#00f2fe]/50'
+                          isSelected
+                            ? 'bg-[#162a56]/80 border-2 border-[#00f2fe] shadow-[0_0_15px_rgba(0,242,254,0.25)]'
+                            : isArchived
+                              ? 'bg-[repeating-linear-gradient(-45deg,#0b162c,#0b162c_8px,#091224_8px,#091224_16px)] border border-dashed border-slate-700/80 opacity-75 hover:opacity-100 hover:border-slate-600'
+                              : 'tech-card hover:border-[#00f2fe]/50'
                         } ${
                           isOperationCompleted ? 'border-green-400/60 shadow-[0_0_12px_rgba(74,222,128,0.4)]' : ''
                         } ${operationAnimClass}`}
@@ -860,159 +1127,270 @@ export default function ManifestsPage() {
                           </div>
                         )}
 
-                        {/* 清單卡片主體 */}
-                        <Link
-                          href={`/scan?manifestId=${m.id}`}
-                          className={`flex items-center gap-3 flex-1 min-w-0 ${
-                            isOperationInProgress ? 'pointer-events-none' : ''
-                          }`}
-                        >
-                          <div
-                            className={`p-2.5 rounded-xl transition-all duration-300 flex-shrink-0 ${
-                              isArchived
-                                ? 'bg-slate-800/80 text-slate-500 border border-slate-700/60'
-                                : 'bg-blue-500/10 text-[#00f2fe] group-hover:bg-[#00f2fe]/20 shadow-[0_0_12px_rgba(0,242,254,0.12)]'
-                            }`}
-                          >
-                            {isArchived ? (
-                              m.cloud_backup ? (
-                                <Cloud className="w-4 h-4 text-slate-400" />
-                              ) : (
-                                <Package className="w-4 h-4 text-slate-500" />
-                              )
-                            ) : (
-                              <Package className="w-4 h-4 text-[#00f2fe]" />
-                            )}
-                          </div>
-                          <div className="space-y-0.5 min-w-0 flex-1">
-                            <h3
-                              className={`font-semibold text-xs sm:text-sm truncate transition-colors ${
-                                isArchived
-                                  ? 'text-slate-400 group-hover:text-slate-200'
-                                  : 'text-white group-hover:text-[#00f2fe]'
-                              }`}
-                            >
-                              {m.name}
-                            </h3>
-                            <div className="flex items-center gap-2 text-[11px] text-slate-400 flex-wrap">
-                              <span className="flex items-center gap-1">
-                                <Calendar className="w-3 h-3 text-slate-500" />
-                                {m.created_at &&
-                                  new Date(m.created_at).toLocaleDateString('zh-TW', {
-                                    timeZone: 'Asia/Taipei',
-                                  })}
-                              </span>
-                              <span>•</span>
-                              <span>共 {m.total_items} 項藥品</span>
-                              {isArchived && (
-                                <>
-                                  <span>•</span>
-                                  {m.cloud_backup ? (
-                                    <span className="flex items-center gap-1 text-slate-400">
-                                      <Cloud className="w-3 h-3" />
-                                      已封存（雲端）
-                                    </span>
-                                  ) : (
-                                    <span className="text-slate-500">已封存（本地）</span>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </Link>
-
-                        {/* 右側操作按鈕群 */}
-                        <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
-                          {m.storage_size_bytes !== undefined && (
-                            <span
-                              className={`hidden sm:flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-lg bg-slate-900/80 ${
-                                isArchived ? 'text-gray-400' : 'text-[#00f2fe]'
-                              }`}
-                            >
-                              <HardDrive className="w-3 h-3" />
-                              {formatStorageSize(m.storage_size_bytes)}
-                            </span>
-                          )}
-
-                          {/* 方案三核心：原地切換狀態膠囊按鈕 (在辦 vs 封存) */}
-                          {!isOperationInProgress && (
+                        {/* 卡片上層：勾選框 + 主資訊 + 操作按鈕 */}
+                        <div className="flex items-center justify-between gap-2.5">
+                          {/* 多選模式勾選框 */}
+                          {isBatchMode && (
                             <button
-                              onClick={() => (isArchived ? handleRestore(m.id) : handleArchive(m.id))}
-                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all active:scale-95 whitespace-nowrap ${
-                                isArchived
-                                  ? 'bg-slate-800/90 text-slate-400 border border-slate-700 hover:text-[#00f2fe] hover:border-[#00f2fe]/40'
-                                  : 'bg-[#00f2fe]/15 text-[#00f2fe] border border-[#00f2fe]/40 shadow-[0_0_8px_rgba(0,242,254,0.15)] hover:bg-[#00f2fe]/25'
-                              }`}
-                              title={isArchived ? '點擊還原為在辦清單' : '點擊封存此清單'}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleSelect(m.id);
+                              }}
+                              className="p-1 flex-shrink-0 cursor-pointer"
+                              aria-label={isSelected ? '取消選取' : '選取'}
                             >
-                              <span
-                                className={`w-1.5 h-1.5 rounded-full ${
-                                  isArchived ? 'bg-slate-500' : 'bg-[#00f2fe] shadow-[0_0_6px_#00f2fe]'
+                              <div
+                                className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${
+                                  isSelected
+                                    ? 'bg-[#00f2fe] border-[#00f2fe] text-slate-950 shadow-[0_0_8px_rgba(0,242,254,0.5)]'
+                                    : 'border-slate-600 bg-slate-800/80 hover:border-slate-400'
                                 }`}
-                              />
-                              <span>{isArchived ? '封存' : '在辦'}</span>
+                              >
+                                {isSelected && <CheckSquare className="w-3.5 h-3.5 stroke-[2.5]" />}
+                              </div>
                             </button>
                           )}
 
-                          {/* 3個點更多操作按鈕 (整合 移動目錄 與 刪除清單，收納按鈕釋放手機可視空間) */}
-                          {!isOperationInProgress && (
-                            <div className="relative" data-manifest-menu="true">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setActiveMenuManifestId(activeMenuManifestId === m.id ? null : m.id);
-                                }}
-                                className="p-1.5 rounded-lg bg-slate-800/90 text-slate-400 hover:text-white border border-slate-700/80 hover:bg-slate-700 active:scale-95 transition-all"
-                                title="更多操作"
-                                aria-label="更多操作"
-                              >
-                                <MoreVertical className="w-3.5 h-3.5" />
-                              </button>
-
-                              {activeMenuManifestId === m.id && (
-                                <div className="absolute right-0 top-full mt-1.5 w-36 py-1 bg-[#0d1d3a] border border-slate-700 rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 backdrop-blur-xl">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      setActiveMenuManifestId(null);
-                                      handleOpenMoveModal(m.id);
-                                    }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors text-left"
-                                  >
-                                    <FolderInput className="w-3.5 h-3.5 text-[#00f2fe]" />
-                                    <span>移動目錄</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      setActiveMenuManifestId(null);
-                                      setConfirmDeleteId(m.id);
-                                    }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors text-left border-t border-slate-800/80"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                                    <span>刪除清單</span>
-                                  </button>
-                                </div>
+                          {/* 清單卡片主體跳轉連結 */}
+                          <Link
+                            href={isBatchMode ? '#' : `/scan?manifestId=${m.id}`}
+                            onClick={(e) => {
+                              if (isBatchMode) {
+                                e.preventDefault();
+                                handleToggleSelect(m.id);
+                              }
+                            }}
+                            className={`flex items-center gap-3 flex-1 min-w-0 ${
+                              isOperationInProgress ? 'pointer-events-none' : ''
+                            }`}
+                          >
+                            <div
+                              className={`p-2.5 rounded-xl transition-all duration-300 flex-shrink-0 ${
+                                isArchived
+                                  ? 'bg-slate-800/80 text-slate-500 border border-slate-700/60'
+                                  : 'bg-blue-500/10 text-[#00f2fe] group-hover:bg-[#00f2fe]/20 shadow-[0_0_12px_rgba(0,242,254,0.12)]'
+                              }`}
+                            >
+                              {isArchived ? (
+                                m.cloud_backup ? (
+                                  <Cloud className="w-4 h-4 text-slate-400" />
+                                ) : (
+                                  <Package className="w-4 h-4 text-slate-500" />
+                                )
+                              ) : (
+                                <Package className="w-4 h-4 text-[#00f2fe]" />
                               )}
                             </div>
-                          )}
+                            <div className="space-y-0.5 min-w-0 flex-1">
+                              <h3
+                                className={`font-semibold text-xs sm:text-sm truncate transition-colors ${
+                                  isArchived
+                                    ? 'text-slate-400 group-hover:text-slate-200'
+                                    : 'text-white group-hover:text-[#00f2fe]'
+                                }`}
+                              >
+                                {m.name}
+                              </h3>
+                              <div className="flex items-center gap-2 text-[11px] text-slate-400 flex-wrap">
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="w-3 h-3 text-slate-500" />
+                                  {m.created_at &&
+                                    new Date(m.created_at).toLocaleDateString('zh-TW', {
+                                      timeZone: 'Asia/Taipei',
+                                    })}
+                                </span>
+                                <span>•</span>
+                                <span>共 {m.total_items} 項藥品</span>
 
-                          {!isOperationInProgress && (
-                            <Link
-                              href={`/scan?manifestId=${m.id}`}
-                              className="p-1 text-slate-500 group-hover:text-[#00f2fe] transition-colors"
-                            >
-                              <ChevronRight className="w-4 h-4" />
-                            </Link>
-                          )}
+                                {/* 紙本對位指示 (Requirement 4) */}
+                                {paperPagesCount > 0 && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="text-slate-300 flex items-center gap-1">
+                                      <FileText className="w-3 h-3 text-indigo-400" />
+                                      紙本共 {paperPagesCount} 頁
+                                    </span>
+                                  </>
+                                )}
+
+                                {/* 全域搜尋時標註所屬資料夾名稱 */}
+                                {searchScope === 'all' && m.folder_id && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="text-slate-400 flex items-center gap-1">
+                                      <Folder className="w-3 h-3 text-[#00f2fe]" />
+                                      {folderNameMap.get(m.folder_id) || '目錄'}
+                                    </span>
+                                  </>
+                                )}
+
+                                {isArchived && (
+                                  <>
+                                    <span>•</span>
+                                    {m.cloud_backup ? (
+                                      <span className="flex items-center gap-1 text-slate-400">
+                                        <Cloud className="w-3 h-3" />
+                                        已封存（雲端）
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-500">已封存（本地）</span>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </Link>
+
+                          {/* 右側操作按鈕群 */}
+                          <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+                            {m.storage_size_bytes !== undefined && (
+                              <span
+                                className={`hidden sm:flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-lg bg-slate-900/80 ${
+                                  isArchived ? 'text-gray-400' : 'text-[#00f2fe]'
+                                }`}
+                              >
+                                <HardDrive className="w-3 h-3" />
+                                {formatStorageSize(m.storage_size_bytes)}
+                              </span>
+                            )}
+
+                            {/* 原地切換狀態膠囊按鈕 (在辦 vs 封存) */}
+                            {!isOperationInProgress && !isBatchMode && (
+                              <button
+                                onClick={() => (isArchived ? handleRestore(m.id) : handleArchive(m.id))}
+                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all active:scale-95 whitespace-nowrap ${
+                                  isArchived
+                                    ? 'bg-slate-800/90 text-slate-400 border border-slate-700 hover:text-[#00f2fe] hover:border-[#00f2fe]/40'
+                                    : 'bg-[#00f2fe]/15 text-[#00f2fe] border border-[#00f2fe]/40 shadow-[0_0_8px_rgba(0,242,254,0.15)] hover:bg-[#00f2fe]/25'
+                                }`}
+                                title={isArchived ? '點擊還原為在辦清單' : '點擊封存此清單'}
+                              >
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full ${
+                                    isArchived ? 'bg-slate-500' : 'bg-[#00f2fe] shadow-[0_0_6px_#00f2fe]'
+                                  }`}
+                                />
+                                <span>{isArchived ? '封存' : '在辦'}</span>
+                              </button>
+                            )}
+
+                            {/* 3個點更多操作按鈕 */}
+                            {!isOperationInProgress && !isBatchMode && (
+                              <div className="relative" data-manifest-menu="true">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setActiveMenuManifestId(activeMenuManifestId === m.id ? null : m.id);
+                                  }}
+                                  className="p-1.5 rounded-lg bg-slate-800/90 text-slate-400 hover:text-white border border-slate-700/80 hover:bg-slate-700 active:scale-95 transition-all"
+                                  title="更多操作"
+                                  aria-label="更多操作"
+                                >
+                                  <MoreVertical className="w-3.5 h-3.5" />
+                                </button>
+
+                                {activeMenuManifestId === m.id && (
+                                  <div className="absolute right-0 top-full mt-1.5 w-40 py-1 bg-[#0d1d3a] border border-slate-700 rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 backdrop-blur-xl">
+                                    {/* 紙本對位分頁跳轉 (Requirement 4) */}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setActiveMenuManifestId(null);
+                                        setPaperJumpManifest(m);
+                                      }}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors text-left"
+                                    >
+                                      <FileText className="w-3.5 h-3.5 text-indigo-400" />
+                                      <span>紙本分頁直達</span>
+                                    </button>
+
+                                    {/* 移動目錄 */}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setActiveMenuManifestId(null);
+                                        handleOpenMoveModal(m.id);
+                                      }}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors text-left border-t border-slate-800/80"
+                                    >
+                                      <FolderInput className="w-3.5 h-3.5 text-[#00f2fe]" />
+                                      <span>移動目錄</span>
+                                    </button>
+
+                                    {/* 刪除清單 */}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setActiveMenuManifestId(null);
+                                        setConfirmDeleteId(m.id);
+                                      }}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors text-left border-t border-slate-800/80"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                                      <span>刪除清單</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {!isOperationInProgress && !isBatchMode && (
+                              <Link
+                                href={`/scan?manifestId=${m.id}`}
+                                className="p-1 text-slate-500 group-hover:text-[#00f2fe] transition-colors"
+                              >
+                                <ChevronRight className="w-4 h-4" />
+                              </Link>
+                            )}
+                          </div>
                         </div>
+
+                        {/* 卡片下層：微型進度條 (Mini Progress Bar, Requirement 2) */}
+                        {totalDrugCount > 0 && (
+                          <div className="pt-1 space-y-1">
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="text-slate-400">
+                                盤點進度{' '}
+                                <span className="font-mono text-slate-200 font-semibold">
+                                  {completedDrugCount}
+                                </span>{' '}
+                                / {totalDrugCount} 項
+                              </span>
+                              <span
+                                className={`font-mono font-bold ${
+                                  isFullyCompleted
+                                    ? 'text-emerald-400'
+                                    : progressPercent > 0
+                                      ? 'text-[#00f2fe]'
+                                      : 'text-slate-500'
+                                }`}
+                              >
+                                {progressPercent}%
+                              </span>
+                            </div>
+                            <div className="h-1.5 w-full bg-slate-800/90 rounded-full overflow-hidden border border-slate-700/40">
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ${
+                                  isFullyCompleted
+                                    ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]'
+                                    : progressPercent > 0
+                                      ? 'bg-gradient-to-r from-blue-500 to-[#00f2fe] shadow-[0_0_8px_rgba(0,242,254,0.4)]'
+                                      : 'bg-transparent'
+                                }`}
+                                style={{ width: `${progressPercent}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -1021,6 +1399,13 @@ export default function ManifestsPage() {
             </div>
 
             {/* --- 對話框與彈窗組件 --- */}
+
+            {/* 紙本分頁跳轉直達 Modal (Requirement 4) */}
+            <PaperJumpModal
+              isOpen={!!paperJumpManifest}
+              manifest={paperJumpManifest}
+              onClose={() => setPaperJumpManifest(null)}
+            />
 
             {/* 移動清單 Modal */}
             <MoveToFolderModal
@@ -1118,6 +1503,25 @@ export default function ManifestsPage() {
             <Toaster position="bottom-right" theme="dark" />
           </div>
         </main>
+
+        {/* 多選批次操作浮動列 (Requirement 3) */}
+        {isBatchMode && (
+          <BatchActionBar
+            selectedCount={selectedManifestIds.size}
+            totalCount={displayedManifests.length}
+            isAllSelected={isAllSelected}
+            onToggleSelectAll={handleToggleSelectAll}
+            onMoveSelected={handleBatchMove}
+            onArchiveSelected={handleBatchArchive}
+            onRestoreSelected={handleBatchRestore}
+            onExitBatchMode={() => {
+              setIsBatchMode(false);
+              setSelectedManifestIds(new Set());
+            }}
+            hasActiveSelected={hasActiveSelected}
+            hasArchivedSelected={hasArchivedSelected}
+          />
+        )}
       </div>
     </>
   );

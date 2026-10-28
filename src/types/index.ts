@@ -68,6 +68,7 @@ export interface Manifest {
   total_discrepancy?: number;
   conclusion_type?: string;
   storage_size_bytes?: number;
+  completed_items?: number; // 輔助欄位：已核對完成之項目數
   folder_id?: string | null;
   // v2: Google Drive 雲端備份相關欄位
   cloud_backup?: boolean;
