@@ -49,6 +49,7 @@ export interface DrugSearchResult {
 export interface AuditNode {
   manifestId: string;
   manifestName: string;
+  drugItemId?: string;
   pageNumber: number;
   itemOrder: number;
   expectedQuantity: number;

@@ -61,13 +61,15 @@ function QueryMainContent() {
     (node: AuditNode) => {
       // Save current search state before leaving
       sessionStorage.setItem('phama_query_last_search', query.trim());
+      const drugIdParam = node.drugItemId ? `&drugId=${encodeURIComponent(node.drugItemId)}` : '';
+      const barcodeParam = selectedRecord?.barcode ? `&barcode=${encodeURIComponent(selectedRecord.barcode)}` : '';
       router.push(
         `/scan?manifestId=${encodeURIComponent(node.manifestId)}&page=${
           node.pageNumber
-        }&highlightItem=${node.itemOrder}&from=query`
+        }&highlightItem=${node.itemOrder}${drugIdParam}${barcodeParam}&from=query`
       );
     },
-    [query, router]
+    [query, router, selectedRecord]
   );
 
   // Open photo compare modal
@@ -163,8 +165,8 @@ function QueryMainContent() {
           </div>
 
           {/* Search Input Form */}
-          <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
-            <div className="relative flex-1">
+          <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 w-full">
+            <div className="relative flex-1 min-w-0">
               <input
                 type="text"
                 value={query}
@@ -173,7 +175,7 @@ function QueryMainContent() {
                 className="w-full bg-[#0c1d3d] border border-[#233d7a] rounded-xl py-2.5 pl-10 pr-4 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#00f2fe] focus:shadow-[0_0_15px_rgba(0,242,254,0.35)] transition-all font-mono"
               />
               <svg
-                className="w-4 h-4 absolute left-3 top-3 text-slate-400"
+                className="w-4 h-4 absolute left-3 top-3 text-slate-400 pointer-events-none"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -190,7 +192,7 @@ function QueryMainContent() {
             <button
               type="submit"
               disabled={isLoading}
-              className="px-4 py-2.5 rounded-xl bg-[#00f2fe] hover:bg-[#00f2fe]/90 text-[#07142b] font-bold text-xs shrink-0 active:scale-95 shadow-[0_0_10px_rgba(0,242,254,0.3)] transition-all disabled:opacity-50 flex items-center gap-1.5"
+              className="px-4 py-2.5 rounded-xl bg-[#00f2fe] hover:bg-[#00f2fe]/90 text-[#07142b] font-bold text-xs shrink-0 whitespace-nowrap active:scale-95 shadow-[0_0_10px_rgba(0,242,254,0.3)] transition-all disabled:opacity-50 flex items-center gap-1.5 relative z-10"
             >
               {isLoading ? (
                 <div className="w-3.5 h-3.5 border-2 border-[#07142b] border-t-transparent rounded-full animate-spin" />

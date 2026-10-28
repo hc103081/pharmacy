@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import type { AuditNode } from '@/types/query';
 
 interface EvidenceCompareModalProps {
@@ -58,6 +58,77 @@ export function EvidenceCompareModal({
     );
   }, [otherHistory, selectedCompareKey]);
 
+  // Resolved Presigned URLs for B2 photos
+  const [currentPhotoUrl, setCurrentPhotoUrl] = useState<string | null>(null);
+  const [comparePhotoUrl, setComparePhotoUrl] = useState<string | null>(null);
+  const [loadingCurrent, setLoadingCurrent] = useState(false);
+  const [loadingCompare, setLoadingCompare] = useState(false);
+
+  // Helper function to resolve key to signed url
+  const resolvePhotoUrl = useCallback(
+    async (manifestId: string, rawKey: string | null): Promise<string | null> => {
+      if (!rawKey) return null;
+      if (rawKey.startsWith('http://') || rawKey.startsWith('https://')) {
+        return rawKey;
+      }
+      try {
+        const res = await fetch('/api/scan/batch-view-urls', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ manifestId, keys: [rawKey] }),
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data?.urls?.[rawKey] || null;
+      } catch (e) {
+        console.warn('Failed to resolve presigned photo url:', e);
+        return null;
+      }
+    },
+    []
+  );
+
+  // Fetch current photo
+  useEffect(() => {
+    if (!currentNode?.photoUrl) {
+      setCurrentPhotoUrl(null);
+      setLoadingCurrent(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingCurrent(true);
+    resolvePhotoUrl(currentNode.manifestId, currentNode.photoUrl).then((url) => {
+      if (!cancelled) {
+        setCurrentPhotoUrl(url);
+        setLoadingCurrent(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentNode, resolvePhotoUrl]);
+
+  // Fetch compare photo
+  useEffect(() => {
+    if (!compareNode?.photoUrl) {
+      setComparePhotoUrl(null);
+      setLoadingCompare(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingCompare(true);
+    resolvePhotoUrl(compareNode.manifestId, compareNode.photoUrl).then((url) => {
+      if (!cancelled) {
+        setComparePhotoUrl(url);
+        setLoadingCompare(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [compareNode, resolvePhotoUrl]);
+
   if (!isOpen || !currentNode) return null;
 
   const currentIsDiscrepant = currentNode.discrepancy !== 0;
@@ -108,11 +179,16 @@ export function EvidenceCompareModal({
                 </span>
               </div>
 
-              {currentNode.photoUrl ? (
+              {loadingCurrent ? (
+                <div className="h-44 sm:h-52 rounded-xl bg-slate-950 border border-slate-800 flex flex-col items-center justify-center text-center p-3 mt-2">
+                  <div className="w-6 h-6 border-2 border-[#00f2fe] border-t-transparent rounded-full animate-spin mb-2" />
+                  <span className="text-xs text-slate-400">正在自雲端載入存證照片...</span>
+                </div>
+              ) : currentPhotoUrl ? (
                 <div className="h-44 sm:h-52 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center mt-2 overflow-hidden relative group">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={currentNode.photoUrl}
+                    src={currentPhotoUrl}
                     alt="本次實體盤點照片"
                     className="w-full h-full object-contain"
                   />
@@ -166,12 +242,17 @@ export function EvidenceCompareModal({
                 )}
               </div>
 
-              {compareNode ? (
-                compareNode.photoUrl ? (
+              {loadingCompare ? (
+                <div className="h-44 sm:h-52 rounded-xl bg-slate-950 border border-slate-800 flex flex-col items-center justify-center text-center p-3 mt-2">
+                  <div className="w-6 h-6 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin mb-2" />
+                  <span className="text-xs text-slate-400">正在自雲端載入歷史照片...</span>
+                </div>
+              ) : compareNode ? (
+                comparePhotoUrl ? (
                   <div className="h-44 sm:h-52 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center mt-2 overflow-hidden relative group">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={compareNode.photoUrl}
+                      src={comparePhotoUrl}
                       alt="歷史盤點存證照片"
                       className="w-full h-full object-contain"
                     />

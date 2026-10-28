@@ -36,8 +36,9 @@ export function DrugAuditTree({
       <div className="p-4 sm:p-5 bg-slate-900/95 border-b border-slate-800 sticky top-0 z-20 backdrop-blur-md">
         <div className="flex items-center justify-between">
           <button
+            type="button"
             onClick={onBack}
-            className="flex items-center gap-1.5 text-xs text-[#00f2fe] hover:underline font-semibold"
+            className="px-3 py-1.5 rounded-xl bg-[#162a56] hover:bg-[#1f3a75] text-[#00f2fe] border border-[#233d7a] active:scale-95 transition-all text-xs font-semibold flex items-center gap-1.5 shadow-sm"
           >
             <svg
               className="w-4 h-4"
@@ -52,7 +53,7 @@ export function DrugAuditTree({
                 d="M15 19l-7-7 7-7"
               />
             </svg>
-            返回藥品候選列表
+            <span>返回藥品候選列表</span>
           </button>
 
           <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">

@@ -38,10 +38,20 @@ interface RPCResult {
   }>;
 }
 
+interface ItemDetail {
+  id: string;
+  page_number: number;
+  item_order: number;
+  photo_url: string | null;
+}
+
 /**
  * Transforms raw RPC result history into F4-A monthly aggregated groups
  */
-export function transformToAuditRecord(raw: RPCResult): DrugAuditRecord {
+export function transformToAuditRecord(
+  raw: RPCResult,
+  detailMap?: Map<string, ItemDetail>
+): DrugAuditRecord {
   const historyNodes: AuditNode[] = (raw.history || []).map((h, idx) => {
     const expected = Number(h.expected) || 0;
     const actual = Number(h.actual) || 0;
@@ -53,18 +63,22 @@ export function transformToAuditRecord(raw: RPCResult): DrugAuditRecord {
         ? 'completed'
         : 'error';
 
+    const detailKey = `${h.manifestId}_${raw.barcode}`;
+    const detail = detailMap?.get(detailKey);
+
     return {
       manifestId: h.manifestId || `unknown-${idx}`,
       manifestName: h.manifestName || '未具名清單',
-      pageNumber: Number(h.pageNumber) || 1,
-      itemOrder: Number(h.itemOrder) || idx + 1,
+      drugItemId: detail?.id,
+      pageNumber: detail?.page_number ?? (Number(h.pageNumber) || 1),
+      itemOrder: detail?.item_order ?? (Number(h.itemOrder) || idx + 1),
       expectedQuantity: expected,
       actualQuantity: actual,
       discrepancy,
       status,
       countedAt: h.countedAt || new Date().toISOString(),
       counterName: h.counterName || '盤點人員',
-      photoUrl: h.photoUrl || null,
+      photoUrl: detail?.photo_url ?? h.photoUrl ?? null,
     };
   });
 
@@ -174,7 +188,30 @@ export function useAuditSearch() {
         }
 
         const rawList = (data as RPCResult[]) || [];
-        const transformed = rawList.map(transformToAuditRecord);
+
+        // 收集所有條碼，向 drug_items 補充精確的頁碼、序號、照片 Key 與品項 ID
+        const barcodes = Array.from(new Set(rawList.map((r) => r.barcode).filter(Boolean)));
+        const itemDetailMap = new Map<string, ItemDetail>();
+
+        if (barcodes.length > 0) {
+          const { data: itemRows } = await supabase
+            .from('drug_items')
+            .select('id, barcode, manifest_id, page_number, item_order, photo_url')
+            .in('barcode', barcodes);
+
+          if (itemRows) {
+            itemRows.forEach((row) => {
+              itemDetailMap.set(`${row.manifest_id}_${row.barcode}`, {
+                id: row.id,
+                page_number: row.page_number,
+                item_order: row.item_order,
+                photo_url: row.photo_url,
+              });
+            });
+          }
+        }
+
+        const transformed = rawList.map((raw) => transformToAuditRecord(raw, itemDetailMap));
 
         setRecords(transformed);
         setIsFromCache(false);

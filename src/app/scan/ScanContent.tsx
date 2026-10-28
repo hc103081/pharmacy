@@ -137,11 +137,20 @@ export default function ScanContent() {
       const fetchedDrugs: DrugItem[] = pageRes.data || [];
       setDrugs(fetchedDrugs);
 
-      // 如果由查詢頁直達補盤，選取並滾動到該項目
+      // 如果由查詢頁直達補盤，以 drugId / barcode / item_order 複合匹配選取並滾動到該項目
       const highlightItemOrder = searchParams.get('highlightItem');
-      if (highlightItemOrder) {
-        const orderNum = parseInt(highlightItemOrder, 10);
-        const match = fetchedDrugs.find((d) => d.item_order === orderNum);
+      const targetDrugId = searchParams.get('drugId');
+      const targetBarcode = searchParams.get('barcode');
+
+      if (targetDrugId || targetBarcode || highlightItemOrder) {
+        const orderNum = highlightItemOrder ? parseInt(highlightItemOrder, 10) : null;
+        const match = fetchedDrugs.find(
+          (d) =>
+            (targetDrugId && d.id === targetDrugId) ||
+            (targetBarcode && d.barcode === targetBarcode) ||
+            (orderNum !== null && !isNaN(orderNum) && d.item_order === orderNum)
+        );
+
         if (match) {
           setManuallySelectedDrugId(match.id);
           setTimeout(() => {
