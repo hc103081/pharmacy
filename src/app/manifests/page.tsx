@@ -21,6 +21,7 @@ import {
   FolderPlus,
   Sparkles,
   FolderInput,
+  MoreVertical,
 } from 'lucide-react';
 import { Manifest, ManifestFolder } from '@/types';
 import { useManifestOperations } from './hooks/useManifestOperations';
@@ -32,6 +33,7 @@ import { FolderCard } from './components/FolderCard';
 import { MoveToFolderModal } from './components/MoveToFolderModal';
 import { AiOrganizeDrawer } from './components/AiOrganizeDrawer';
 import { CreateFolderDialog } from './components/CreateFolderDialog';
+import { FolderActionModal } from './components/FolderActionModal';
 import {
   getAllFolders,
   createFolder,
@@ -119,6 +121,7 @@ export default function ManifestsPage() {
   const [folderDialogMode, setFolderDialogMode] = useState<'create' | 'rename'>('create');
   const [editingFolder, setEditingFolder] = useState<ManifestFolder | null>(null);
   const [deletingFolder, setDeletingFolder] = useState<ManifestFolder | null>(null);
+  const [actionModalFolder, setActionModalFolder] = useState<ManifestFolder | null>(null);
 
   // AI 智慧整理 Drawer 狀態
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
@@ -442,6 +445,16 @@ export default function ManifestsPage() {
     }
   };
 
+  const handleTriggerRename = (folder: ManifestFolder) => {
+    setEditingFolder(folder);
+    setFolderDialogMode('rename');
+    setFolderDialogOpen(true);
+  };
+
+  const handleTriggerDelete = (folder: ManifestFolder) => {
+    setDeletingFolder(folder);
+  };
+
   const handleConfirmDeleteFolder = async () => {
     if (!deletingFolder) return;
     const res = await deleteFolder(deletingFolder.id);
@@ -450,6 +463,9 @@ export default function ManifestsPage() {
       return;
     }
     toast.success(`已刪除資料夾「${deletingFolder.name}」，內含清單已移至未分類`);
+    if (currentFolderId === deletingFolder.id) {
+      setCurrentFolderId(deletingFolder.parent_id ?? null);
+    }
     setDeletingFolder(null);
     await fetchAllFolders();
     await fetchManifests();
@@ -502,12 +518,13 @@ export default function ManifestsPage() {
   };
 
   const currentFolderObj = breadcrumbs.length > 0 ? breadcrumbs[breadcrumbs.length - 1] : null;
+  const currentFolder = allFolders.find((f) => f.id === currentFolderId) || null;
 
   return (
     <>
       <div className="h-dvh overflow-hidden flex flex-col bg-[#07142b]">
-        {/* Fixed Header */}
-        <header className="fixed top-0 left-0 right-0 z-40 bg-[#07142b]/95 backdrop-blur-xl border-b border-slate-800/50">
+        {/* Header: 置頂於 Flex 容器頂部，不使用 fixed，確保自然排列且永遠不遮蔽下方 UI */}
+        <header className="flex-shrink-0 z-30 bg-[#07142b]/95 backdrop-blur-xl border-b border-slate-800/50">
           <div className="max-w-3xl mx-auto p-3.5 sm:p-4 lg:p-6">
             <div className="flex items-center gap-2.5">
               <Link href="/" className="p-1.5 hover:bg-slate-800 rounded-full transition-colors text-slate-400 hover:text-white">
@@ -580,8 +597,8 @@ export default function ManifestsPage() {
           </div>
         </header>
 
-        {/* Scrollable Content */}
-        <main className="flex-1 min-h-0 overflow-y-auto pt-16 pb-8 lg:pt-20 px-3.5 sm:px-4 lg:px-6">
+        {/* Scrollable Content (獨立捲動區，自然銜接在 Header 正下方，零重疊) */}
+        <main className="flex-1 min-h-0 overflow-y-auto py-3.5 sm:py-4 pb-12 px-3.5 sm:px-4 lg:px-6">
           <div className="max-w-3xl mx-auto space-y-3">
 
             {/* Storage Warning Banner */}
@@ -645,22 +662,37 @@ export default function ManifestsPage() {
             {/* --- 版本 A 核心：子目錄橫向膠囊滑動列 (高度僅 34px，釋放 220px 空間) --- */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs text-slate-400 px-1 font-medium">
-                <span className="flex items-center gap-1.5 text-slate-300">
-                  <Folder className="w-3.5 h-3.5 text-[#00f2fe]" />
-                  <span>
-                    {currentFolderId === null ? '主目錄分類' : `${currentFolderObj?.name || '當前'} 子目錄`} ({currentFolders.length})
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Folder className="w-3.5 h-3.5 text-[#00f2fe] flex-shrink-0" />
+                  <span className="text-slate-300 truncate font-semibold">
+                    {currentFolderId === null ? '主目錄分類' : `${currentFolderObj?.name || '當前'} 子目錄`}
                   </span>
-                </span>
+                  <span className="text-slate-500 text-[11px] flex-shrink-0">
+                    ({currentFolders.length})
+                  </span>
+
+                  {/* 若在子目錄中，提供當前目錄管理快捷按鈕 */}
+                  {currentFolder && (
+                    <button
+                      onClick={() => setActionModalFolder(currentFolder)}
+                      className="ml-1 p-1 rounded-md text-slate-400 hover:text-[#00f2fe] bg-slate-800/80 hover:bg-slate-700 transition-colors border border-slate-700/60"
+                      title="管理當前目錄 (重新命名 / 刪除)"
+                      aria-label="管理當前目錄"
+                    >
+                      <MoreVertical className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
 
                 {/* 右側操作按鈕群 */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-shrink-0">
                   <button
                     onClick={() => {
                       setFolderDialogMode('create');
                       setEditingFolder(null);
                       setFolderDialogOpen(true);
                     }}
-                    className="flex items-center gap-1 text-[11px] font-medium text-slate-300 hover:text-[#00f2fe] bg-slate-800/80 hover:bg-slate-700 px-2.5 py-1 rounded-lg border border-slate-700/60 transition-all active:scale-95"
+                    className="flex items-center gap-1 text-[11px] font-medium text-slate-300 hover:text-[#00f2fe] bg-slate-800/80 hover:bg-slate-700 px-2.5 py-1 rounded-lg border border-slate-700/60 transition-all active:scale-95 whitespace-nowrap"
                   >
                     <FolderPlus className="w-3 h-3 text-[#00f2fe]" />
                     <span>新增目錄</span>
@@ -700,16 +732,33 @@ export default function ManifestsPage() {
                     return (
                       <div
                         key={f.id}
-                        onClick={() => handleOpenFolder(f.id)}
-                        className="group flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700/80 hover:border-[#00f2fe]/50 text-xs font-medium whitespace-nowrap active:scale-95 cursor-pointer flex-shrink-0 transition-all shadow-sm"
+                        className="group flex items-center rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700/80 hover:border-[#00f2fe]/50 text-xs font-medium whitespace-nowrap flex-shrink-0 transition-all shadow-sm overflow-hidden"
                       >
-                        <span className={isSystemDate ? 'text-[#00f2fe]' : 'text-indigo-400'}>
-                          {isSystemDate ? '📅' : '📁'}
-                        </span>
-                        <span className="truncate max-w-[120px]">{f.name}</span>
-                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-700/80 text-slate-300 font-mono">
-                          {f.item_count ?? 0}
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenFolder(f.id)}
+                          className="flex items-center gap-1.5 pl-3 pr-2 py-1.5 text-slate-200 active:scale-95 transition-transform"
+                        >
+                          <span className={isSystemDate ? 'text-[#00f2fe]' : 'text-indigo-400'}>
+                            {isSystemDate ? '📅' : '📁'}
+                          </span>
+                          <span className="truncate max-w-[120px]">{f.name}</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-700/80 text-slate-300 font-mono">
+                            {f.item_count ?? 0}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActionModalFolder(f);
+                          }}
+                          className="pr-2.5 pl-1.5 py-1.5 text-slate-400 hover:text-[#00f2fe] hover:bg-slate-700/80 transition-colors border-l border-slate-700/60"
+                          title={`管理目錄「${f.name}」`}
+                          aria-label={`管理目錄「${f.name}」`}
+                        >
+                          <MoreVertical className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     );
                   })}
@@ -975,6 +1024,17 @@ export default function ManifestsPage() {
               manifestIds={targetMoveManifestIds}
               currentFolderId={currentFolderId}
               onConfirmMove={handleConfirmMove}
+            />
+
+            {/* 資料夾操作選單 Modal (重新命名 / 刪除) */}
+            <FolderActionModal
+              isOpen={!!actionModalFolder}
+              folder={actionModalFolder}
+              isCurrentFolder={actionModalFolder?.id === currentFolderId}
+              onClose={() => setActionModalFolder(null)}
+              onOpenFolder={(folderId) => handleOpenFolder(folderId)}
+              onRename={handleTriggerRename}
+              onDelete={handleTriggerDelete}
             />
 
             {/* 新增 / 編輯資料夾 Dialog */}
