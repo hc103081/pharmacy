@@ -16,14 +16,32 @@ export function DrugAuditTree({
   onOpenPhotoModal,
   onJumpToScan,
 }: DrugAuditTreeProps) {
-  // Default first month open, others collapsed
-  const [collapsedMonths, setCollapsedMonths] = useState<Record<string, boolean>>({});
+  // Default first month open, others collapsed, with sessionStorage persistence
+  const [collapsedMonths, setCollapsedMonths] = useState<Record<string, boolean>>(() => {
+    if (typeof window === 'undefined') return {};
+    try {
+      const saved = sessionStorage.getItem(`audit_tree_collapsed_${record.id}`);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
 
   const toggleMonth = (monthKey: string, currentCollapsed: boolean) => {
-    setCollapsedMonths((prev) => ({
-      ...prev,
-      [monthKey]: !currentCollapsed,
-    }));
+    setCollapsedMonths((prev) => {
+      const updated = {
+        ...prev,
+        [monthKey]: !currentCollapsed,
+      };
+      if (typeof window !== 'undefined') {
+        try {
+          sessionStorage.setItem(`audit_tree_collapsed_${record.id}`, JSON.stringify(updated));
+        } catch {
+          // ignore storage error
+        }
+      }
+      return updated;
+    });
   };
 
   const isCurrentDiscrepant = record.currentDiscrepancy !== 0;

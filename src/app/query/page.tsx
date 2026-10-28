@@ -22,6 +22,7 @@ function QueryMainContent() {
     setQuery,
     records,
     selectedRecord,
+    selectedBarcode: selectedRecordId,
     setSelectedBarcode,
     isLoading,
     error,
@@ -38,6 +39,7 @@ function QueryMainContent() {
   // Restore query state on mount / return from scan
   useEffect(() => {
     const qParam = searchParams.get('q');
+    const selectedParam = searchParams.get('selected') || searchParams.get('returnRecordId');
     const returnParam = searchParams.get('return');
 
     if (qParam) {
@@ -48,7 +50,12 @@ function QueryMainContent() {
         setQuery(savedQuery);
       }
     }
-  }, [searchParams, setQuery]);
+
+    if (selectedParam) {
+      sessionStorage.setItem('phama_query_selected_record', selectedParam);
+      setSelectedBarcode(selectedParam);
+    }
+  }, [searchParams, setQuery, setSelectedBarcode]);
 
   // Dynamic live search on input change (direct search while typing / scanning)
   useEffect(() => {
@@ -81,17 +88,37 @@ function QueryMainContent() {
   const handleJumpToScan = useCallback(
     (node: AuditNode) => {
       startNavigation('正在前往盤點核對...');
-      // Save current search state before leaving
+      // Save current search state and selected record before leaving
       sessionStorage.setItem('phama_query_last_search', query.trim());
-      const drugIdParam = node.drugItemId ? `&drugId=${encodeURIComponent(node.drugItemId)}` : '';
-      const barcodeParam = selectedRecord?.barcode ? `&barcode=${encodeURIComponent(selectedRecord.barcode)}` : '';
-      router.push(
-        `/scan?manifestId=${encodeURIComponent(node.manifestId)}&page=${
-          node.pageNumber
-        }&highlightItem=${node.itemOrder}${drugIdParam}${barcodeParam}&from=query`
-      );
+      if (selectedRecordId) {
+        sessionStorage.setItem('phama_query_selected_record', selectedRecordId);
+      }
+
+      const params = new URLSearchParams({
+        manifestId: node.manifestId,
+        page: String(node.pageNumber),
+        from: 'query',
+        returnQuery: query.trim(),
+      });
+      if (node.drugItemId) {
+        params.set('drugId', node.drugItemId);
+      }
+      if (node.itemOrder) {
+        params.set('highlightItem', String(node.itemOrder));
+      }
+      if (selectedRecord?.name) {
+        params.set('drugName', selectedRecord.name);
+      }
+      if (selectedRecord?.barcode) {
+        params.set('barcode', selectedRecord.barcode);
+      }
+      if (selectedRecordId) {
+        params.set('returnRecordId', selectedRecordId);
+      }
+
+      router.push(`/scan?${params.toString()}`);
     },
-    [query, router, selectedRecord, startNavigation]
+    [query, router, selectedRecord, selectedRecordId, startNavigation]
   );
 
   // Open photo compare modal

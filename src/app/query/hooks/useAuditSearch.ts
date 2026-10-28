@@ -45,6 +45,9 @@ interface ItemDetail {
   photo_url: string | null;
 }
 
+const normalizeDrugName = (s: string | null | undefined): string =>
+  (s || '').replace(/\s+/g, '').toLowerCase();
+
 /**
  * Transforms raw RPC result history into F4-A monthly aggregated groups
  */
@@ -52,6 +55,10 @@ export function transformToAuditRecord(
   raw: RPCResult,
   detailMap?: Map<string, ItemDetail>
 ): DrugAuditRecord {
+  const normName = normalizeDrugName(raw.name);
+  const rawBarcode = (raw.barcode || '').trim();
+  const rawProductCode = (raw.product_code || '').trim();
+
   const historyNodes: AuditNode[] = (raw.history || []).map((h, idx) => {
     const expected = Number(h.expected) || 0;
     const actual = Number(h.actual) || 0;
@@ -63,15 +70,28 @@ export function transformToAuditRecord(
         ? 'completed'
         : 'error';
 
-    const detailKey = `${h.manifestId}_${raw.barcode}`;
-    const detail = detailMap?.get(detailKey);
+    let detail: ItemDetail | undefined;
+    if (detailMap && h.manifestId) {
+      if (rawBarcode) {
+        detail = detailMap.get(`${h.manifestId}_barcode_${rawBarcode}`);
+      }
+      if (!detail && rawProductCode) {
+        detail = detailMap.get(`${h.manifestId}_pcode_${rawProductCode}`);
+      }
+      if (!detail && normName) {
+        detail = detailMap.get(`${h.manifestId}_name_${normName}`);
+      }
+    }
+
+    const pageNumber = detail?.page_number ?? (Number(h.pageNumber) > 0 ? Number(h.pageNumber) : 1);
+    const itemOrder = detail?.item_order ?? (Number(h.itemOrder) > 0 ? Number(h.itemOrder) : undefined);
 
     return {
       manifestId: h.manifestId || `unknown-${idx}`,
       manifestName: h.manifestName || '未具名清單',
       drugItemId: detail?.id,
-      pageNumber: detail?.page_number ?? (Number(h.pageNumber) || 1),
-      itemOrder: detail?.item_order ?? (Number(h.itemOrder) || idx + 1),
+      pageNumber,
+      itemOrder: itemOrder ?? 1,
       expectedQuantity: expected,
       actualQuantity: actual,
       discrepancy,
@@ -275,6 +295,13 @@ export function useAuditSearch() {
 
   const setSelectedBarcode = useCallback((idOrBarcode: string | null) => {
     setSelectedRecordId(idOrBarcode);
+    if (typeof window !== 'undefined') {
+      if (idOrBarcode) {
+        sessionStorage.setItem('phama_query_selected_record', idOrBarcode);
+      } else {
+        sessionStorage.removeItem('phama_query_selected_record');
+      }
+    }
   }, []);
 
   const executeSearch = useCallback(
@@ -332,28 +359,72 @@ export function useAuditSearch() {
 
         const rawList = (data as RPCResult[]) || [];
 
-        // 收集所有條碼，向 drug_items 補充精確的頁碼、序號、照片 Key 與品項 ID
-        const barcodes = Array.from(new Set(rawList.map((r) => r.barcode).filter(Boolean)));
+        // 收集所有條碼、代碼、品名與清單 ID，向 drug_items 補充精確的頁碼、序號、照片 Key 與品項 ID
+        const barcodes = Array.from(new Set(rawList.map((r) => r.barcode).filter(Boolean))) as string[];
+        const productCodes = Array.from(new Set(rawList.map((r) => r.product_code).filter(Boolean))) as string[];
+        const names = Array.from(new Set(rawList.map((r) => r.name).filter(Boolean))) as string[];
+        const manifestIds = Array.from(
+          new Set(
+            rawList.flatMap((r) => r.history?.map((h) => h.manifestId)).filter(Boolean)
+          )
+        ) as string[];
+
         const itemDetailMap = new Map<string, ItemDetail>();
 
-        if (barcodes.length > 0) {
-          const { data: itemRows } = await supabase
-            .from('drug_items')
-            .select('id, barcode, manifest_id, page_number, item_order, photo_url')
-            .in('barcode', barcodes);
+        if (barcodes.length > 0 || productCodes.length > 0 || names.length > 0) {
+          const detailQueries = [];
 
+          if (barcodes.length > 0) {
+            let q = supabase
+              .from('drug_items')
+              .select('id, barcode, product_code, name, manifest_id, page_number, item_order, photo_url')
+              .in('barcode', barcodes);
+            if (manifestIds.length > 0) q = q.in('manifest_id', manifestIds);
+            detailQueries.push(q);
+          }
+
+          if (productCodes.length > 0) {
+            let q = supabase
+              .from('drug_items')
+              .select('id, barcode, product_code, name, manifest_id, page_number, item_order, photo_url')
+              .in('product_code', productCodes);
+            if (manifestIds.length > 0) q = q.in('manifest_id', manifestIds);
+            detailQueries.push(q);
+          }
+
+          if (names.length > 0) {
+            let q = supabase
+              .from('drug_items')
+              .select('id, barcode, product_code, name, manifest_id, page_number, item_order, photo_url')
+              .in('name', names);
+            if (manifestIds.length > 0) q = q.in('manifest_id', manifestIds);
+            detailQueries.push(q);
+          }
+
+          const queryResults = await Promise.all(detailQueries);
           if (currentSeq !== searchSeqRef.current) return;
 
-          if (itemRows) {
-            itemRows.forEach((row) => {
-              itemDetailMap.set(`${row.manifest_id}_${row.barcode}`, {
-                id: row.id,
-                page_number: row.page_number,
-                item_order: row.item_order,
-                photo_url: row.photo_url,
+          queryResults.forEach((res) => {
+            if (res.data) {
+              res.data.forEach((row) => {
+                const detail: ItemDetail = {
+                  id: row.id,
+                  page_number: row.page_number,
+                  item_order: row.item_order,
+                  photo_url: row.photo_url,
+                };
+                if (row.barcode) {
+                  itemDetailMap.set(`${row.manifest_id}_barcode_${row.barcode.trim()}`, detail);
+                }
+                if (row.product_code) {
+                  itemDetailMap.set(`${row.manifest_id}_pcode_${row.product_code.trim()}`, detail);
+                }
+                if (row.name) {
+                  itemDetailMap.set(`${row.manifest_id}_name_${normalizeDrugName(row.name)}`, detail);
+                }
               });
-            });
-          }
+            }
+          });
         }
 
         const transformed = rawList.map((raw) => transformToAuditRecord(raw, itemDetailMap));
@@ -362,8 +433,18 @@ export function useAuditSearch() {
         setRecords(consolidated);
         setIsFromCache(false);
 
-        // Auto-select first item if only 1 match or barcode scan
-        if (consolidated.length === 1 || (isBarcode && consolidated.length > 0)) {
+        // 優先保留原本選中或暫存的藥品紀錄（解決返回時回到剛剛畫面）
+        const rememberedSelectedId =
+          typeof window !== 'undefined'
+            ? sessionStorage.getItem('phama_query_selected_record')
+            : null;
+
+        if (
+          rememberedSelectedId &&
+          consolidated.some((r) => r.id === rememberedSelectedId || r.barcode === rememberedSelectedId)
+        ) {
+          setSelectedRecordId(rememberedSelectedId);
+        } else if (consolidated.length === 1 || (isBarcode && consolidated.length > 0)) {
           setSelectedRecordId(consolidated[0].id || consolidated[0].barcode);
         } else {
           setSelectedRecordId(null);
@@ -382,7 +463,18 @@ export function useAuditSearch() {
         if (currentSeq !== searchSeqRef.current) return;
         const consolidatedCached = consolidateAuditRecords(cached);
         setRecords(consolidatedCached);
-        if (consolidatedCached.length === 1) {
+        const rememberedSelectedIdOffline =
+          typeof window !== 'undefined'
+            ? sessionStorage.getItem('phama_query_selected_record')
+            : null;
+        if (
+          rememberedSelectedIdOffline &&
+          consolidatedCached.some(
+            (r) => r.id === rememberedSelectedIdOffline || r.barcode === rememberedSelectedIdOffline
+          )
+        ) {
+          setSelectedRecordId(rememberedSelectedIdOffline);
+        } else if (consolidatedCached.length === 1) {
           setSelectedRecordId(consolidatedCached[0].id || consolidatedCached[0].barcode);
         } else {
           setSelectedRecordId(null);

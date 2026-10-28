@@ -153,25 +153,27 @@ export default function ScanContent() {
       const fetchedDrugs: DrugItem[] = pageRes.data || [];
       setDrugs(fetchedDrugs);
 
-      // 如果由查詢頁直達補盤，以 drugId / barcode / item_order 複合匹配選取並只篩選該目標
+      // 如果由查詢頁直達補盤，以 drugId / drugName / item_order 複合匹配選取並高亮定位目標（不覆蓋搜尋框，避免誤篩）
       const highlightItemOrder = searchParams.get('highlightItem');
       const targetDrugId = searchParams.get('drugId');
-      const targetBarcode = searchParams.get('barcode');
+      const targetDrugName = searchParams.get('drugName');
 
-      if (!hasAppliedDirectJumpRef.current && (targetDrugId || targetBarcode || highlightItemOrder)) {
+      if (!hasAppliedDirectJumpRef.current && (targetDrugId || highlightItemOrder || targetDrugName)) {
         hasAppliedDirectJumpRef.current = true;
         const orderNum = highlightItemOrder ? parseInt(highlightItemOrder, 10) : null;
-        const match = fetchedDrugs.find(
-          (d) =>
-            (targetDrugId && d.id === targetDrugId) ||
-            (targetBarcode && d.barcode === targetBarcode) ||
-            (orderNum !== null && !isNaN(orderNum) && d.item_order === orderNum)
-        );
 
-        const filterValue = match?.barcode || targetBarcode || match?.name || '';
-        if (filterValue) {
-          pendingBarcodeRef.current = filterValue;
-          setBarcodeInput(filterValue);
+        let match: DrugItem | undefined;
+        if (targetDrugId) {
+          match = fetchedDrugs.find((d) => d.id === targetDrugId);
+        }
+        if (!match && targetDrugName) {
+          const normTargetName = targetDrugName.replace(/\s+/g, '').toLowerCase();
+          match = fetchedDrugs.find(
+            (d) => (d.name || '').replace(/\s+/g, '').toLowerCase() === normTargetName
+          );
+        }
+        if (!match && orderNum !== null && !isNaN(orderNum)) {
+          match = fetchedDrugs.find((d) => d.item_order === orderNum);
         }
 
         if (match) {
@@ -563,6 +565,38 @@ export default function ScanContent() {
     );
   };
 
+  // 處理返回操作：若來自查詢頁，直接返回前頁或攜帶原查詢狀態；若在盤點頁，先清除搜尋或返回清單
+  const handleBackNavigation = useCallback(() => {
+    if (searchParams.get('from') === 'query') {
+      safeNavigate(
+        () => {
+          if (typeof window !== 'undefined' && window.history.length > 1) {
+            router.back();
+          } else {
+            const returnQ = searchParams.get('returnQuery') || '';
+            const returnId = searchParams.get('returnRecordId') || '';
+            const params = new URLSearchParams({ return: 'true' });
+            if (returnQ) params.set('q', returnQ);
+            if (returnId) params.set('selected', returnId);
+            router.push(`/query?${params.toString()}`);
+          }
+        },
+        '返回藥品查詢...'
+      );
+      return;
+    }
+
+    if (barcodeInput) {
+      clearBarcodeAndJumpToPending();
+      return;
+    }
+
+    safeNavigate(
+      () => router.push('/manifests'),
+      '返回清單列表...'
+    );
+  }, [barcodeInput, clearBarcodeAndJumpToPending, router, safeNavigate, searchParams]);
+
   // 恢復上次的頁碼（若 URL 已指定 page 或 barcode 則以 URL 為準）
   useEffect(() => {
     if (!manifestId) return;
@@ -896,18 +930,9 @@ export default function ScanContent() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 min-w-0">
               <button
-                onClick={() => {
-                  if (barcodeInput) {
-                    clearBarcodeAndJumpToPending();
-                  } else {
-                    safeNavigate(
-                      () => router.push(searchParams.get('from') === 'query' ? '/query?return=true' : '/manifests'),
-                      searchParams.get('from') === 'query' ? '返回藥品查詢...' : '返回清單列表...'
-                    );
-                  }
-                }}
+                onClick={handleBackNavigation}
                 className="p-2 rounded-full transition-all active:scale-95 hover:bg-slate-800 text-slate-400 shrink-0"
-                title={barcodeInput ? '清除搜尋' : '返回清單列表'}
+                title={searchParams.get('from') === 'query' ? '返回藥品查詢' : barcodeInput ? '清除搜尋' : '返回清單列表'}
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
@@ -1242,14 +1267,9 @@ export default function ScanContent() {
           <div className="p-4 border-b border-blue-500/20">
             <div className="flex items-center gap-3 mb-3">
               <button
-                onClick={() =>
-                  safeNavigate(
-                    () => router.push(searchParams.get('from') === 'query' ? '/query?return=true' : '/manifests'),
-                    searchParams.get('from') === 'query' ? '返回藥品查詢...' : '返回清單列表...'
-                  )
-                }
+                onClick={handleBackNavigation}
                 className="p-2 rounded-full transition-all active:scale-95 hover:bg-slate-800 text-slate-400 shrink-0"
-                title="返回清單列表"
+                title={searchParams.get('from') === 'query' ? '返回藥品查詢' : '返回清單列表'}
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
