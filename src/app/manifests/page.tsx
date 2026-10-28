@@ -121,6 +121,7 @@ export default function ManifestsPage() {
   const [editingFolder, setEditingFolder] = useState<ManifestFolder | null>(null);
   const [deletingFolder, setDeletingFolder] = useState<ManifestFolder | null>(null);
   const [actionModalFolder, setActionModalFolder] = useState<ManifestFolder | null>(null);
+  const [activeMenuManifestId, setActiveMenuManifestId] = useState<string | null>(null);
 
   // AI 智慧整理 Drawer 狀態
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
@@ -809,6 +810,8 @@ export default function ManifestsPage() {
                       <div
                         key={m.id}
                         className={`p-3 sm:p-3.5 group rounded-2xl flex items-center justify-between relative transition-all duration-300 ${
+                          activeMenuManifestId === m.id ? 'z-30' : 'z-0'
+                        } ${
                           isArchived
                             ? 'bg-[repeating-linear-gradient(-45deg,#0b162c,#0b162c_8px,#091224_8px,#091224_16px)] border border-dashed border-slate-700/80 opacity-75 hover:opacity-100 hover:border-slate-600'
                             : 'tech-card hover:border-[#00f2fe]/50'
@@ -914,17 +917,6 @@ export default function ManifestsPage() {
                             </span>
                           )}
 
-                          {/* 移動至資料夾按鈕 */}
-                          {!isOperationInProgress && (
-                            <button
-                              onClick={() => handleOpenMoveModal(m.id)}
-                              className="p-1.5 rounded-lg bg-slate-800/90 text-slate-300 border border-slate-700/80 hover:text-[#00f2fe] hover:bg-slate-700 active:scale-95 transition-all"
-                              title="移動至資料夾"
-                            >
-                              <FolderInput className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-
                           {/* 方案三核心：原地切換狀態膠囊按鈕 (在辦 vs 封存) */}
                           {!isOperationInProgress && (
                             <button
@@ -945,15 +937,64 @@ export default function ManifestsPage() {
                             </button>
                           )}
 
-                          {/* 刪除按鈕 */}
+                          {/* 3個點更多操作按鈕 (整合 移動目錄 與 刪除清單，收納按鈕釋放手機可視空間) */}
                           {!isOperationInProgress && (
-                            <button
-                              onClick={() => setConfirmDeleteId(m.id)}
-                              className="p-1.5 rounded-lg text-red-400 bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 active:scale-95 transition-all"
-                              title="永久刪除清單"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setActiveMenuManifestId(activeMenuManifestId === m.id ? null : m.id);
+                                }}
+                                className="p-1.5 rounded-lg bg-slate-800/90 text-slate-400 hover:text-white border border-slate-700/80 hover:bg-slate-700 active:scale-95 transition-all"
+                                title="更多操作"
+                                aria-label="更多操作"
+                              >
+                                <MoreVertical className="w-3.5 h-3.5" />
+                              </button>
+
+                              {activeMenuManifestId === m.id && (
+                                <>
+                                  <div
+                                    className="fixed inset-0 z-40"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setActiveMenuManifestId(null);
+                                    }}
+                                  />
+                                  <div className="absolute right-0 top-full mt-1.5 w-36 py-1 bg-[#0d1d3a] border border-slate-700 rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 backdrop-blur-xl">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setActiveMenuManifestId(null);
+                                        handleOpenMoveModal(m.id);
+                                      }}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors text-left"
+                                    >
+                                      <FolderInput className="w-3.5 h-3.5 text-[#00f2fe]" />
+                                      <span>移動目錄</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setActiveMenuManifestId(null);
+                                        setConfirmDeleteId(m.id);
+                                      }}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors text-left border-t border-slate-800/80"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                                      <span>刪除清單</span>
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           )}
 
                           {!isOperationInProgress && (
