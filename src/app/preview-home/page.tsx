@@ -116,9 +116,19 @@ export default function PreviewHomePage() {
 }
 
 // ==========================================
-// 方案 A View
+// 方案 A View（已移除抽象統計，加入藥局實用工具）
 // ==========================================
 function VersionAView({ isMobile }: { isMobile: boolean }) {
+  // 紙本 44 項換算器狀態
+  const [calcMode, setCalcMode] = useState<'pageToItem' | 'itemToPage'>('pageToItem');
+  const [inputPage, setInputPage] = useState<number>(1);
+  const [inputRow, setInputRow] = useState<number>(1);
+  const [inputTotalItem, setInputTotalItem] = useState<number>(45);
+
+  const calculatedTotalItem = (Math.max(1, inputPage) - 1) * 44 + Math.max(1, Math.min(44, inputRow));
+  const calculatedPage = Math.ceil(Math.max(1, inputTotalItem) / 44);
+  const calculatedRow = ((Math.max(1, inputTotalItem) - 1) % 44) + 1;
+
   return (
     <div className="min-h-[620px] flex flex-col bg-[#07142b]">
       {/* 頂部全寬導航 */}
@@ -136,7 +146,7 @@ function VersionAView({ isMobile }: { isMobile: boolean }) {
           {!isMobile && (
             <span className="text-xs text-emerald-400 bg-emerald-950/60 border border-emerald-800 px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              主庫存連線正常
+              雲端儲存就緒
             </span>
           )}
           <div className="text-xs bg-[#162a56] border border-blue-500/30 px-3 py-1 rounded-lg text-slate-300">
@@ -146,50 +156,24 @@ function VersionAView({ isMobile }: { isMobile: boolean }) {
       </header>
 
       {/* 主體區 */}
-      <div className={`p-4 md:p-6 space-y-5 ${!isMobile ? 'max-w-4xl mx-auto w-full' : ''}`}>
+      <div className={`p-4 md:p-6 space-y-4 md:space-y-5 ${!isMobile ? 'max-w-4xl mx-auto w-full' : ''}`}>
         
-        {/* 指標列 */}
-        <div className={`grid ${isMobile ? 'grid-cols-2 gap-2.5' : 'grid-cols-4 gap-4'}`}>
-          <div className="bg-[#162a56]/70 border border-blue-500/20 rounded-2xl p-3.5">
-            <div className="text-[11px] text-slate-400 flex items-center justify-between">
-              <span>待核對清單</span>
-              <Clock className="w-3.5 h-3.5 text-amber-400" />
-            </div>
-            <div className="text-xl font-black text-white mt-1">3 <span className="text-xs font-normal text-slate-400">份</span></div>
-            <div className="text-[10px] text-amber-400/80 mt-1">2 份進行中</div>
+        {/* 全域快捷條碼反查列（新加實用功能：掃條碼立查所屬單號） */}
+        <div className="bg-[#162a56]/70 border border-blue-500/30 rounded-2xl p-3 shadow-[0_0_15px_rgba(0,242,254,0.1)] flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-[#00f2fe] flex-shrink-0">
+            <Barcode className="w-4 h-4" />
           </div>
-
-          <div className="bg-[#162a56]/70 border border-blue-500/20 rounded-2xl p-3.5">
-            <div className="text-[11px] text-slate-400 flex items-center justify-between">
-              <span>今日已完成</span>
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-            </div>
-            <div className="text-xl font-black text-white mt-1">12 <span className="text-xs font-normal text-slate-400">份</span></div>
-            <div className="text-[10px] text-emerald-400 mt-1">今日達成率 80%</div>
-          </div>
-
-          <div className={`bg-[#162a56]/70 border border-blue-500/20 rounded-2xl p-3.5 ${isMobile ? 'col-span-2' : ''}`}>
-            <div className="text-[11px] text-slate-400 flex items-center justify-between">
-              <span>總品項累計</span>
-              <Barcode className="w-3.5 h-3.5 text-[#00f2fe]" />
-            </div>
-            <div className="text-xl font-black text-[#00f2fe] mt-1">1,482 <span className="text-xs font-normal text-slate-400">項</span></div>
-            <div className="text-[10px] text-slate-400 mt-1">條碼核對率 100%</div>
-          </div>
-
-          {!isMobile && (
-            <div className="bg-[#162a56]/70 border border-blue-500/20 rounded-2xl p-3.5">
-              <div className="text-[11px] text-slate-400 flex items-center justify-between">
-                <span>紙本分頁標準</span>
-                <FileText className="w-3.5 h-3.5 text-blue-400" />
-              </div>
-              <div className="text-xl font-black text-white mt-1">44 <span className="text-xs font-normal text-slate-400">項 / 頁</span></div>
-              <div className="text-[10px] text-blue-300 mt-1">實體頁碼鎖定</div>
-            </div>
-          )}
+          <input 
+            type="text" 
+            placeholder="全庫條碼 / 藥名快速反查（例如刷條碼確認進貨單號）..."
+            className="bg-transparent text-xs text-white placeholder-slate-500 flex-1 outline-none px-1"
+          />
+          <button className="bg-[#00f2fe] text-slate-950 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 active:scale-95 transition-all flex-shrink-0">
+            查詢
+          </button>
         </div>
 
-        {/* 雙卡片區 */}
+        {/* 雙卡片區（主要行動入口） */}
         <div className={`grid ${isMobile ? 'grid-cols-1 gap-3' : 'grid-cols-2 gap-5'}`}>
           <div className="bg-[#162a56]/80 border border-blue-500/30 hover:border-[#00f2fe]/60 rounded-2xl p-5 transition-all cursor-pointer group shadow-[0_0_15px_rgba(0,242,254,0.15)]">
             <div className="flex items-start gap-4">
@@ -231,7 +215,7 @@ function VersionAView({ isMobile }: { isMobile: boolean }) {
           </div>
         </div>
 
-        {/* 最近作業中的清單 */}
+        {/* 最近作業中的清單（Resume Section - 一鍵接續作業） */}
         <div className="bg-[#162a56]/60 border border-slate-800 rounded-2xl p-4">
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-xs font-bold text-slate-300 flex items-center gap-1.5 uppercase tracking-wider">
@@ -243,7 +227,10 @@ function VersionAView({ isMobile }: { isMobile: boolean }) {
           <div className="space-y-2.5">
             <div className={`bg-[#0b1b38] border border-blue-500/20 rounded-xl p-3 flex ${isMobile ? 'flex-col gap-2' : 'items-center justify-between'}`}>
               <div>
-                <div className="text-xs font-bold text-white">2026-10-28 裕利常溫進貨單</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-white">2026-10-28 裕利常溫進貨單</span>
+                  <span className="text-[10px] bg-blue-900/40 text-blue-300 border border-blue-700/50 px-1.5 py-0.2 rounded">裕利</span>
+                </div>
                 <div className="text-[11px] text-slate-400 mt-0.5">已核對 32 / 44 項 (72%) • 實體第 1 頁</div>
               </div>
               <div className={`flex items-center gap-3 ${isMobile ? 'justify-between pt-1 border-t border-slate-800' : ''}`}>
@@ -258,7 +245,10 @@ function VersionAView({ isMobile }: { isMobile: boolean }) {
 
             <div className={`bg-[#0b1b38] border border-blue-500/20 rounded-xl p-3 flex ${isMobile ? 'flex-col gap-2' : 'items-center justify-between'}`}>
               <div>
-                <div className="text-xs font-bold text-white">2026-10-28 冷藏生物製劑</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-white">2026-10-28 冷藏生物製劑</span>
+                  <span className="text-[10px] bg-indigo-900/40 text-indigo-300 border border-indigo-700/50 px-1.5 py-0.2 rounded">冷藏</span>
+                </div>
                 <div className="text-[11px] text-slate-400 mt-0.5">已核對 8 / 18 項 (44%)</div>
               </div>
               <div className={`flex items-center gap-3 ${isMobile ? 'justify-between pt-1 border-t border-slate-800' : ''}`}>
@@ -271,6 +261,96 @@ function VersionAView({ isMobile }: { isMobile: boolean }) {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* 雙翼實用工具區：常用分類膠囊 ＋ 紙本 44 項對位換算器 */}
+        <div className={`grid ${isMobile ? 'grid-cols-1 gap-3' : 'grid-cols-2 gap-4'}`}>
+          
+          {/* 工具 1：常用藥廠與分類快速通道 */}
+          <div className="bg-[#162a56]/50 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
+            <div>
+              <div className="text-xs font-bold text-slate-300 mb-2 flex items-center gap-1.5">
+                <span className="text-[#00f2fe]">📂</span> 常用廠商與分類直達
+              </div>
+              <p className="text-[11px] text-slate-400 mb-3">一鍵直達特定資料夾，免去層層翻找：</p>
+              <div className="flex flex-wrap gap-1.5">
+                {['裕利藥業', '久裕企業', '大聯大物流', '冷藏品 2~8°C', '高價管制藥', '待覆核異常'].map((tag) => (
+                  <button key={tag} className="text-xs bg-[#0b1b38] hover:bg-[#162a56] hover:border-[#00f2fe] border border-blue-500/30 text-slate-300 hover:text-white px-2.5 py-1 rounded-lg transition-all">
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="text-[10px] text-slate-500 mt-3 pt-2 border-t border-slate-800/80">
+              提示：可於清單管理中為資料夾釘選捷徑
+            </div>
+          </div>
+
+          {/* 工具 2：實體紙本 44 項雙向對位換算器 */}
+          <div className="bg-[#162a56]/50 border border-blue-500/20 rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-[#00f2fe]" /> 紙本 44 項雙向換算器
+              </div>
+              <button 
+                onClick={() => setCalcMode(m => m === 'pageToItem' ? 'itemToPage' : 'pageToItem')}
+                className="text-[10px] text-[#00f2fe] bg-blue-900/30 border border-blue-500/30 px-2 py-0.5 rounded"
+              >
+                切換模式
+              </button>
+            </div>
+
+            {calcMode === 'pageToItem' ? (
+              <div className="space-y-2">
+                <div className="text-[11px] text-slate-400">輸入紙本「頁次」與「行號」，換算系統總項次：</div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-slate-400">第</span>
+                  <input 
+                    type="number" 
+                    min={1} 
+                    value={inputPage} 
+                    onChange={e => setInputPage(Number(e.target.value))} 
+                    className="w-12 bg-slate-950 border border-slate-700 text-center text-white rounded p-1"
+                  />
+                  <span className="text-slate-400">頁 第</span>
+                  <input 
+                    type="number" 
+                    min={1} 
+                    max={44} 
+                    value={inputRow} 
+                    onChange={e => setInputRow(Number(e.target.value))} 
+                    className="w-12 bg-slate-950 border border-slate-700 text-center text-white rounded p-1"
+                  />
+                  <span className="text-slate-400">項 ➔</span>
+                  <span className="font-bold text-[#00f2fe] text-sm bg-slate-950 px-2 py-1 rounded border border-blue-500/30">
+                    全單第 {calculatedTotalItem} 項
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="text-[11px] text-slate-400">輸入系統「總項次」，換算紙本對應頁數與行號：</div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-slate-400">全單第</span>
+                  <input 
+                    type="number" 
+                    min={1} 
+                    value={inputTotalItem} 
+                    onChange={e => setInputTotalItem(Number(e.target.value))} 
+                    className="w-16 bg-slate-950 border border-slate-700 text-center text-white rounded p-1"
+                  />
+                  <span className="text-slate-400">項 ➔</span>
+                  <span className="font-bold text-[#00f2fe] text-xs bg-slate-950 px-2 py-1 rounded border border-blue-500/30">
+                    第 {calculatedPage} 頁 第 {calculatedRow} 項
+                  </span>
+                </div>
+              </div>
+            )}
+            <div className="text-[10px] text-slate-500 mt-2">
+              規則：固定每頁 44 筆，與實體進貨單完全同步
+            </div>
+          </div>
+
         </div>
 
       </div>
