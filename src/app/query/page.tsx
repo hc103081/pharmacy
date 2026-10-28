@@ -88,6 +88,31 @@ function QueryMainContent() {
   const handleJumpToScan = useCallback(
     (node: AuditNode) => {
       startNavigation('正在前往盤點核對...');
+      // 記憶目前節點 Key、月份展開狀態與滾動高度
+      const nodeKey = `${node.manifestId}_${node.pageNumber}_${node.itemOrder}`;
+      sessionStorage.setItem('phama_query_return_node_key', nodeKey);
+
+      const mainEl = document.querySelector('main');
+      if (mainEl) {
+        sessionStorage.setItem('phama_query_scroll_top', String(mainEl.scrollTop));
+      }
+
+      if (selectedRecord?.id && node.countedAt) {
+        const monthKey = node.countedAt.slice(0, 7);
+        try {
+          const savedMonths = JSON.parse(
+            sessionStorage.getItem(`audit_tree_collapsed_${selectedRecord.id}`) || '{}'
+          );
+          savedMonths[monthKey] = false;
+          sessionStorage.setItem(
+            `audit_tree_collapsed_${selectedRecord.id}`,
+            JSON.stringify(savedMonths)
+          );
+        } catch {
+          // ignore error
+        }
+      }
+
       // Save current search state and selected record before leaving
       sessionStorage.setItem('phama_query_last_search', query.trim());
       if (selectedRecordId) {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { DrugAuditRecord, AuditNode } from '@/types/query';
 
 interface DrugAuditTreeProps {
@@ -43,6 +43,43 @@ export function DrugAuditTree({
       return updated;
     });
   };
+
+  // 恢復直達返回時的滾動位置並微光高亮目標節點
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const targetKey = sessionStorage.getItem('phama_query_return_node_key');
+    if (!targetKey) return;
+
+    let attempts = 0;
+    const maxAttempts = 5;
+
+    const tryScroll = () => {
+      attempts++;
+      const el = document.querySelector(`[data-audit-node-key="${targetKey}"]`) as HTMLElement | null;
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-2', 'ring-[#00f2fe]', 'shadow-[0_0_25px_rgba(0,242,254,0.4)]');
+        setTimeout(() => {
+          el.classList.remove('ring-2', 'ring-[#00f2fe]', 'shadow-[0_0_25px_rgba(0,242,254,0.4)]');
+        }, 2200);
+        sessionStorage.removeItem('phama_query_return_node_key');
+      } else if (attempts < maxAttempts) {
+        setTimeout(tryScroll, 120);
+      } else {
+        const savedScroll = sessionStorage.getItem('phama_query_scroll_top');
+        if (savedScroll) {
+          const mainEl = document.querySelector('main');
+          if (mainEl) {
+            mainEl.scrollTo({ top: Number(savedScroll), behavior: 'smooth' });
+          }
+          sessionStorage.removeItem('phama_query_scroll_top');
+        }
+      }
+    };
+
+    const initialTimer = setTimeout(tryScroll, 100);
+    return () => clearTimeout(initialTimer);
+  }, [record.id, collapsedMonths]);
 
   const isCurrentDiscrepant = record.currentDiscrepancy !== 0;
 
@@ -219,7 +256,8 @@ export function DrugAuditTree({
                     return (
                       <div
                         key={`${node.manifestId}-${node.pageNumber}-${node.itemOrder}-${nodeIdx}`}
-                        className={`p-3.5 sm:p-4 rounded-2xl bg-[#162a56] border space-y-3 shadow-md ${
+                        data-audit-node-key={`${node.manifestId}_${node.pageNumber}_${node.itemOrder}`}
+                        className={`p-3.5 sm:p-4 rounded-2xl bg-[#162a56] border space-y-3 shadow-md transition-all duration-300 ${
                           isError ? 'border-[#ff4b5c]/50' : 'border-slate-700/80'
                         }`}
                       >
