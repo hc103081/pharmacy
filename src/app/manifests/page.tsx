@@ -123,6 +123,23 @@ export default function ManifestsPage() {
   const [actionModalFolder, setActionModalFolder] = useState<ManifestFolder | null>(null);
   const [activeMenuManifestId, setActiveMenuManifestId] = useState<string | null>(null);
 
+  // 監聽全局點擊以立即收合清單更多操作選單 (解決 CSS containing block 與手機端遮罩失效問題)
+  useEffect(() => {
+    if (!activeMenuManifestId) return;
+
+    const handlePointerDown = (e: PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target || !target.closest('[data-manifest-menu]')) {
+        setActiveMenuManifestId(null);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [activeMenuManifestId]);
+
   // AI 智慧整理 Drawer 狀態
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
   const [aiScanning, setAiScanning] = useState(false);
@@ -939,7 +956,7 @@ export default function ManifestsPage() {
 
                           {/* 3個點更多操作按鈕 (整合 移動目錄 與 刪除清單，收納按鈕釋放手機可視空間) */}
                           {!isOperationInProgress && (
-                            <div className="relative">
+                            <div className="relative" data-manifest-menu="true">
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -955,44 +972,34 @@ export default function ManifestsPage() {
                               </button>
 
                               {activeMenuManifestId === m.id && (
-                                <>
-                                  <div
-                                    className="fixed inset-0 z-40"
+                                <div className="absolute right-0 top-full mt-1.5 w-36 py-1 bg-[#0d1d3a] border border-slate-700 rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 backdrop-blur-xl">
+                                  <button
+                                    type="button"
                                     onClick={(e) => {
                                       e.preventDefault();
                                       e.stopPropagation();
                                       setActiveMenuManifestId(null);
+                                      handleOpenMoveModal(m.id);
                                     }}
-                                  />
-                                  <div className="absolute right-0 top-full mt-1.5 w-36 py-1 bg-[#0d1d3a] border border-slate-700 rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 backdrop-blur-xl">
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        setActiveMenuManifestId(null);
-                                        handleOpenMoveModal(m.id);
-                                      }}
-                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors text-left"
-                                    >
-                                      <FolderInput className="w-3.5 h-3.5 text-[#00f2fe]" />
-                                      <span>移動目錄</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        setActiveMenuManifestId(null);
-                                        setConfirmDeleteId(m.id);
-                                      }}
-                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors text-left border-t border-slate-800/80"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                                      <span>刪除清單</span>
-                                    </button>
-                                  </div>
-                                </>
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors text-left"
+                                  >
+                                    <FolderInput className="w-3.5 h-3.5 text-[#00f2fe]" />
+                                    <span>移動目錄</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setActiveMenuManifestId(null);
+                                      setConfirmDeleteId(m.id);
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors text-left border-t border-slate-800/80"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                                    <span>刪除清單</span>
+                                  </button>
+                                </div>
                               )}
                             </div>
                           )}
