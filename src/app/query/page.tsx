@@ -39,15 +39,32 @@ function QueryMainContent() {
 
     if (qParam) {
       setQuery(qParam);
-      executeSearch(qParam);
     } else if (returnParam === 'true') {
       const savedQuery = sessionStorage.getItem('phama_query_last_search');
       if (savedQuery) {
         setQuery(savedQuery);
-        executeSearch(savedQuery);
       }
     }
-  }, [searchParams, executeSearch, setQuery]);
+  }, [searchParams, setQuery]);
+
+  // Dynamic live search on input change (direct search while typing / scanning)
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      executeSearch('');
+      return;
+    }
+
+    const isBarcode = /^\d{8,14}$/.test(trimmed);
+    const delay = isBarcode ? 80 : 250;
+
+    const timer = setTimeout(() => {
+      sessionStorage.setItem('phama_query_last_search', trimmed);
+      executeSearch(trimmed);
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [query, executeSearch]);
 
   // Handle form submit / search trigger
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -113,21 +130,21 @@ function QueryMainContent() {
   }
 
   return (
-    <div className="min-h-screen bg-[#07142b] text-slate-100 flex flex-col font-sans antialiased">
+    <div className="flex-1 min-h-0 h-full bg-[#07142b] text-slate-100 flex flex-col font-sans antialiased overflow-hidden">
       {/* Offline Status Bar */}
       {(isOffline || isFromCache) && (
-        <div className="bg-[#ff4b5c]/90 text-white text-[11px] py-1 px-4 text-center font-bold tracking-wide sticky top-0 z-40 flex items-center justify-center gap-1.5 shadow-md">
+        <div className="bg-[#ff4b5c]/90 text-white text-[11px] py-1 px-4 text-center font-bold tracking-wide shrink-0 z-40 flex items-center justify-center gap-1.5 shadow-md">
           <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
           <span>離線模式：目前正在顯示 IndexedDB 本地快取之審計紀錄</span>
         </div>
       )}
 
       {/* Main Container */}
-      <div className="max-w-3xl w-full mx-auto flex-1 flex flex-col">
+      <div className="max-w-3xl w-full mx-auto flex-1 min-h-0 flex flex-col overflow-hidden">
         {/* ========================================== */}
         {/* TOP APP SEARCH HEADER                      */}
         {/* ========================================== */}
-        <header className="p-3.5 sm:p-4 bg-slate-900/90 border-b border-slate-800/80 sticky top-0 z-30 backdrop-blur-md">
+        <header className="p-3.5 sm:p-4 bg-slate-900/90 border-b border-slate-800/80 shrink-0 z-30 backdrop-blur-md">
           <div className="flex items-center gap-2 mb-2.5">
             <button
               onClick={() => router.push('/manifests')}
@@ -199,7 +216,7 @@ function QueryMainContent() {
                   }}
                   aria-label="清空搜尋"
                   title="清空搜尋"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700/60 transition-colors"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#162a56] hover:bg-[#ff4b5c]/20 border border-[#233d7a] hover:border-[#ff4b5c]/50 flex items-center justify-center text-slate-300 hover:text-[#ff4b5c] active:scale-90 transition-all"
                 >
                   <svg
                     className="w-3.5 h-3.5"
@@ -210,7 +227,7 @@ function QueryMainContent() {
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      strokeWidth="2"
+                      strokeWidth="2.5"
                       d="M6 18L18 6M6 6l12 12"
                     />
                   </svg>
@@ -252,7 +269,7 @@ function QueryMainContent() {
         {/* ========================================== */}
         {/* MAIN VIEW STATE MACHINE (MODE 2) */}
         {/* ========================================== */}
-        <main className="flex-1">
+        <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           {selectedRecord ? (
             <DrugAuditTree
               record={selectedRecord}

@@ -1,7 +1,4 @@
-@reference "tailwindcss";
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 :root {
   --theme-bg: #07142b;

@@ -66,7 +66,8 @@ export default function ScanContent() {
   const imageCache = useImageCache(manifestId);
   const { isKeyboardOpen } = useScanKeyboard();
   const shouldJumpToNextRef = useRef(false);
-  const pendingBarcodeRef = useRef<string | null>(null);
+  const pendingBarcodeRef = useRef<string | null>(barcodeParam);
+  const hasAppliedDirectJumpRef = useRef(false);
   const requestRef = useRef<{ manifestId: string | null; currentPage: number } | null>(null);
   const prevManifestIdRef = useRef<string | null>(null);
 
@@ -138,15 +139,13 @@ export default function ScanContent() {
       const fetchedDrugs: DrugItem[] = pageRes.data || [];
       setDrugs(fetchedDrugs);
 
-      // 如果由查詢頁直達補盤，以 drugId / barcode / item_order 複合匹配選取並滾動到該項目
+      // 如果由查詢頁直達補盤，以 drugId / barcode / item_order 複合匹配選取並只篩選該目標
       const highlightItemOrder = searchParams.get('highlightItem');
       const targetDrugId = searchParams.get('drugId');
       const targetBarcode = searchParams.get('barcode');
-      if (targetBarcode) {
-        setBarcodeInput(targetBarcode);
-      }
 
-      if (targetDrugId || targetBarcode || highlightItemOrder) {
+      if (!hasAppliedDirectJumpRef.current && (targetDrugId || targetBarcode || highlightItemOrder)) {
+        hasAppliedDirectJumpRef.current = true;
         const orderNum = highlightItemOrder ? parseInt(highlightItemOrder, 10) : null;
         const match = fetchedDrugs.find(
           (d) =>
@@ -154,6 +153,12 @@ export default function ScanContent() {
             (targetBarcode && d.barcode === targetBarcode) ||
             (orderNum !== null && !isNaN(orderNum) && d.item_order === orderNum)
         );
+
+        const filterValue = match?.barcode || targetBarcode || match?.name || '';
+        if (filterValue) {
+          pendingBarcodeRef.current = filterValue;
+          setBarcodeInput(filterValue);
+        }
 
         if (match) {
           setManuallySelectedDrugId(match.id);
@@ -489,9 +494,9 @@ export default function ScanContent() {
     );
   };
 
-  // 恢復上次的頁碼
+  // 恢復上次的頁碼（若由查詢頁直達指定 page/barcode 則不覆蓋）
   useEffect(() => {
-    if (!manifestId) return;
+    if (!manifestId || searchParams.get('page') || searchParams.get('barcode')) return;
     const savedPage = restorePage();
     if (savedPage) {
       // 使用 queueMicrotask 避免在 effect 內同步 setState

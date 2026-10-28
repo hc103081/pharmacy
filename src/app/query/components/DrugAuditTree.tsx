@@ -131,9 +131,21 @@ export function DrugAuditTree({
                 className="px-4 py-3.5 bg-slate-900/90 hover:bg-slate-900 flex items-center justify-between cursor-pointer border-b border-slate-800 transition-colors"
               >
                 <div className="flex items-center gap-2.5">
-                  <span className="text-[#00f2fe] text-xs transition-transform duration-200">
-                    {isCollapsed ? '▶' : '▼'}
-                  </span>
+                  <svg
+                    className={`w-4 h-4 text-[#00f2fe] transition-transform duration-200 ${
+                      isCollapsed ? '' : 'rotate-90'
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2.5"
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
                   <span className="font-bold text-white text-sm sm:text-base">
                     {group.monthLabel}
                   </span>

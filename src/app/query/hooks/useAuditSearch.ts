@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useOfflineAuditCache } from './useOfflineAuditCache';
 import type {
@@ -147,10 +147,21 @@ export function useAuditSearch() {
 
   const supabase = useMemo(() => createClient(), []);
   const { isOffline, saveAuditRecord, searchOfflineRecords } = useOfflineAuditCache();
+  const searchSeqRef = useRef(0);
 
   const executeSearch = useCallback(
     async (searchTerm: string) => {
       const trimmed = searchTerm.trim();
+      const currentSeq = ++searchSeqRef.current;
+
+      if (!trimmed) {
+        setRecords([]);
+        setSelectedBarcode(null);
+        setError(null);
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       setError(null);
 
@@ -158,8 +169,9 @@ export function useAuditSearch() {
       if (isOffline) {
         setIsFromCache(true);
         const cached = await searchOfflineRecords(trimmed);
+        if (currentSeq !== searchSeqRef.current) return;
         setRecords(cached);
-        if (cached.length > 0) {
+        if (cached.length === 1) {
           setSelectedBarcode(cached[0].barcode);
         } else {
           setSelectedBarcode(null);
@@ -183,6 +195,8 @@ export function useAuditSearch() {
           }
         );
 
+        if (currentSeq !== searchSeqRef.current) return;
+
         if (rpcError) {
           throw new Error(rpcError.message);
         }
@@ -198,6 +212,8 @@ export function useAuditSearch() {
             .from('drug_items')
             .select('id, barcode, manifest_id, page_number, item_order, photo_url')
             .in('barcode', barcodes);
+
+          if (currentSeq !== searchSeqRef.current) return;
 
           if (itemRows) {
             itemRows.forEach((row) => {
@@ -219,6 +235,8 @@ export function useAuditSearch() {
         // Auto-select first item if only 1 match or barcode scan
         if (transformed.length === 1 || (isBarcode && transformed.length > 0)) {
           setSelectedBarcode(transformed[0].barcode);
+        } else {
+          setSelectedBarcode(null);
         }
 
         // Cache results in IndexedDB for offline capability
@@ -226,18 +244,25 @@ export function useAuditSearch() {
           saveAuditRecord(rec);
         });
       } catch (err: unknown) {
+        if (currentSeq !== searchSeqRef.current) return;
         console.warn('Online RPC search failed, falling back to cache:', err);
         // Fallback to offline cache
         setIsFromCache(true);
         const cached = await searchOfflineRecords(trimmed);
+        if (currentSeq !== searchSeqRef.current) return;
         setRecords(cached);
-        if (cached.length > 0) {
+        if (cached.length === 1) {
           setSelectedBarcode(cached[0].barcode);
         } else {
-          setError(err instanceof Error ? err.message : '查詢發生未預期錯誤');
+          setSelectedBarcode(null);
+          if (cached.length === 0) {
+            setError(err instanceof Error ? err.message : '查詢發生未預期錯誤');
+          }
         }
       } finally {
-        setIsLoading(false);
+        if (currentSeq === searchSeqRef.current) {
+          setIsLoading(false);
+        }
       }
     },
     [isOffline, supabase, searchOfflineRecords, saveAuditRecord]
