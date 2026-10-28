@@ -94,3 +94,37 @@ export function calculateRecursiveFolderCount(
   const descendantIds = getDescendantFolderIds(folderId, allFolders);
   return manifests.filter((m) => m.folder_id && descendantIds.has(m.folder_id)).length;
 }
+
+/**
+ * 實體紙本 44 項對位換算介面
+ */
+export interface PaperPageInfo {
+  page: number;
+  start: number;
+  end: number;
+}
+
+/**
+ * 實體紙本 44 項對位換算函式
+ * 藥局每頁紙本固定 44 項
+ */
+export function calculatePaperPages(totalItems: number): {
+  totalPages: number;
+  pageRanges: PaperPageInfo[];
+} {
+  if (!totalItems || totalItems <= 0) {
+    return { totalPages: 0, pageRanges: [] };
+  }
+
+  const ITEMS_PER_PAGE = 44;
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+  const pageRanges: PaperPageInfo[] = [];
+
+  for (let p = 1; p <= totalPages; p++) {
+    const start = (p - 1) * ITEMS_PER_PAGE + 1;
+    const end = Math.min(p * ITEMS_PER_PAGE, totalItems);
+    pageRanges.push({ page: p, start, end });
+  }
+
+  return { totalPages, pageRanges };
+}

@@ -3,6 +3,7 @@ import {
   parseManifestDate,
   calculateRecursiveFolderCount,
   getDescendantFolderIds,
+  calculatePaperPages,
 } from '../folderUtils';
 import { Manifest } from '../../types';
 
@@ -108,5 +109,36 @@ describe('Manifest Folders & AI Classification Logic', () => {
 
     // 2026年 包含 2026 + 7月 + 18日 + 9月 (0 + 1 + 1 + 1 = 3)
     expect(calculateRecursiveFolderCount('f-2026', folders, manifests)).toBe(3);
+  });
+
+  describe('實體紙本 44 項對位換算 (Paper Alignment)', () => {
+    it('0 項藥品應換算為 0 頁', () => {
+      const res = calculatePaperPages(0);
+      expect(res.totalPages).toBe(0);
+      expect(res.pageRanges).toEqual([]);
+    });
+
+    it('44 項藥品應精準換算為 1 頁，範圍 1-44', () => {
+      const res = calculatePaperPages(44);
+      expect(res.totalPages).toBe(1);
+      expect(res.pageRanges).toEqual([{ page: 1, start: 1, end: 44 }]);
+    });
+
+    it('45 項藥品應換算為 2 頁，第 2 頁為 45-45', () => {
+      const res = calculatePaperPages(45);
+      expect(res.totalPages).toBe(2);
+      expect(res.pageRanges).toEqual([
+        { page: 1, start: 1, end: 44 },
+        { page: 2, start: 45, end: 45 },
+      ]);
+    });
+
+    it('244 項藥品應精準換算為 6 頁，最後一頁為 221-244', () => {
+      const res = calculatePaperPages(244);
+      expect(res.totalPages).toBe(6);
+      expect(res.pageRanges).toHaveLength(6);
+      expect(res.pageRanges[0]).toEqual({ page: 1, start: 1, end: 44 });
+      expect(res.pageRanges[5]).toEqual({ page: 6, start: 221, end: 244 });
+    });
   });
 });
