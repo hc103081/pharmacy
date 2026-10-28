@@ -488,14 +488,7 @@ export default function DrugCard({
             )}
           </div>
 
-          {/* 錯誤時的實際數量標示 */}
-          {isError && drug.actual_quantity !== undefined && (
-            <div className="mt-1">
-              <span className="text-xs font-mono font-bold text-[#ff4b5c] px-2 py-0.5 rounded bg-[#ff4b5c]/10 border border-[#ff4b5c]/25">
-                實際盤點: {drug.actual_quantity}
-              </span>
-            </div>
-          )}
+
         </div>
 
         {/* 右側照片縮圖按鈕 (含微光等待與載入中進度) */}
@@ -580,6 +573,47 @@ export default function DrugCard({
             <div className="absolute inset-0 flex items-center justify-center bg-slate-800 text-slate-500">
               <AlertCircle className="w-4 h-4" />
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* 中間：數量指標列 (應盤數量與實盤對照) */}
+      <div className="flex items-center justify-between bg-[#0a1936]/90 border border-[#1e3468] rounded-xl px-3.5 py-2 shadow-inner">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-xs text-slate-400 font-medium shrink-0">應盤數量:</span>
+          <span className="font-mono text-lg font-bold text-white tracking-wide">
+            {drug.expected_quantity}
+          </span>
+          {Number(drug.bonus_quantity) > 0 && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-mono">
+              +贈 {drug.bonus_quantity}
+            </span>
+          )}
+          {drug.warehouse_quantity !== null && drug.warehouse_quantity !== undefined && (
+            <span className="text-[10px] text-slate-500 font-mono hidden sm:inline">
+              (庫存 {drug.warehouse_quantity})
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5 font-mono text-xs shrink-0">
+          {isCompleted ? (
+            <div className="flex items-center gap-1 text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 rounded-md">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>實盤: {drug.actual_quantity ?? drug.expected_quantity}</span>
+            </div>
+          ) : isError ? (
+            <div className="flex items-center gap-1 text-[#ff4b5c] font-bold bg-[#ff4b5c]/10 border border-[#ff4b5c]/25 px-2 py-0.5 rounded-md">
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span>實盤: {drug.actual_quantity ?? 0}</span>
+              <span className="text-[10px]">
+                ({(drug.actual_quantity ?? 0) - drug.expected_quantity > 0
+                  ? `+${(drug.actual_quantity ?? 0) - drug.expected_quantity}`
+                  : (drug.actual_quantity ?? 0) - drug.expected_quantity})
+              </span>
+            </div>
+          ) : (
+            <span className="text-[11px] text-slate-400 font-mono px-2 py-0.5 rounded bg-slate-800/60 border border-slate-700/60">待清點</span>
           )}
         </div>
       </div>
