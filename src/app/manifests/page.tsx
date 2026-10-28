@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { TeachingButton } from '@/components/teaching';
@@ -33,8 +33,7 @@ import { MoveToFolderModal } from './components/MoveToFolderModal';
 import { AiOrganizeDrawer } from './components/AiOrganizeDrawer';
 import { CreateFolderDialog } from './components/CreateFolderDialog';
 import {
-  getFolders,
-  getBreadcrumbPath,
+  getAllFolders,
   createFolder,
   renameFolder,
   deleteFolder,
@@ -85,12 +84,9 @@ export default function ManifestsPage() {
   const [b2UsageModalOpen, setB2UsageModalOpen] = useState(false);
   const [b2UsageManifestId, setB2UsageManifestId] = useState<string | null>(null);
 
-  // --- 資料夾與樹狀導航狀態 ---
+  // --- 資料夾與樹狀導航狀態 (全記憶體高速響應) ---
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
-  const [currentFolders, setCurrentFolders] = useState<ManifestFolder[]>([]);
-  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([]);
-  const [foldersLoading, setFoldersLoading] = useState(false);
-  const [unclassifiedCount, setUnclassifiedCount] = useState(0);
+  const [allFolders, setAllFolders] = useState<ManifestFolder[]>([]);
 
   // 移動清單 Modal 狀態
   const [moveToModalOpen, setMoveToModalOpen] = useState(false);
@@ -262,7 +258,7 @@ export default function ManifestsPage() {
       ? 'warning'
       : 'none';
 
-  // 取得清單資料
+  // 1. 取得清單資料 (單次批次)
   const fetchManifests = useCallback(async () => {
     setLoading(true);
     try {
@@ -279,39 +275,75 @@ export default function ManifestsPage() {
     }
   }, [supabase]);
 
-  // 取得資料夾列表與路徑導航
-  const fetchFolders = useCallback(async (folderId: string | null) => {
-    setFoldersLoading(true);
+  // 2. 一次性取得所有資料夾 (單次批次，避免點選時多次網路往返)
+  const fetchAllFolders = useCallback(async () => {
     try {
-      const [foldersRes, breadcrumbRes] = await Promise.all([
-        getFolders(folderId),
-        getBreadcrumbPath(folderId),
-      ]);
-
-      if (foldersRes.success && foldersRes.folders) {
-        setCurrentFolders(foldersRes.folders);
-        if (foldersRes.unclassifiedCount !== undefined) {
-          setUnclassifiedCount(foldersRes.unclassifiedCount);
-        }
-      }
-
-      if (breadcrumbRes.success) {
-        setBreadcrumbs(breadcrumbRes.breadcrumbs);
+      const res = await getAllFolders();
+      if (res.success && res.folders) {
+        setAllFolders(res.folders);
       }
     } catch (err) {
-      console.error('[fetchFolders] Error:', err);
-    } finally {
-      setFoldersLoading(false);
+      console.error('[fetchAllFolders] Error:', err);
     }
   }, []);
 
   useEffect(() => {
     fetchManifests();
-  }, [fetchManifests]);
+    fetchAllFolders();
+  }, [fetchManifests, fetchAllFolders]);
 
-  useEffect(() => {
-    fetchFolders(currentFolderId);
-  }, [currentFolderId, fetchFolders]);
+  // --- 高性能即時計算 (純記憶體 0ms 運算，無任何網路等待) ---
+
+  // 麵包屑路徑：由 currentFolderId 往上反查全域 allFolders 快取，0 毫秒即時產生
+  const breadcrumbs = useMemo<BreadcrumbItem[]>(() => {
+    if (!currentFolderId) return [];
+    const folderMap = new Map(allFolders.map(f => [f.id, f]));
+    const crumbs: BreadcrumbItem[] = [];
+    let curr: string | null = currentFolderId;
+    while (curr) {
+      const folder = folderMap.get(curr);
+      if (!folder) break;
+      crumbs.unshift({
+        id: folder.id,
+        name: folder.name,
+        parent_id: folder.parent_id,
+      });
+      curr = folder.parent_id;
+    }
+    return crumbs;
+  }, [allFolders, currentFolderId]);
+
+  // 當前層級下的子資料夾：直接從 allFolders 篩選並從本地 manifests 計算項目數，0 毫秒即時響應
+  const currentFolders = useMemo(() => {
+    return allFolders
+      .filter((f) => (currentFolderId === null ? !f.parent_id : f.parent_id === currentFolderId))
+      .map((f) => {
+        const itemCount = manifests.filter((m) => m.folder_id === f.id && m.status === tab).length;
+        const subfolderCount = allFolders.filter((sub) => sub.parent_id === f.id).length;
+        return {
+          ...f,
+          item_count: itemCount,
+          subfolder_count: subfolderCount,
+        };
+      });
+  }, [allFolders, currentFolderId, manifests, tab]);
+
+  // 未分類清單數量
+  const unclassifiedCount = useMemo(() => {
+    return manifests.filter((m) => !m.folder_id).length;
+  }, [manifests]);
+
+  // 目前目錄下的清單過濾 (同步 0ms 即時切換)
+  const displayedManifests = useMemo(() => {
+    return manifests
+      .filter((m) => m.status === tab)
+      .filter((m) => {
+        if (currentFolderId === null) {
+          return !m.folder_id; // 根目錄顯示未分類清單
+        }
+        return m.folder_id === currentFolderId; // 子資料夾顯示所屬清單
+      });
+  }, [manifests, tab, currentFolderId]);
 
   const {
     startOperation,
@@ -329,7 +361,7 @@ export default function ManifestsPage() {
     setConfirmDeleteId,
   });
 
-  // --- 資料夾動作處理 ---
+  // --- 資料夾動作處理 (即時切換，零延遲) ---
   const handleOpenFolder = (folderId: string) => {
     setCurrentFolderId(folderId);
   };
@@ -346,7 +378,7 @@ export default function ManifestsPage() {
         throw new Error(res.error);
       }
       toast.success(`資料夾「${name}」已建立`);
-      await fetchFolders(currentFolderId);
+      await fetchAllFolders();
     } else if (folderDialogMode === 'rename' && editingFolder) {
       const res = await renameFolder(editingFolder.id, name);
       if (!res.success) {
@@ -354,7 +386,7 @@ export default function ManifestsPage() {
         throw new Error(res.error);
       }
       toast.success('資料夾名稱已更新');
-      await fetchFolders(currentFolderId);
+      await fetchAllFolders();
     }
   };
 
@@ -367,7 +399,7 @@ export default function ManifestsPage() {
     }
     toast.success(`已刪除資料夾「${deletingFolder.name}」，內含清單已移至未分類`);
     setDeletingFolder(null);
-    await fetchFolders(currentFolderId);
+    await fetchAllFolders();
     await fetchManifests();
   };
 
@@ -385,7 +417,6 @@ export default function ManifestsPage() {
     }
     toast.success(`成功移動 ${targetMoveManifestIds.length} 份清單`);
     await fetchManifests();
-    await fetchFolders(currentFolderId);
   };
 
   // --- AI 智慧整理動作處理 ---
@@ -415,18 +446,8 @@ export default function ManifestsPage() {
       description: `新建了 ${res.createdFoldersCount} 個「年/月/日」目錄`,
     });
     await fetchManifests();
-    await fetchFolders(currentFolderId);
+    await fetchAllFolders();
   };
-
-  // 目前目錄下的清單過濾
-  const displayedManifests = manifests
-    .filter((m) => m.status === tab)
-    .filter((m) => {
-      if (currentFolderId === null) {
-        return !m.folder_id; // 根目錄顯示未分類清單
-      }
-      return m.folder_id === currentFolderId; // 子資料夾顯示所屬清單
-    });
 
   const currentFolderObj = breadcrumbs.length > 0 ? breadcrumbs[breadcrumbs.length - 1] : null;
 
@@ -560,7 +581,7 @@ export default function ManifestsPage() {
 
             {/* --- 雲端硬碟樹狀導航列 (Breadcrumbs & Action Toolbar) --- */}
             <div className="p-3 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md space-y-3">
-              {/* 頂部麵包屑路徑列 */}
+              {/* 頂部麵包屑路徑列 (0ms 即時切換) */}
               <FolderBreadcrumb
                 breadcrumbs={breadcrumbs}
                 onNavigate={handleNavigateBreadcrumb}
@@ -594,9 +615,9 @@ export default function ManifestsPage() {
                       <Sparkles className="w-3.5 h-3.5 animate-pulse" />
                     )}
                     <span>AI 智慧整理</span>
-                    {manifests.filter(m => !m.folder_id).length > 0 && currentFolderId === null && (
+                    {unclassifiedCount > 0 && currentFolderId === null && (
                       <span className="ml-1 px-1.5 py-0.2 rounded-full bg-[#00f2fe] text-slate-950 text-[10px] font-bold">
-                        {manifests.filter(m => !m.folder_id).length}
+                        {unclassifiedCount}
                       </span>
                     )}
                   </button>
@@ -630,7 +651,7 @@ export default function ManifestsPage() {
               </div>
             </div>
 
-            {/* --- 資料夾區塊 (當前目錄下的子資料夾) --- */}
+            {/* --- 資料夾區塊 (當前目錄下的子資料夾，0ms 即時渲染) --- */}
             {currentFolders.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between px-1">
@@ -657,7 +678,7 @@ export default function ManifestsPage() {
               </div>
             )}
 
-            {/* --- 清單列表區塊 --- */}
+            {/* --- 清單列表區塊 (0ms 即時同步過濾) --- */}
             <div className="space-y-3 pt-1">
               <div className="flex items-center justify-between px-1">
                 <h2 className="text-xs font-semibold text-slate-400 tracking-wider uppercase flex items-center gap-1.5">

@@ -585,3 +585,5 @@ export async function applyAiOrganization(
     return { success: false, error: err.message };
   }
 }
+
+export const getAllFolders = getFolderTree;
