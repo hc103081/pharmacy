@@ -57,6 +57,7 @@ import {
 import { Toaster, toast } from 'sonner';
 
 const FOLDERS_CACHE_KEY = 'phama_folders_cache_v1';
+const LAST_VISITED_FOLDER_KEY = 'phama_last_visited_folder_id';
 
 /** 格式化儲存容量大小 */
 function formatStorageSize(bytes: number): string {
@@ -95,8 +96,24 @@ export default function ManifestsPage() {
   const [b2UsageModalOpen, setB2UsageModalOpen] = useState(false);
   const [b2UsageManifestId, setB2UsageManifestId] = useState<string | null>(null);
 
-  // --- SWR 0ms 本地快取資料夾狀態 ---
-  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  // --- SWR 0ms 本地快取資料夾狀態 (支援記錄與自動恢復最近開啟路徑) ---
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const urlFolderId = params.get('folderId');
+        if (urlFolderId) return urlFolderId;
+
+        const saved = localStorage.getItem(LAST_VISITED_FOLDER_KEY);
+        if (saved && saved !== 'null' && saved.trim() !== '') {
+          return saved;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return null;
+  });
   const [allFolders, setAllFolders] = useState<ManifestFolder[]>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -485,13 +502,45 @@ export default function ManifestsPage() {
     setConfirmDeleteId,
   });
 
+  // --- 資料夾路徑統一處理 (同步持久化至 localStorage 與 URL query) ---
+  const updateCurrentFolder = useCallback((folderId: string | null) => {
+    setCurrentFolderId(folderId);
+    if (typeof window !== 'undefined') {
+      try {
+        if (folderId) {
+          localStorage.setItem(LAST_VISITED_FOLDER_KEY, folderId);
+          const url = new URL(window.location.href);
+          url.searchParams.set('folderId', folderId);
+          window.history.replaceState({}, '', url.toString());
+        } else {
+          localStorage.removeItem(LAST_VISITED_FOLDER_KEY);
+          const url = new URL(window.location.href);
+          url.searchParams.delete('folderId');
+          window.history.replaceState({}, '', url.toString());
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }, []);
+
+  // 驗證當前資料夾存在性：若記錄的資料夾已不存在，安全自動退回根目錄
+  useEffect(() => {
+    if (currentFolderId && allFolders.length > 0 && !foldersLoading) {
+      const exists = allFolders.some((f) => f.id === currentFolderId);
+      if (!exists) {
+        updateCurrentFolder(null);
+      }
+    }
+  }, [currentFolderId, allFolders, foldersLoading, updateCurrentFolder]);
+
   // --- 資料夾動作處理 (即時切換，零延遲) ---
   const handleOpenFolder = (folderId: string) => {
-    setCurrentFolderId(folderId);
+    updateCurrentFolder(folderId);
   };
 
   const handleNavigateBreadcrumb = (folderId: string | null) => {
-    setCurrentFolderId(folderId);
+    updateCurrentFolder(folderId);
   };
 
   const handleCreateOrRenameFolder = async (name: string) => {
@@ -533,7 +582,7 @@ export default function ManifestsPage() {
     }
     toast.success(`已刪除資料夾「${deletingFolder.name}」，內含清單已移至未分類`);
     if (currentFolderId === deletingFolder.id) {
-      setCurrentFolderId(deletingFolder.parent_id ?? null);
+      updateCurrentFolder(deletingFolder.parent_id ?? null);
     }
     setDeletingFolder(null);
     await fetchAllFolders();
