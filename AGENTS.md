@@ -77,38 +77,23 @@
     * 放棄傳統 Table，採緊湊型 Card List (`p-4 space-y-3`)，避免卡片過高浪費垂直空間。
     * **單一條碼顯示：** 條碼禁止重複渲染兩次，一律使用等寬字體徽章：`font-mono text-xs bg-[#00f2fe]/10 text-[#00f2fe] border border-[#00f2fe]/30 px-2 py-0.5 rounded-md`。
     * **數據四宮格 (Metrics Grid)：** 卡片內的「總預期、總實際、平均差異、錯誤」必須放入 4 欄網格 (`grid grid-cols-4 gap-2`)，每個小格使用 `bg-[#0a1936]/90 p-2.5 rounded-lg border border-[#1e3468]/60`，數字使用 `font-mono text-base font-bold`。
+    * **核心數據完整性鐵律 (Data Integrity)：** 任何卡片視覺重構與美化，**嚴禁刪減或遺漏核心盤點數據**。卡片必須完整呈現：
+      1. 應盤數量 (`expected_quantity`)
+      2. 贈品/庫存輔助數量 (`gift_quantity` / `stock_quantity`)
+      3. 實盤清點狀態 (`counted_quantity`) 與差異指示 (`diff`)
 * **按鈕互動：** 統一具備 `rounded-xl active:scale-95 transition-all duration-150 flex items-center justify-center gap-1.5`。
 
-在生成前端頁面 (Tailwind CSS) 時，必須嚴格遵守以下「高對比深色科技感 (High-Contrast Dark Tech)」設計系統：
-
-### 4.1 主題色調與表面層級 (Color & Surface Tokens)
-* **Main Background (全局底色):** `bg-[#07142b]`，預設全局文字為 `text-slate-100`。
-* **Card / Panel Surface (卡片與側欄):** `bg-[#162a56]/70 backdrop-blur-md border border-[#233d7a] rounded-xl`。
-* **Inner / Nested Surface (卡片內部數據格、次要區塊):** `bg-[#0a1936]/80 border border-[#1e3468] rounded-lg`。
-* **Accent / Primary (極光藍主色):** `#00f2fe` (用於選中狀態、關鍵指標、Focus 光暈)。
-* **Alert / Error (霓虹紅警告):** `#ff4b5c` (用於盤點差異、錯誤數量 > 0 時高亮)。
-* **Text Hierarchy (文字層級):**
-    * 主標題/品名/關鍵數值：`text-white font-semibold`
-    * 次要資訊/標籤：`text-slate-300`
-    * 輔助說明/時間戳記：`text-slate-400 text-xs`
-
-### 4.2 絕對防呆鐵律 (Strict Anti-Patterns - 嚴格禁止)
-1. **禁止刺眼白底表單：** 嚴禁出現瀏覽器預設的純白底 (`bg-white`) 或淺灰底 `<input>`, `<select>`, `<button>`。所有輸入框必須為深色底：`bg-[#0c1d3d] text-slate-100 placeholder-slate-400 border border-[#233d7a]`。
-2. **禁止低對比文字 (WCAG 對比度鐵律)：**
-   * 若按鈕或標籤使用極光藍實心底 (`bg-[#00f2fe]`)，文字**必須為深色** (`text-[#07142b] font-bold`)，嚴禁使用白字！
-   * 若使用半透明發光底 (`bg-[#00f2fe]/15 border border-[#00f2fe]/50`)，文字才使用極光藍 (`text-[#00f2fe]`)。
-   * 次要按鈕 (如重置、收起) 一律使用 `bg-[#162a56] hover:bg-[#1f3a75] text-slate-200 border border-[#2a478c]`。
-3. **禁止非必要的水平捲軸：** 側邊欄 (Sidebar) 與卡片內部必須妥善使用 `flex-wrap` 與 `min-w-0`，嚴禁出現底部橫向捲軸 (`overflow-x-hidden`)。
-
-### 4.3 元件設計與排版密度 (Component & Layout Density)
-* **輸入框 (Input):** `bg-[#0c1d3d] border border-[#233d7a] rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-[#00f2fe] focus:shadow-[0_0_15px_rgba(0,242,254,0.35)] transition-all`。
-* **標籤與篩選膠囊 (Tags & Filter Pills):** 採緊湊設計 (`px-2.5 py-1 text-xs rounded-lg font-medium transition-all`)。
-    * 未選中：`bg-[#0c1d3d] text-slate-300 border border-[#233d7a] hover:border-slate-500`
-    * 選中：`bg-[#00f2fe]/20 text-[#00f2fe] border border-[#00f2fe] shadow-[0_0_10px_rgba(0,242,254,0.25)]`
-* **藥品卡片 (Compact Card List Layout):**
-    * 放棄傳統 Table，採緊湊型 Card List (`p-4 space-y-3`)，避免卡片過高浪費垂直空間。
-    * **單一條碼顯示：** 條碼禁止重複渲染兩次，一律使用等寬字體徽章：`font-mono text-xs bg-[#00f2fe]/10 text-[#00f2fe] border border-[#00f2fe]/30 px-2 py-0.5 rounded-md`。
-    * **數據四宮格 (Metrics Grid)：** 卡片
+### 4.4 跨頁直達跳轉與狀態記憶規範 (Navigation & State Retention)
+1. **精確定位取代全頁過濾：**
+   * 自審計查詢或時間軸「直達盤點」時，**嚴禁以條碼覆蓋全頁搜尋框**（此舉會破壞分頁 44 項結構）。
+   * 必須透過藥品 UUID (`drugId`) 或品名/條碼複合索引精確鎖定目標，自動跳轉至目標頁碼並給予高亮對焦。
+2. **返回導航狀態保留 (Back Navigation & State Restoration)：**
+   * 從目標頁返回前一頁時，優先使用 `router.back()` 以保留既有 DOM 狀態。
+   * 若涉及重新掛載，必須依賴 `sessionStorage` 完整還原：
+     * 搜尋關鍵字與選中節點識別碼。
+     * 時間軸或摺疊面板的各層展開狀態。
+     * 檢視滾動座標 (`scrollTop`)。
+   * 返回後需自動針對原點擊節點執行平滑滾動 (`scrollIntoView({ behavior: 'smooth', block: 'center' })`) 並附加短暫的視覺高亮反饋。
 
 <!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know
