@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { PackageSearch, Search, FileUp, ClipboardCheck, CheckCircle } from 'lucide-react';
 import { UserMenu } from '@/components/UserMenu';
 import { TeachingButton } from '@/components/teaching';
+import { useNavigationProgress } from '@/components/navigation/NavigationProgress';
 
 import { Suspense } from 'react';
 
@@ -20,6 +21,7 @@ export default function HomePage() {
 function HomeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { startNavigation } = useNavigationProgress();
   const emailVerified = searchParams.get('email_verified') === 'true';
   const loggedIn = searchParams.get('logged_in') === 'true';
   
@@ -89,7 +91,8 @@ function HomeContent() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 px-0">
             <Link 
-              href="/import" 
+              href="/import"
+              onClick={() => startNavigation('正在開啟匯入模組...')} 
               className="tech-card p-6 lg:p-8 group hover:border-[#00f2fe]/50"
             >
               <div className="flex flex-col items-center gap-4 lg:gap-6">
@@ -104,7 +107,8 @@ function HomeContent() {
             </Link>
 
             <Link 
-              href="/manifests" 
+              href="/manifests"
+              onClick={() => startNavigation('正在載入清單管理...')} 
               className="tech-card p-6 lg:p-8 group hover:border-[#00f2fe]/50"
             >
               <div className="flex flex-col items-center gap-4 lg:gap-6">
@@ -119,7 +123,8 @@ function HomeContent() {
             </Link>
 
             <Link 
-              href="/query" 
+              href="/query"
+              onClick={() => startNavigation('正在載入查詢系統...')} 
               className="tech-card p-6 lg:p-8 group hover:border-[#00f2fe]/50"
             >
               <div className="flex flex-col items-center gap-4 lg:gap-6">

@@ -16,11 +16,13 @@ import Link from 'next/link';
 import { Download } from 'lucide-react';
 import type { SummaryDrugItem, Manifest } from '@/types';
 import { TeachingButton } from '@/components/teaching';
+import { useNavigationProgress } from '@/components/navigation/NavigationProgress';
 
 export default function SummaryPage() {
   const params = useParams();
   const manifestId = params.manifestId as string;
   const router = useRouter();
+  const { startNavigation } = useNavigationProgress();
   const supabase = createClient();
 
   const [manifest, setManifest] = useState<Manifest | null>(null);
@@ -110,6 +112,7 @@ export default function SummaryPage() {
       });
 
       setTimeout(() => {
+        startNavigation('正在返回清單列表...');
         router.push('/manifests');
         setOperationProgress(null);
       }, 1500);
@@ -121,6 +124,7 @@ export default function SummaryPage() {
         message: err instanceof Error ? err.message : '未知錯誤',
       });
       setTimeout(() => {
+        startNavigation('正在返回清單列表...');
         router.push('/manifests');
         setOperationProgress(null);
       }, 3000);
@@ -206,7 +210,11 @@ export default function SummaryPage() {
         <div className="shrink-0 px-4 lg:px-6 pt-4 lg:pt-6 pb-2">
           <div className="max-w-3xl mx-auto">
             <div className="flex items-center gap-3">
-              <Link href={`/scan?manifestId=${manifestId}`} className="p-2 hover:bg-slate-800 rounded-full transition-colors">
+              <Link
+                href={`/scan?manifestId=${manifestId}`}
+                onClick={() => startNavigation('正在返回盤點面板...')}
+                className="p-2 hover:bg-slate-800 rounded-full transition-colors"
+              >
                 <ArrowLeft className="w-5 h-5 lg:w-6 lg:h-6 text-slate-400" />
               </Link>
               <h1 className="text-xl lg:text-2xl font-bold text-white">清點總結報告</h1>

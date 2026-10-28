@@ -14,7 +14,8 @@ import {
   X,
   Camera as CameraIcon,
   RefreshCw,
-  AlertTriangle
+  AlertTriangle,
+  Loader2
 } from 'lucide-react';
 import { TeachingButton } from '@/components/teaching';
 import { DrugCard, ErrorDrawer, JumpDialog, PhotoPreview, BarcodeSearchBar, CameraModal } from './components';
@@ -24,6 +25,7 @@ import { useImageCache } from './hooks/useImageCache';
 import type { DrugItem, ErrorDrugItem, JumpTarget } from '@/types';
 import { resetDrugStatus } from '@/app/actions/scan/resetDrug';
 import { updateDrugStatus } from '@/app/actions/scan/updatePhoto';
+import { useNavigationProgress } from '@/components/navigation/NavigationProgress';
 
 export default function ScanContent() {
   const searchParams = useSearchParams();
@@ -54,6 +56,8 @@ export default function ScanContent() {
   const [jumpTarget, setJumpTarget] = useState<JumpTarget | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [actionDrug, setActionDrug] = useState<DrugItem | null>(null);
+  const [isJumpingToQuery, setIsJumpingToQuery] = useState(false);
+  const { startNavigation } = useNavigationProgress();
   const [toast, setToast] = useState<string | null>(null);
   const [pageInputValue, setPageInputValue] = useState<string>('');
   const pageInputRef = useRef<HTMLInputElement>(null);
@@ -413,14 +417,18 @@ export default function ScanContent() {
   // ==================== 導航攔截與恢復邏輯 ====================
 
   // 統一導航函數：若有待上傳則顯示確認 Modal，否則直接執行導航
-  const safeNavigate = useCallback((navigateFn: () => void) => {
+  const safeNavigate = useCallback((navigateFn: () => void, navigationMessage?: string) => {
+    const wrappedFn = () => {
+      startNavigation(navigationMessage || '頁面跳轉中...');
+      navigateFn();
+    };
     if (hasPendingUploads) {
-      setPendingNavigation(() => navigateFn);
+      setPendingNavigation(() => wrappedFn);
       setShowNavConfirm(true);
     } else {
-      navigateFn();
+      wrappedFn();
     }
-  }, [hasPendingUploads]);
+  }, [hasPendingUploads, startNavigation]);
 
   // 確認導航：執行暫存的導航動作
   const confirmNavigation = useCallback(() => {
@@ -764,6 +772,8 @@ export default function ScanContent() {
               <button
                 type="button"
                 onClick={() => {
+                  setIsJumpingToQuery(true);
+                  startNavigation(`正在跳轉至「${actionDrug.name}」查詢紀錄...`);
                   saveState(currentPage);
                   if (manifestId) {
                     sessionStorage.setItem(
@@ -777,17 +787,28 @@ export default function ScanContent() {
                   }
                   const queryTarget = actionDrug.barcode || actionDrug.name;
                   const returnUrl = `/scan?manifestId=${encodeURIComponent(manifestId || '')}&page=${currentPage}&restoreScroll=true`;
-                  setActionDrug(null);
                   router.push(
                     `/query?q=${encodeURIComponent(queryTarget)}&returnUrl=${encodeURIComponent(returnUrl)}&from=scan`
                   );
                 }}
-                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#00f2fe] to-blue-500 text-[#07142b] font-bold text-sm shadow-[0_0_15px_rgba(0,242,254,0.3)] hover:brightness-110 active:scale-98 transition-all flex items-center justify-center gap-2"
+                disabled={isJumpingToQuery}
+                className={`w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#00f2fe] to-blue-500 text-[#07142b] font-bold text-sm shadow-[0_0_15px_rgba(0,242,254,0.3)] hover:brightness-110 active:scale-98 transition-all flex items-center justify-center gap-2 ${
+                  isJumpingToQuery ? 'opacity-80 pointer-events-none' : ''
+                }`}
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <span>直接查詢此項紀錄</span>
+                {isJumpingToQuery ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-[#07142b]" />
+                    <span>跳轉查詢中...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <span>直接查詢此項紀錄</span>
+                  </>
+                )}
               </button>
 
               {/* 取消按鈕 */}
@@ -814,7 +835,10 @@ export default function ScanContent() {
                   if (barcodeInput) {
                     clearBarcodeAndJumpToPending();
                   } else {
-                    safeNavigate(() => router.push(searchParams.get('from') === 'query' ? '/query?return=true' : '/manifests'));
+                    safeNavigate(
+                      () => router.push(searchParams.get('from') === 'query' ? '/query?return=true' : '/manifests'),
+                      searchParams.get('from') === 'query' ? '返回藥品查詢...' : '返回清單列表...'
+                    );
                   }
                 }}
                 className="p-2 rounded-full transition-all active:scale-95 hover:bg-slate-800 text-slate-400 shrink-0"
@@ -842,7 +866,12 @@ export default function ScanContent() {
   
             <div className="flex items-center gap-2 shrink-0">
               <button
-                onClick={() => safeNavigate(() => router.push(`/summary/${manifestId}`))}
+                onClick={() =>
+                  safeNavigate(
+                    () => router.push(`/summary/${manifestId}`),
+                    '正在開啟清點總結報告...'
+                  )
+                }
                 className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-950/50 text-slate-300 rounded-xl border border-slate-800 hover:bg-slate-800 transition-all text-xs font-medium active:scale-95"
               >
                 <FileText className="w-3.5 h-3.5" />
@@ -1146,7 +1175,12 @@ export default function ScanContent() {
           <div className="p-4 border-b border-blue-500/20">
             <div className="flex items-center gap-3 mb-3">
               <button
-                onClick={() => safeNavigate(() => router.push(searchParams.get('from') === 'query' ? '/query?return=true' : '/manifests'))}
+                onClick={() =>
+                  safeNavigate(
+                    () => router.push(searchParams.get('from') === 'query' ? '/query?return=true' : '/manifests'),
+                    searchParams.get('from') === 'query' ? '返回藥品查詢...' : '返回清單列表...'
+                  )
+                }
                 className="p-2 rounded-full transition-all active:scale-95 hover:bg-slate-800 text-slate-400 shrink-0"
                 title="返回清單列表"
               >
@@ -1166,7 +1200,12 @@ export default function ScanContent() {
   
             <div className="flex items-center gap-2">
               <button
-                onClick={() => safeNavigate(() => router.push(`/summary/${manifestId}`))}
+                onClick={() =>
+                  safeNavigate(
+                    () => router.push(`/summary/${manifestId}`),
+                    '正在開啟清點總結報告...'
+                  )
+                }
                 className="flex items-center gap-1 px-3 py-1.5 bg-slate-950/50 text-slate-300 rounded-xl border border-slate-800 hover:bg-slate-800 transition-all text-xs font-medium flex-1 justify-center active:scale-95"
               >
                 <FileText className="w-3.5 h-3.5" />

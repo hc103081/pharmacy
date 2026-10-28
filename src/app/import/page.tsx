@@ -9,6 +9,7 @@ import { clientUploadImportImages } from '@/lib/clientUpload';
 import { FileUp, Loader2, CheckCircle2, ArrowLeft, Image as ImageIcon, FileType, RotateCcw, Cpu, Upload, ScanLine, Database } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useNavigationProgress } from '@/components/navigation/NavigationProgress';
 import { useAuth } from '@/components/AuthProvider';
 import { parsePdf, ParsedPdf, ParsedItem, PdfProgressStep } from '@/lib/pdfParser';
 import { validateParsedPdf } from '@/lib/pdfValidator';
@@ -105,6 +106,7 @@ const OCR_STEPS = ['uploading', 'header', 'batch'] as const;
 
 export default function ImportPage() {
   const router = useRouter();
+  const { startNavigation } = useNavigationProgress();
   const { user } = useAuth();
 
   /* 初始化：優先從 sessionStorage 恢復上次的匯入狀態 */
@@ -314,7 +316,10 @@ export default function ImportPage() {
         setStatus('success');
         setMessage(`匯入成功！共匯入 ${result.totalItems} 項藥品。正在跳轉至清點面板...`);
         clearImportState();
-        setTimeout(() => router.push(`/scan?manifestId=${result.manifestId}`), 2000);
+        setTimeout(() => {
+          startNavigation('正在進入清點面板...');
+          router.push(`/scan?manifestId=${result.manifestId}`);
+        }, 2000);
       } else {
         setIsImporting(false);
         setStatus('error');

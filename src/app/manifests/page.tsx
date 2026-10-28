@@ -32,6 +32,7 @@ import { DeleteConfirmDialog } from './components/DeleteConfirmDialog';
 import { OperationProgressModal } from './components/OperationProgressModal';
 import { B2UsageModal } from './components/B2UsageModal';
 import { Toaster, toast } from 'sonner';
+import { useNavigationProgress } from '@/components/navigation/NavigationProgress';
 
 /** 格式化儲存容量大小 */
 function formatStorageSize(bytes: number): string {
@@ -48,6 +49,8 @@ export default function ManifestsPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [tab, setTab] = useState<'active' | 'archived'>('active');
+  const [navigatingId, setNavigatingId] = useState<string | null>(null);
+  const { startNavigation } = useNavigationProgress();
   const [operationProgress, setOperationProgress] = useState<{
     manifestId: string;
     status: 'archiving' | 'restoring' | 'gdrive_pull' | 'completed' | 'error';
@@ -698,6 +701,10 @@ export default function ManifestsPage() {
                       )}
                       <Link
                         href={`/scan?manifestId=${m.id}`}
+                        onClick={() => {
+                          setNavigatingId(m.id);
+                          startNavigation(`正在進入「${m.name}」清點...`);
+                        }}
                         className={`flex items-center gap-4 flex-1 ${
                           isOperationInProgress ? 'pointer-events-none' : ''
                         }`}
@@ -714,7 +721,14 @@ export default function ManifestsPage() {
                           )}
                         </div>
                         <div className="space-y-1">
-                          <h3 className="font-semibold text-white">{m.name}</h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold text-white">{m.name}</h3>
+                            {navigatingId === m.id && (
+                              <span className="text-[11px] font-bold text-[#00f2fe] bg-[#00f2fe]/10 border border-[#00f2fe]/30 px-2 py-0.5 rounded-full animate-pulse">
+                                進入中...
+                              </span>
+                            )}
+                          </div>
                         <div className="flex items-center gap-3 text-xs text-slate-400">
                           <span className="flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
@@ -789,9 +803,17 @@ export default function ManifestsPage() {
                         {!isOperationInProgress && (
                           <Link
                             href={`/scan?manifestId=${m.id}`}
+                        onClick={() => {
+                          setNavigatingId(m.id);
+                          startNavigation(`正在進入「${m.name}」清點...`);
+                        }}
                             className="p-2 text-slate-500 group-hover:text-[#00f2fe] transition-colors"
                           >
-                            <ChevronRight className="w-5 h-5" />
+                            {navigatingId === m.id ? (
+                              <Loader2 className="w-5 h-5 text-[#00f2fe] animate-spin" />
+                            ) : (
+                              <ChevronRight className="w-5 h-5" />
+                            )}
                           </Link>
                         )}
 

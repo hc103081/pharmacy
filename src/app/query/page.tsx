@@ -8,11 +8,14 @@ import { CandidateListView } from './components/CandidateListView';
 import { DrugAuditTree } from './components/DrugAuditTree';
 import { EvidenceCompareModal } from './components/EvidenceCompareModal';
 import type { AuditNode, DrugAuditRecord } from '@/types/query';
+import { useNavigationProgress } from '@/components/navigation/NavigationProgress';
+import QueryLoading from './loading';
 
 function QueryMainContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
+  const { startNavigation } = useNavigationProgress();
 
   const {
     query,
@@ -77,6 +80,7 @@ function QueryMainContent() {
   // Jump to scan page
   const handleJumpToScan = useCallback(
     (node: AuditNode) => {
+      startNavigation('正在前往盤點核對...');
       // Save current search state before leaving
       sessionStorage.setItem('phama_query_last_search', query.trim());
       const drugIdParam = node.drugItemId ? `&drugId=${encodeURIComponent(node.drugItemId)}` : '';
@@ -87,7 +91,7 @@ function QueryMainContent() {
         }&highlightItem=${node.itemOrder}${drugIdParam}${barcodeParam}&from=query`
       );
     },
-    [query, router, selectedRecord]
+    [query, router, selectedRecord, startNavigation]
   );
 
   // Open photo compare modal
@@ -103,6 +107,7 @@ function QueryMainContent() {
 
   // Handle header back navigation (returns to previous location in scan list if from scan)
   const handleBack = useCallback(() => {
+    startNavigation('返回上個畫面...');
     const returnUrl = searchParams.get('returnUrl');
     if (returnUrl) {
       router.push(returnUrl);
@@ -113,7 +118,7 @@ function QueryMainContent() {
       return;
     }
     router.push('/manifests');
-  }, [router, searchParams]);
+  }, [router, searchParams, startNavigation]);
 
   if (authLoading) {
     return (
@@ -322,13 +327,7 @@ function QueryMainContent() {
 
 export default function QueryPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen flex items-center justify-center bg-[#07142b]">
-          <div className="w-8 h-8 border-4 border-[#00f2fe] border-t-transparent rounded-full animate-spin" />
-        </div>
-      }
-    >
+    <Suspense fallback={<QueryLoading />}>
       <QueryMainContent />
     </Suspense>
   );
