@@ -87,6 +87,7 @@ export default function ManifestsPage() {
   // --- 資料夾與樹狀導航狀態 (全記憶體高速響應) ---
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [allFolders, setAllFolders] = useState<ManifestFolder[]>([]);
+  const [foldersLoading, setFoldersLoading] = useState(true);
 
   // 移動清單 Modal 狀態
   const [moveToModalOpen, setMoveToModalOpen] = useState(false);
@@ -277,15 +278,36 @@ export default function ManifestsPage() {
 
   // 2. 一次性取得所有資料夾 (單次批次，避免點選時多次網路往返)
   const fetchAllFolders = useCallback(async () => {
+    setFoldersLoading(true);
     try {
-      const res = await getAllFolders();
-      if (res.success && res.folders) {
-        setAllFolders(res.folders);
+      // 優先使用已建立連線的客戶端 Supabase 實例直查（速度最快，免冷啟動）
+      const { data, error } = await supabase
+        .from('manifest_folders')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (!error && data) {
+        setAllFolders(data);
+      } else {
+        const res = await getAllFolders();
+        if (res.success && res.folders) {
+          setAllFolders(res.folders);
+        }
       }
     } catch (err) {
-      console.error('[fetchAllFolders] Error:', err);
+      console.error('[fetchAllFolders] Error, falling back to server action:', err);
+      try {
+        const res = await getAllFolders();
+        if (res.success && res.folders) {
+          setAllFolders(res.folders);
+        }
+      } catch {
+        // Ignore fallback error
+      }
+    } finally {
+      setFoldersLoading(false);
     }
-  }, []);
+  }, [supabase]);
 
   useEffect(() => {
     fetchManifests();
@@ -651,8 +673,24 @@ export default function ManifestsPage() {
               </div>
             </div>
 
-            {/* --- 資料夾區塊 (當前目錄下的子資料夾，0ms 即時渲染) --- */}
-            {currentFolders.length > 0 && (
+            {/* --- 資料夾區塊 (具備載入狀態與骨架屏) --- */}
+            {foldersLoading ? (
+              <div className="space-y-2 animate-pulse">
+                <div className="flex items-center gap-1.5 px-1">
+                  <div className="w-3.5 h-3.5 bg-slate-800 rounded" />
+                  <div className="h-3 w-24 bg-slate-800 rounded" />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="h-20 rounded-2xl bg-slate-900/60 border border-slate-800/80 flex items-center p-3.5 gap-3.5">
+                    <div className="w-11 h-11 rounded-xl bg-slate-800" />
+                    <div className="space-y-2 flex-1">
+                      <div className="h-4 w-32 bg-slate-800 rounded" />
+                      <div className="h-2.5 w-20 bg-slate-800/60 rounded" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : currentFolders.length > 0 ? (
               <div className="space-y-2">
                 <div className="flex items-center justify-between px-1">
                   <h2 className="text-xs font-semibold text-slate-400 tracking-wider uppercase flex items-center gap-1.5">
@@ -676,7 +714,7 @@ export default function ManifestsPage() {
                   ))}
                 </div>
               </div>
-            )}
+            ) : null}
 
             {/* --- 清單列表區塊 (0ms 即時同步過濾) --- */}
             <div className="space-y-3 pt-1">
