@@ -34,6 +34,7 @@ import { MoveToFolderModal } from './components/MoveToFolderModal';
 import { AiOrganizeDrawer } from './components/AiOrganizeDrawer';
 import { CreateFolderDialog } from './components/CreateFolderDialog';
 import { FolderActionModal } from './components/FolderActionModal';
+import { calculateRecursiveFolderCount } from '@/lib/folderUtils';
 import {
   getAllFolders,
   createFolder,
@@ -64,7 +65,6 @@ export default function ManifestsPage() {
   const [loading, setLoading] = useState(true);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
-  const [tab, setTab] = useState<'active' | 'archived'>('active');
   const [operationProgress, setOperationProgress] = useState<{
     manifestId: string;
     status: 'archiving' | 'restoring' | 'gdrive_pull' | 'completed' | 'error';
@@ -73,7 +73,6 @@ export default function ManifestsPage() {
   } | null>(null);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [archiveAllLoading, setArchiveAllLoading] = useState(false);
-  const [batchActionMode, setBatchActionMode] = useState<'archive' | 'delete'>('archive');
   const [gdriveConnected, setGdriveConnected] = useState<boolean | null>(null);
   const [gdriveDropdownOpen, setGdriveDropdownOpen] = useState(false);
   const [gdriveDetails, setGdriveDetails] = useState<{
@@ -368,48 +367,36 @@ export default function ManifestsPage() {
     return crumbs;
   }, [allFolders, currentFolderId]);
 
-  // 當前層級下的子資料夾：直接從 allFolders 篩選並從本地 manifests 計算項目數，0 毫秒即時響應
+  // 當前層級下的子資料夾：直接從 allFolders 篩選並遞迴計算包含子樹狀的所有清單總數，0 毫秒即時響應
   const currentFolders = useMemo(() => {
     return allFolders
       .filter((f) => (currentFolderId === null ? !f.parent_id : f.parent_id === currentFolderId))
       .map((f) => {
-        const itemCount = manifests.filter((m) => m.folder_id === f.id && m.status === tab).length;
+        // 遞迴統計：包含此資料夾以及其下所有子孫資料夾內的清單總數（Requirement 1）
+        const recursiveItemCount = calculateRecursiveFolderCount(f.id, allFolders, manifests);
         const subfolderCount = allFolders.filter((sub) => sub.parent_id === f.id).length;
         return {
           ...f,
-          item_count: itemCount,
+          item_count: recursiveItemCount,
           subfolder_count: subfolderCount,
         };
       });
-  }, [allFolders, currentFolderId, manifests, tab]);
+  }, [allFolders, currentFolderId, manifests]);
 
   // 未分類清單數量
   const unclassifiedCount = useMemo(() => {
     return manifests.filter((m) => !m.folder_id).length;
   }, [manifests]);
 
-  // 當前目錄範圍下的所有清單（用於根據資料夾動態計算在辦/封存數量）
-  const currentScopeManifests = useMemo(() => {
+  // 目前目錄下的清單列表（不分在辦/封存，全數直接顯示並依狀態變更外觀，直屬此目錄）
+  const displayedManifests = useMemo(() => {
     return manifests.filter((m) => {
       if (currentFolderId === null) {
-        return !m.folder_id; // 根目錄統計未分類清單
+        return !m.folder_id; // 根目錄顯示未分類清單
       }
-      return m.folder_id === currentFolderId; // 子資料夾統計所屬清單
+      return m.folder_id === currentFolderId; // 子資料夾顯示直屬清單
     });
   }, [manifests, currentFolderId]);
-
-  const currentScopeActiveCount = useMemo(() => {
-    return currentScopeManifests.filter((m) => m.status === 'active').length;
-  }, [currentScopeManifests]);
-
-  const currentScopeArchivedCount = useMemo(() => {
-    return currentScopeManifests.filter((m) => m.status === 'archived').length;
-  }, [currentScopeManifests]);
-
-  // 目前目錄下的清單過濾 (同步 0ms 即時切換)
-  const displayedManifests = useMemo(() => {
-    return currentScopeManifests.filter((m) => m.status === tab);
-  }, [currentScopeManifests, tab]);
 
   const {
     startOperation,
@@ -635,38 +622,13 @@ export default function ManifestsPage() {
               </div>
             )}
 
-            {/* --- 版本 A 核心：頂部極簡單行卡片 (整合 Breadcrumbs + Tabs) --- */}
-            <div className="p-2 sm:p-2.5 rounded-2xl bg-slate-900/90 border border-slate-800/80 backdrop-blur-md flex items-center justify-between gap-2">
-              {/* 麵包屑路徑 (0ms 即時切換) */}
-              <div className="min-w-0 flex-1">
+            {/* --- 頂部路徑麵包屑 (全寬度 100% 展開，0ms 即時切換) --- */}
+            <div className="p-2 sm:p-2.5 rounded-2xl bg-slate-900/90 border border-slate-800/80 backdrop-blur-md flex items-center">
+              <div className="min-w-0 flex-1 overflow-x-auto no-scrollbar">
                 <FolderBreadcrumb
                   breadcrumbs={breadcrumbs}
                   onNavigate={handleNavigateBreadcrumb}
                 />
-              </div>
-
-              {/* 緊湊狀態分頁 (在辦 vs 封存) */}
-              <div className="flex items-center bg-slate-950/80 rounded-xl p-0.5 border border-slate-800 flex-shrink-0">
-                <button
-                  onClick={() => setTab('active')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                    tab === 'active'
-                      ? 'bg-[#00f2fe]/20 text-[#00f2fe] border border-[#00f2fe]/40 shadow-[0_0_8px_rgba(0,242,254,0.15)]'
-                      : 'bg-transparent text-slate-500 hover:text-slate-300'
-                  }`}
-                >
-                  在辦 ({currentScopeActiveCount})
-                </button>
-                <button
-                  onClick={() => setTab('archived')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                    tab === 'archived'
-                      ? 'bg-[#00f2fe]/20 text-[#00f2fe] border border-[#00f2fe]/40 shadow-[0_0_8px_rgba(0,242,254,0.15)]'
-                      : 'bg-transparent text-slate-500 hover:text-slate-300'
-                  }`}
-                >
-                  封存 ({currentScopeArchivedCount})
-                </button>
               </div>
             </div>
 
@@ -792,32 +754,6 @@ export default function ManifestsPage() {
                       : `清單項目 (${displayedManifests.length})`}
                   </span>
                 </h2>
-
-                {/* 批次切換按鈕（封存/還原/刪除，規範深色背景，杜絕白底） */}
-                <div className="flex items-center bg-slate-950/80 rounded-xl p-0.5 border border-slate-800">
-                  <button
-                    onClick={() => setBatchActionMode('archive')}
-                    className={`flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-medium transition-all ${
-                      batchActionMode === 'archive'
-                        ? 'bg-[#00f2fe]/20 text-[#00f2fe] border border-[#00f2fe]/40 shadow-[0_0_8px_rgba(0,242,254,0.15)]'
-                        : 'bg-slate-900/80 text-slate-400 hover:text-slate-200 border border-transparent'
-                    }`}
-                  >
-                    <Save className="w-3 h-3" />
-                    <span>{tab === 'active' ? '封存' : '還原'}</span>
-                  </button>
-                  <button
-                    onClick={() => setBatchActionMode('delete')}
-                    className={`flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-medium transition-all ${
-                      batchActionMode === 'delete'
-                        ? 'bg-red-500/20 text-red-400 border border-red-500/40 shadow-[0_0_8px_rgba(255,75,92,0.15)]'
-                        : 'bg-slate-900/80 text-slate-400 hover:text-slate-200 border border-transparent'
-                    }`}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    <span>刪除</span>
-                  </button>
-                </div>
               </div>
 
               {loading ? (
@@ -854,6 +790,7 @@ export default function ManifestsPage() {
               ) : (
                 <div className="grid grid-cols-1 gap-2.5">
                   {displayedManifests.map((m) => {
+                    const isArchived = m.status === 'archived';
                     const isOperationInProgress =
                       operationProgress?.manifestId === m.id &&
                       (operationProgress.status === 'archiving' ||
@@ -871,7 +808,11 @@ export default function ManifestsPage() {
                     return (
                       <div
                         key={m.id}
-                        className={`tech-card p-3 sm:p-3.5 group hover:border-[#00f2fe]/50 flex items-center justify-between relative ${
+                        className={`p-3 sm:p-3.5 group rounded-2xl flex items-center justify-between relative transition-all duration-300 ${
+                          isArchived
+                            ? 'bg-[repeating-linear-gradient(-45deg,#0b162c,#0b162c_8px,#091224_8px,#091224_16px)] border border-dashed border-slate-700/80 opacity-75 hover:opacity-100 hover:border-slate-600'
+                            : 'tech-card hover:border-[#00f2fe]/50'
+                        } ${
                           isOperationCompleted ? 'border-green-400/60 shadow-[0_0_12px_rgba(74,222,128,0.4)]' : ''
                         } ${operationAnimClass}`}
                       >
@@ -906,19 +847,31 @@ export default function ManifestsPage() {
                             isOperationInProgress ? 'pointer-events-none' : ''
                           }`}
                         >
-                          <div className="p-2.5 bg-blue-500/10 rounded-xl group-hover:bg-[#00f2fe]/20 transition-all duration-300 shadow-[0_0_12px_rgba(0,242,254,0.12)] flex-shrink-0">
-                            {m.status === 'archived' ? (
+                          <div
+                            className={`p-2.5 rounded-xl transition-all duration-300 flex-shrink-0 ${
+                              isArchived
+                                ? 'bg-slate-800/80 text-slate-500 border border-slate-700/60'
+                                : 'bg-blue-500/10 text-[#00f2fe] group-hover:bg-[#00f2fe]/20 shadow-[0_0_12px_rgba(0,242,254,0.12)]'
+                            }`}
+                          >
+                            {isArchived ? (
                               m.cloud_backup ? (
-                                <Cloud className="w-4 h-4 text-[#00f2fe]" />
+                                <Cloud className="w-4 h-4 text-slate-400" />
                               ) : (
-                                <Package className="w-4 h-4 text-[#ff4b5c]" />
+                                <Package className="w-4 h-4 text-slate-500" />
                               )
                             ) : (
                               <Package className="w-4 h-4 text-[#00f2fe]" />
                             )}
                           </div>
                           <div className="space-y-0.5 min-w-0 flex-1">
-                            <h3 className="font-semibold text-white text-xs sm:text-sm truncate group-hover:text-[#00f2fe] transition-colors">
+                            <h3
+                              className={`font-semibold text-xs sm:text-sm truncate transition-colors ${
+                                isArchived
+                                  ? 'text-slate-400 group-hover:text-slate-200'
+                                  : 'text-white group-hover:text-[#00f2fe]'
+                              }`}
+                            >
                               {m.name}
                             </h3>
                             <div className="flex items-center gap-2 text-[11px] text-slate-400 flex-wrap">
@@ -931,16 +884,16 @@ export default function ManifestsPage() {
                               </span>
                               <span>•</span>
                               <span>共 {m.total_items} 項藥品</span>
-                              {m.status === 'archived' && (
+                              {isArchived && (
                                 <>
                                   <span>•</span>
                                   {m.cloud_backup ? (
-                                    <span className="flex items-center gap-1 text-[#00f2fe]">
+                                    <span className="flex items-center gap-1 text-slate-400">
                                       <Cloud className="w-3 h-3" />
                                       已封存（雲端）
                                     </span>
                                   ) : (
-                                    <span className="text-[#ff4b5c]">已封存（本地）</span>
+                                    <span className="text-slate-500">已封存（本地）</span>
                                   )}
                                 </>
                               )}
@@ -948,12 +901,12 @@ export default function ManifestsPage() {
                           </div>
                         </Link>
 
-                        {/* 右側操作按鈕群 (統一規範：深色背景，杜絕白底) */}
+                        {/* 右側操作按鈕群 */}
                         <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
                           {m.storage_size_bytes !== undefined && (
                             <span
                               className={`hidden sm:flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-lg bg-slate-900/80 ${
-                                m.status === 'active' ? 'text-[#00f2fe]' : 'text-gray-400'
+                                isArchived ? 'text-gray-400' : 'text-[#00f2fe]'
                               }`}
                             >
                               <HardDrive className="w-3 h-3" />
@@ -961,7 +914,7 @@ export default function ManifestsPage() {
                             </span>
                           )}
 
-                          {/* 移動至資料夾按鈕 (顯式深色背景 bg-slate-800，杜絕白底) */}
+                          {/* 移動至資料夾按鈕 */}
                           {!isOperationInProgress && (
                             <button
                               onClick={() => handleOpenMoveModal(m.id)}
@@ -972,35 +925,28 @@ export default function ManifestsPage() {
                             </button>
                           )}
 
-                          {/* 封存 / 還原 / 刪除按鈕 */}
-                          {m.status === 'active' && !isOperationInProgress && batchActionMode === 'archive' && (
+                          {/* 方案三核心：原地切換狀態膠囊按鈕 (在辦 vs 封存) */}
+                          {!isOperationInProgress && (
                             <button
-                              onClick={() => handleArchive(m.id)}
-                              className="p-1.5 rounded-lg text-[#00f2fe] bg-[#00f2fe]/10 border border-[#00f2fe]/30 hover:bg-[#00f2fe]/20 active:scale-95 transition-all"
-                              title="封存清單"
+                              onClick={() => (isArchived ? handleRestore(m.id) : handleArchive(m.id))}
+                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all active:scale-95 whitespace-nowrap ${
+                                isArchived
+                                  ? 'bg-slate-800/90 text-slate-400 border border-slate-700 hover:text-[#00f2fe] hover:border-[#00f2fe]/40'
+                                  : 'bg-[#00f2fe]/15 text-[#00f2fe] border border-[#00f2fe]/40 shadow-[0_0_8px_rgba(0,242,254,0.15)] hover:bg-[#00f2fe]/25'
+                              }`}
+                              title={isArchived ? '點擊還原為在辦清單' : '點擊封存此清單'}
                             >
-                              <Save className="w-3.5 h-3.5" />
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  isArchived ? 'bg-slate-500' : 'bg-[#00f2fe] shadow-[0_0_6px_#00f2fe]'
+                                }`}
+                              />
+                              <span>{isArchived ? '封存' : '在辦'}</span>
                             </button>
                           )}
-                          {m.status === 'active' && !isOperationInProgress && batchActionMode === 'delete' && (
-                            <button
-                              onClick={() => setConfirmDeleteId(m.id)}
-                              className="p-1.5 rounded-lg text-red-400 bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 active:scale-95 transition-all"
-                              title="永久刪除清單"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          {m.status === 'archived' && !isOperationInProgress && batchActionMode === 'archive' && (
-                            <button
-                              onClick={() => handleRestore(m.id)}
-                              className="p-1.5 rounded-lg text-[#00f2fe] bg-[#00f2fe]/10 border border-[#00f2fe]/30 hover:bg-[#00f2fe]/20 active:scale-95 transition-all"
-                              title="解壓還原"
-                            >
-                              <RefreshCw className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          {m.status === 'archived' && !isOperationInProgress && batchActionMode === 'delete' && (
+
+                          {/* 刪除按鈕 */}
+                          {!isOperationInProgress && (
                             <button
                               onClick={() => setConfirmDeleteId(m.id)}
                               className="p-1.5 rounded-lg text-red-400 bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 active:scale-95 transition-all"

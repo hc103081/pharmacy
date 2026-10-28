@@ -59,3 +59,38 @@ export function parseManifestDate(manifest: Manifest): {
     dateStr: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
   };
 }
+
+/**
+ * 取得指定資料夾的所有子孫資料夾 ID 集合（包含自身）
+ */
+export function getDescendantFolderIds(
+  folderId: string,
+  allFolders: Array<{ id: string; parent_id?: string | null }>
+): Set<string> {
+  const result = new Set<string>([folderId]);
+  const queue = [folderId];
+
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+    for (const f of allFolders) {
+      if (f.parent_id === currentId && !result.has(f.id)) {
+        result.add(f.id);
+        queue.push(f.id);
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * 計算指定資料夾在包含子樹狀目錄情況下的所有清單數量（遞迴總和）
+ */
+export function calculateRecursiveFolderCount(
+  folderId: string,
+  allFolders: Array<{ id: string; parent_id?: string | null }>,
+  manifests: Array<{ id: string; folder_id?: string | null }>
+): number {
+  const descendantIds = getDescendantFolderIds(folderId, allFolders);
+  return manifests.filter((m) => m.folder_id && descendantIds.has(m.folder_id)).length;
+}

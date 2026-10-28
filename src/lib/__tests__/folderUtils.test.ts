@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { parseManifestDate } from '../folderUtils';
+import {
+  parseManifestDate,
+  calculateRecursiveFolderCount,
+  getDescendantFolderIds,
+} from '../folderUtils';
 import { Manifest } from '../../types';
 
 describe('Manifest Folders & AI Classification Logic', () => {
@@ -76,5 +80,33 @@ describe('Manifest Folders & AI Classification Logic', () => {
     expect(result.year).toBe('2026年');
     expect(result.month).toBe('5月');
     expect(result.day).toBe('12日');
+  });
+
+  it('應正確遞迴計算資料夾包含子樹狀（年 > 月 > 日）之清單總和', () => {
+    const folders = [
+      { id: 'f-2026', parent_id: null },
+      { id: 'f-7m', parent_id: 'f-2026' },
+      { id: 'f-18d', parent_id: 'f-7m' },
+      { id: 'f-9m', parent_id: 'f-2026' },
+    ];
+
+    const manifests = [
+      { id: 'm-1', folder_id: 'f-18d' }, // 在 18日 內
+      { id: 'm-2', folder_id: 'f-7m' },  // 在 7月 內
+      { id: 'm-3', folder_id: 'f-9m' },  // 在 9月 內
+      { id: 'm-4', folder_id: null },    // 未分類
+    ];
+
+    // 18日 僅包含自己 (1)
+    expect(calculateRecursiveFolderCount('f-18d', folders, manifests)).toBe(1);
+
+    // 7月 包含 7月 + 18日 (1 + 1 = 2)
+    expect(calculateRecursiveFolderCount('f-7m', folders, manifests)).toBe(2);
+
+    // 9月 僅包含自己 (1)
+    expect(calculateRecursiveFolderCount('f-9m', folders, manifests)).toBe(1);
+
+    // 2026年 包含 2026 + 7月 + 18日 + 9月 (0 + 1 + 1 + 1 = 3)
+    expect(calculateRecursiveFolderCount('f-2026', folders, manifests)).toBe(3);
   });
 });
