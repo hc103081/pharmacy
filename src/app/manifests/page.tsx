@@ -913,48 +913,63 @@ export default function ManifestsPage() {
               )}
             </div>
 
-            {/* --- 搜尋工具列 (min-w-0 與 flex-shrink-0 確保手機端永遠不擠壓重疊) --- */}
-            <div className="space-y-1.5 pt-1">
-              <div className="flex items-center gap-2">
-                {/* 搜尋輸入框 */}
-                <div className="relative min-w-0 flex-1">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                    <Search className="w-3.5 h-3.5" />
-                  </div>
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder={searchScope === 'all' ? '搜尋所有清單名稱、單號...' : '搜尋當前目錄清單名稱、單號...'}
-                    className="w-full pl-8 pr-8 py-2 rounded-xl bg-slate-900/90 border border-slate-700/80 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#00f2fe] focus:shadow-[0_0_15px_rgba(0,242,254,0.3)] transition-all"
-                  />
-                  {searchTerm && (
+            {/* --- 滿版即時搜尋工具列 (100% 獨立滿版，徹底解決手機端遮擋與擠壓) --- */}
+            <div className="space-y-2 pt-1">
+              <div className="relative w-full">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  <Search className="w-4 h-4 text-slate-400" />
+                </div>
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="搜尋清單名稱、單號..."
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700/80 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#00f2fe] focus:shadow-[0_0_15px_rgba(0,242,254,0.3)] transition-all"
+                />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white transition-colors"
+                    aria-label="清除搜尋關鍵字"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* 搜尋範圍分段控制器 (有搜尋字串時展開，層級分明且熱區寬大，零重疊) */}
+              {trimmedSearch && (
+                <div className="flex items-center justify-between gap-2 px-1 text-xs animate-in fade-in duration-150">
+                  <span className="text-slate-400 text-[11px] whitespace-nowrap">搜尋範圍：</span>
+                  <div className="flex items-center gap-1 p-0.5 rounded-xl bg-slate-900/90 border border-slate-800">
                     <button
                       type="button"
-                      onClick={() => setSearchTerm('')}
-                      className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-white"
-                      aria-label="清除搜尋"
+                      onClick={() => setSearchScope('current')}
+                      className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                        searchScope === 'current'
+                          ? 'bg-[#00f2fe]/20 text-[#00f2fe] border border-[#00f2fe]/40 shadow-[0_0_8px_rgba(0,242,254,0.2)]'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
                     >
-                      <X className="w-3.5 h-3.5" />
+                      <Folder className="w-3 h-3" />
+                      <span>當前目錄</span>
                     </button>
-                  )}
+                    <button
+                      type="button"
+                      onClick={() => setSearchScope('all')}
+                      className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                        searchScope === 'all'
+                          ? 'bg-[#00f2fe]/20 text-[#00f2fe] border border-[#00f2fe]/40 shadow-[0_0_8px_rgba(0,242,254,0.2)]'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <Globe className="w-3 h-3" />
+                      <span>全域所有清單</span>
+                    </button>
+                  </div>
                 </div>
-
-                {/* 搜尋範圍切換 (當前目錄 vs 全域搜尋) */}
-                <button
-                  type="button"
-                  onClick={() => setSearchScope((prev) => (prev === 'current' ? 'all' : 'current'))}
-                  className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-2 rounded-xl border text-xs font-medium transition-all active:scale-95 whitespace-nowrap ${
-                    searchScope === 'all'
-                      ? 'bg-[#00f2fe]/15 text-[#00f2fe] border-[#00f2fe]/40 shadow-[0_0_10px_rgba(0,242,254,0.2)]'
-                      : 'bg-slate-800/80 text-slate-400 border-slate-700 hover:text-slate-200'
-                  }`}
-                  title={searchScope === 'all' ? '目前為全域搜尋，點擊切換為僅搜尋當前目錄' : '目前為目錄搜尋，點擊切換為搜尋全部清單'}
-                >
-                  <Globe className="w-3.5 h-3.5" />
-                  <span>{searchScope === 'all' ? '全域' : '本層'}</span>
-                </button>
-              </div>
+              )}
 
               {/* 跨目錄搜尋友善提示 */}
               {trimmedSearch && searchScope === 'current' && displayedManifests.length === 0 && globalSearchMatches > 0 && (
