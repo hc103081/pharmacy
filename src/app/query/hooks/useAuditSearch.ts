@@ -145,6 +145,122 @@ export function transformToAuditRecord(
   };
 }
 
+/**
+ * 智慧合併同品項但條碼/代碼欄位存放分散的跨期審計紀錄（防止多筆分裂）
+ */
+export function consolidateAuditRecords(records: DrugAuditRecord[]): DrugAuditRecord[] {
+  if (records.length <= 1) return records;
+
+  const mergedList: DrugAuditRecord[] = [];
+
+  records.forEach((incoming) => {
+    const normName = incoming.name.replace(/\s+/g, '');
+    const incomingCode = (incoming.productCode || incoming.barcode || '').trim();
+
+    // 尋找是否已有相符的品項
+    const existingIdx = mergedList.findIndex((item) => {
+      const existingNormName = item.name.replace(/\s+/g, '');
+      const nameMatches = existingNormName === normName;
+      if (!nameMatches) return false;
+
+      // 儲位相同
+      const locMatches = (item.storageLocation || '') === (incoming.storageLocation || '');
+      if (!locMatches) return false;
+
+      // 代碼交叉吻合：若兩者皆有 code，比對 code；若其中一個無 code，視為同一藥品合併
+      const itemCode = (item.productCode || item.barcode || '').trim();
+      if (itemCode && incomingCode) {
+        return (
+          itemCode === incomingCode ||
+          item.productCode === incoming.barcode ||
+          item.barcode === incoming.productCode
+        );
+      }
+      return true;
+    });
+
+    if (existingIdx === -1) {
+      mergedList.push({ ...incoming });
+    } else {
+      const existing = mergedList[existingIdx];
+
+      // 1. 合併全量歷程並去重（依 manifestId + pageNumber + itemOrder）
+      const historyKeySet = new Set(
+        existing.allHistory.map((h) => `${h.manifestId}_${h.pageNumber}_${h.itemOrder}`)
+      );
+      const combinedHistory = [...existing.allHistory];
+
+      incoming.allHistory.forEach((node) => {
+        const key = `${node.manifestId}_${node.pageNumber}_${node.itemOrder}`;
+        if (!historyKeySet.has(key)) {
+          historyKeySet.add(key);
+          combinedHistory.push(node);
+        }
+      });
+
+      // 降序排序
+      combinedHistory.sort(
+        (a, b) => new Date(b.countedAt).getTime() - new Date(a.countedAt).getTime()
+      );
+
+      // 2. 重新聚合成月份分組
+      const monthMap = new Map<string, AuditNode[]>();
+      combinedHistory.forEach((node) => {
+        const key = node.countedAt.slice(0, 7);
+        const list = monthMap.get(key) || [];
+        list.push(node);
+        monthMap.set(key, list);
+      });
+
+      const updatedMonthlyGroups: AuditMonthGroup[] = [];
+      monthMap.forEach((nodes, monthKey) => {
+        const [year, month] = monthKey.split('-');
+        const totalAudits = nodes.length;
+        const matchCount = nodes.filter((n) => n.discrepancy === 0).length;
+        const matchRate = totalAudits > 0 ? Math.round((matchCount / totalAudits) * 100) : 100;
+        const netDiscrepancy = nodes.reduce((acc, curr) => acc + curr.discrepancy, 0);
+
+        updatedMonthlyGroups.push({
+          monthKey,
+          monthLabel: `${year} 年 ${month} 月`,
+          totalAudits,
+          matchRate,
+          netDiscrepancy,
+          nodes,
+        });
+      });
+      updatedMonthlyGroups.sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+
+      // 3. 累積數量與數值
+      const mergedExpected = existing.currentExpected + incoming.currentExpected;
+      const mergedActual = existing.currentActual + incoming.currentActual;
+      const mergedDiscrepancy = mergedActual - mergedExpected;
+      const mergedErrorCount = existing.errorCount + incoming.errorCount;
+
+      // 4. 更新現有紀錄
+      mergedList[existingIdx] = {
+        ...existing,
+        barcode: existing.barcode || incoming.barcode || '',
+        productCode: existing.productCode || incoming.productCode || null,
+        storageLocation: existing.storageLocation || incoming.storageLocation || null,
+        category: existing.category || incoming.category || null,
+        currentExpected: mergedExpected,
+        currentActual: mergedActual,
+        currentDiscrepancy: mergedDiscrepancy,
+        errorCount: mergedErrorCount,
+        lastCountedAt:
+          new Date(incoming.lastCountedAt || 0) > new Date(existing.lastCountedAt || 0)
+            ? incoming.lastCountedAt
+            : existing.lastCountedAt,
+        allHistory: combinedHistory,
+        monthlyGroups: updatedMonthlyGroups,
+      };
+    }
+  });
+
+  return mergedList;
+}
+
 export function useAuditSearch() {
   const [query, setQuery] = useState('');
   const [records, setRecords] = useState<DrugAuditRecord[]>([]);
@@ -177,14 +293,15 @@ export function useAuditSearch() {
       setIsLoading(true);
       setError(null);
 
-      // If offline, directly search IndexedDB
+        // 離線 IndexedDB 快取直接搜尋
       if (isOffline) {
         setIsFromCache(true);
         const cached = await searchOfflineRecords(trimmed);
         if (currentSeq !== searchSeqRef.current) return;
-        setRecords(cached);
-        if (cached.length === 1) {
-          setSelectedRecordId(cached[0].id || cached[0].barcode);
+        const consolidatedCached = consolidateAuditRecords(cached);
+        setRecords(consolidatedCached);
+        if (consolidatedCached.length === 1) {
+          setSelectedRecordId(consolidatedCached[0].id || consolidatedCached[0].barcode);
         } else {
           setSelectedRecordId(null);
         }
@@ -240,19 +357,20 @@ export function useAuditSearch() {
         }
 
         const transformed = rawList.map((raw) => transformToAuditRecord(raw, itemDetailMap));
+        const consolidated = consolidateAuditRecords(transformed);
 
-        setRecords(transformed);
+        setRecords(consolidated);
         setIsFromCache(false);
 
         // Auto-select first item if only 1 match or barcode scan
-        if (transformed.length === 1 || (isBarcode && transformed.length > 0)) {
-          setSelectedRecordId(transformed[0].id || transformed[0].barcode);
+        if (consolidated.length === 1 || (isBarcode && consolidated.length > 0)) {
+          setSelectedRecordId(consolidated[0].id || consolidated[0].barcode);
         } else {
           setSelectedRecordId(null);
         }
 
         // Cache results in IndexedDB for offline capability
-        transformed.forEach((rec) => {
+        consolidated.forEach((rec) => {
           saveAuditRecord(rec);
         });
       } catch (err: unknown) {
@@ -262,12 +380,13 @@ export function useAuditSearch() {
         setIsFromCache(true);
         const cached = await searchOfflineRecords(trimmed);
         if (currentSeq !== searchSeqRef.current) return;
-        setRecords(cached);
-        if (cached.length === 1) {
-          setSelectedRecordId(cached[0].id || cached[0].barcode);
+        const consolidatedCached = consolidateAuditRecords(cached);
+        setRecords(consolidatedCached);
+        if (consolidatedCached.length === 1) {
+          setSelectedRecordId(consolidatedCached[0].id || consolidatedCached[0].barcode);
         } else {
           setSelectedRecordId(null);
-          if (cached.length === 0) {
+          if (consolidatedCached.length === 0) {
             setError(err instanceof Error ? err.message : '查詢發生未預期錯誤');
           }
         }
