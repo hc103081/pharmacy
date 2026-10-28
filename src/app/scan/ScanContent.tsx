@@ -34,8 +34,9 @@ export default function ScanContent() {
   const pageParam = searchParams.get('page');
   const initialPage = pageParam ? Math.max(1, parseInt(pageParam, 10)) : 1;
   const [currentPage, setCurrentPage] = useState(initialPage);
+  const barcodeParam = searchParams.get('barcode');
   const [drugs, setDrugs] = useState<DrugItem[]>([]);
-  const [barcodeInput, setBarcodeInput] = useState('');
+  const [barcodeInput, setBarcodeInput] = useState(barcodeParam || '');
   const [loading, setLoading] = useState(true);
   const [manifestName, setManifestName] = useState('');
   const [isLocked, setIsLocked] = useState(false);
@@ -141,6 +142,9 @@ export default function ScanContent() {
       const highlightItemOrder = searchParams.get('highlightItem');
       const targetDrugId = searchParams.get('drugId');
       const targetBarcode = searchParams.get('barcode');
+      if (targetBarcode) {
+        setBarcodeInput(targetBarcode);
+      }
 
       if (targetDrugId || targetBarcode || highlightItemOrder) {
         const orderNum = highlightItemOrder ? parseInt(highlightItemOrder, 10) : null;

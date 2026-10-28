@@ -165,17 +165,17 @@ function QueryMainContent() {
           </div>
 
           {/* Search Input Form */}
-          <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 w-full">
-            <div className="relative flex-1 min-w-0">
+          <form onSubmit={handleSearchSubmit} className="grid grid-cols-[1fr_auto] gap-2.5 w-full items-center">
+            <div className="relative w-full min-w-0">
               <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="輸入藥名、國際條碼或健保碼..."
-                className="w-full bg-[#0c1d3d] border border-[#233d7a] rounded-xl py-2.5 pl-10 pr-4 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#00f2fe] focus:shadow-[0_0_15px_rgba(0,242,254,0.35)] transition-all font-mono"
+                className="w-full bg-[#0c1d3d] border border-[#233d7a] rounded-xl h-10 py-2 pl-10 pr-4 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#00f2fe] focus:ring-1 focus:ring-[#00f2fe]/40 transition-all font-mono"
               />
               <svg
-                className="w-4 h-4 absolute left-3 top-3 text-slate-400 pointer-events-none"
+                className="w-4 h-4 absolute left-3.5 top-3 text-slate-400 pointer-events-none"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -192,7 +192,7 @@ function QueryMainContent() {
             <button
               type="submit"
               disabled={isLoading}
-              className="px-4 py-2.5 rounded-xl bg-[#00f2fe] hover:bg-[#00f2fe]/90 text-[#07142b] font-bold text-xs shrink-0 whitespace-nowrap active:scale-95 shadow-[0_0_10px_rgba(0,242,254,0.3)] transition-all disabled:opacity-50 flex items-center gap-1.5 relative z-10"
+              className="h-10 px-4 rounded-xl bg-[#00f2fe] hover:bg-[#00f2fe]/90 text-[#07142b] font-bold text-xs shrink-0 whitespace-nowrap active:scale-95 shadow-[0_0_10px_rgba(0,242,254,0.3)] transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
             >
               {isLoading ? (
                 <div className="w-3.5 h-3.5 border-2 border-[#07142b] border-t-transparent rounded-full animate-spin" />
