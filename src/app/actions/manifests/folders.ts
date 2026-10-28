@@ -1,7 +1,6 @@
 'use server';
 
 import { parseManifestDate } from '@/lib/folderUtils';
-
 import { createClient } from '@/lib/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { ManifestFolder, Manifest } from '@/types';
@@ -70,11 +69,14 @@ export async function getFolders(parentId: string | null = null): Promise<{
     const { data: foldersData, error: foldersError } = await query.order('name', { ascending: true });
 
     if (foldersError) {
+      // 容錯防護：若資料庫尚未建立 manifest_folders 資料表
+      if (foldersError.code === 'PGRST205' || foldersError.message?.includes('manifest_folders')) {
+        console.warn('[getFolders] manifest_folders table not found. Graceful fallback.');
+        return { success: true, folders: [], unclassifiedCount: 0 };
+      }
       console.error('[getFolders] Error fetching folders:', foldersError);
       return { success: false, error: '讀取資料夾失敗' };
     }
-
-    const folderIds = (foldersData || []).map(f => f.id);
 
     // 2. 統計每個資料夾中的清單數量與子資料夾數量
     const foldersWithCounts: ManifestFolder[] = await Promise.all(
@@ -104,12 +106,18 @@ export async function getFolders(parentId: string | null = null): Promise<{
     // 3. 若為根目錄，統計「未分類」清單數量 (folder_id is null)
     let unclassifiedCount = 0;
     if (!parentId) {
-      const { count } = await admin
-        .from('manifests')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .is('folder_id', null);
-      unclassifiedCount = count || 0;
+      try {
+        const { count, error: countErr } = await admin
+          .from('manifests')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .is('folder_id', null);
+        if (!countErr) {
+          unclassifiedCount = count || 0;
+        }
+      } catch {
+        unclassifiedCount = 0;
+      }
     }
 
     return {
@@ -194,6 +202,9 @@ export async function getFolderTree(): Promise<{
       .order('name', { ascending: true });
 
     if (error) {
+      if (error.code === 'PGRST205' || error.message?.includes('manifest_folders')) {
+        return { success: true, folders: [] };
+      }
       return { success: false, error: '無法讀取資料夾目錄樹' };
     }
 
@@ -237,7 +248,16 @@ export async function createFolder(
       duplicateCheck = duplicateCheck.is('parent_id', null);
     }
 
-    const { data: existing } = await duplicateCheck.maybeSingle();
+    const { data: existing, error: dupError } = await duplicateCheck.maybeSingle();
+    if (dupError) {
+      if (dupError.code === 'PGRST205' || dupError.message?.includes('manifest_folders')) {
+        return {
+          success: false,
+          error: '雲端資料庫尚未執行 Migration 030（尚未建立 manifest_folders 資料表）',
+        };
+      }
+    }
+
     if (existing) {
       return { success: false, error: '同層級已存在相同名稱的資料夾' };
     }
@@ -255,7 +275,13 @@ export async function createFolder(
 
     if (error) {
       console.error('[createFolder] Error:', error);
-      return { success: false, error: '建立資料夾失敗' };
+      if (error.code === 'PGRST205' || error.message?.includes('manifest_folders')) {
+        return {
+          success: false,
+          error: '雲端資料庫尚未執行 Migration 030（尚未建立 manifest_folders 資料表）',
+        };
+      }
+      return { success: false, error: error.message || '建立資料夾失敗' };
     }
 
     return { success: true, folder: data };
@@ -371,6 +397,12 @@ export async function moveManifestsToFolder(
 
     if (error) {
       console.error('[moveManifestsToFolder] Error:', error);
+      if (error.code === '42703' || error.message?.includes('folder_id')) {
+        return {
+          success: false,
+          error: '雲端資料庫尚未執行 Migration 030（manifests 表缺少 folder_id 欄位）',
+        };
+      }
       return { success: false, error: '移動清單失敗' };
     }
 
@@ -379,8 +411,6 @@ export async function moveManifestsToFolder(
     return { success: false, error: err.message };
   }
 }
-
-
 
 /**
  * AI 智慧分類：掃描所有尚未分類的清單並產出推薦歸檔階層
@@ -400,6 +430,7 @@ export async function analyzeAndSuggestFolders(): Promise<{
     const admin = getSupabaseAdmin();
 
     // 取得所有未分類清單 (folder_id is null)
+    let unclassifiedList: Manifest[] = [];
     const { data: unclassified, error } = await admin
       .from('manifests')
       .select('*')
@@ -408,11 +439,27 @@ export async function analyzeAndSuggestFolders(): Promise<{
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('[analyzeAndSuggestFolders] Error:', error);
-      return { success: false, error: '無法讀取未分類清單' };
+      // 容錯防護：若資料庫尚未新增 folder_id 欄位，自動 fallback 讀取該用戶所有清單
+      if (error.code === '42703' || error.message?.includes('folder_id')) {
+        console.warn('[analyzeAndSuggestFolders] folder_id column missing, fallback to all manifests');
+        const { data: allData, error: allErr } = await admin
+          .from('manifests')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+        if (allErr) {
+          return { success: false, error: '無法讀取清單資料' };
+        }
+        unclassifiedList = allData || [];
+      } else {
+        console.error('[analyzeAndSuggestFolders] Error:', error);
+        return { success: false, error: '無法讀取未分類清單' };
+      }
+    } else {
+      unclassifiedList = unclassified || [];
     }
 
-    const suggestions: AiOrganizeSuggestion[] = (unclassified || []).map((m) => {
+    const suggestions: AiOrganizeSuggestion[] = unclassifiedList.map((m) => {
       const { year, month, day, dateStr } = parseManifestDate(m);
       return {
         manifestId: m.id,
@@ -426,7 +473,7 @@ export async function analyzeAndSuggestFolders(): Promise<{
     return {
       success: true,
       suggestions,
-      totalUnclassified: (unclassified || []).length,
+      totalUnclassified: unclassifiedList.length,
     };
   } catch (err: any) {
     return { success: false, error: err.message };
@@ -453,13 +500,23 @@ export async function applyAiOrganization(
     const admin = getSupabaseAdmin();
 
     // 1. 取得現有所有資料夾建立快取 Map
-    const { data: allFolders } = await admin
+    const { data: allFolders, error: foldersErr } = await admin
       .from('manifest_folders')
       .select('*')
       .eq('user_id', userId);
 
+    if (foldersErr) {
+      if (foldersErr.code === 'PGRST205' || foldersErr.message?.includes('manifest_folders')) {
+        return {
+          success: false,
+          error: '雲端資料庫尚未執行 Migration 030（尚未建立 manifest_folders 資料表）',
+        };
+      }
+      return { success: false, error: '讀取現有資料夾失敗' };
+    }
+
     const folderMap = new Map<string, string>(); // Key: `${parentId || 'root'}::${name}`, Value: id
-    (allFolders || []).forEach(f => {
+    (allFolders || []).forEach((f: any) => {
       folderMap.set(`${f.parent_id || 'root'}::${f.name}`, f.id);
     });
 

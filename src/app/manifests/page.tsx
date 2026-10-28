@@ -594,9 +594,9 @@ export default function ManifestsPage() {
                       <Sparkles className="w-3.5 h-3.5 animate-pulse" />
                     )}
                     <span>AI 智慧整理</span>
-                    {unclassifiedCount > 0 && currentFolderId === null && (
+                    {manifests.filter(m => !m.folder_id).length > 0 && currentFolderId === null && (
                       <span className="ml-1 px-1.5 py-0.2 rounded-full bg-[#00f2fe] text-slate-950 text-[10px] font-bold">
-                        {unclassifiedCount}
+                        {manifests.filter(m => !m.folder_id).length}
                       </span>
                     )}
                   </button>

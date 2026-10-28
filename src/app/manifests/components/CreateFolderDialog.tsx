@@ -59,25 +59,25 @@ export function CreateFolderDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="relative w-full max-w-sm bg-[#0d1d3a] border border-slate-700/80 rounded-2xl p-5 shadow-2xl flex flex-col animate-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-sm bg-[#0d1d3a] border border-slate-700/80 rounded-2xl p-5 shadow-2xl flex flex-col box-border overflow-hidden animate-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="flex items-center gap-2.5 pb-3 border-b border-slate-800">
-          <div className="w-9 h-9 rounded-xl bg-[#00f2fe]/10 border border-[#00f2fe]/30 flex items-center justify-center text-[#00f2fe]">
+          <div className="w-9 h-9 rounded-xl bg-[#00f2fe]/10 border border-[#00f2fe]/30 flex items-center justify-center text-[#00f2fe] flex-shrink-0">
             {isRename ? <Edit2 className="w-4 h-4" /> : <FolderPlus className="w-4 h-4" />}
           </div>
-          <div>
-            <h3 className="text-base font-semibold text-white">
+          <div className="min-w-0 flex-1">
+            <h3 className="text-base font-semibold text-white truncate">
               {isRename ? '重新命名資料夾' : '新增自訂資料夾'}
             </h3>
             {parentFolderName && !isRename && (
-              <p className="text-xs text-slate-400">建立於：{parentFolderName}</p>
+              <p className="text-xs text-slate-400 truncate">建立於：{parentFolderName}</p>
             )}
           </div>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-          <div>
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4 w-full min-w-0 box-border">
+          <div className="w-full min-w-0 box-border">
             <label className="block text-xs font-medium text-slate-300 mb-1.5">
               資料夾名稱
             </label>
@@ -91,20 +91,20 @@ export function CreateFolderDialog({
               }}
               placeholder="例如：10月份盤點、主管複查..."
               disabled={submitting}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-[#00f2fe] focus:shadow-[0_0_15px_rgba(0,242,254,0.5)] transition-all"
+              className="w-full min-w-0 max-w-full box-border block px-3.5 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-[#00f2fe] focus:shadow-[0_0_15px_rgba(0,242,254,0.5)] transition-all"
             />
             {error && (
-              <p className="text-xs text-red-400 mt-1.5">{error}</p>
+              <p className="text-xs text-red-400 mt-1.5 break-words">{error}</p>
             )}
           </div>
 
           {/* Footer Buttons */}
-          <div className="flex items-center justify-end gap-2 pt-2">
+          <div className="flex items-center justify-end gap-2 pt-2 flex-wrap">
             <button
               type="button"
               onClick={onClose}
               disabled={submitting}
-              className="px-4 py-2 rounded-xl text-xs sm:text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all"
+              className="px-4 py-2 rounded-xl text-xs sm:text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all active:scale-95"
             >
               取消
             </button>
