@@ -765,9 +765,9 @@ export default function ManifestsPage() {
           </div>
         </header>
 
-        {/* Scrollable Content (獨立捲動區，嚴格鎖定 overflow-x-hidden 杜絕任何橫向偏移動搖) */}
-        <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-3.5 sm:py-4 pb-20 px-3.5 sm:px-4 lg:px-6 w-full max-w-full">
-          <div className="max-w-3xl mx-auto space-y-3 w-full min-w-0">
+        {/* Scrollable Content (純滾動容器，水平 padding 移入內層，杜絕行動端捲軸吞噬 padding-right 導致切邊) */}
+        <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+          <div className="max-w-3xl mx-auto px-4 sm:px-5 lg:px-6 py-3.5 sm:py-4 pb-24 space-y-3">
 
             {/* Storage Warning Banner */}
             {storageWarningLevel !== 'none' && (
@@ -944,7 +944,7 @@ export default function ManifestsPage() {
                 <button
                   type="button"
                   onClick={() => setSearchScope((prev) => (prev === 'current' ? 'all' : 'current'))}
-                  className={`flex-shrink-0 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold transition-all active:scale-95 whitespace-nowrap ${
+                  className={`flex-shrink-0 flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl border text-xs font-semibold transition-all active:scale-95 whitespace-nowrap ${
                     searchScope === 'all'
                       ? 'bg-[#00f2fe]/20 text-[#00f2fe] border-[#00f2fe]/50 shadow-[0_0_8px_rgba(0,242,254,0.25)]'
                       : 'bg-slate-800 text-slate-300 border-slate-700/80 hover:text-white'
@@ -952,7 +952,8 @@ export default function ManifestsPage() {
                   title={searchScope === 'all' ? '切換為僅搜尋當前目錄' : '切換為搜尋全域所有清單'}
                 >
                   <Globe className="w-3.5 h-3.5 text-[#00f2fe]" />
-                  <span>{searchScope === 'all' ? '全域清單' : '當前目錄'}</span>
+                  <span className="hidden sm:inline">{searchScope === 'all' ? '全域清單' : '當前目錄'}</span>
+                  <span className="sm:hidden">{searchScope === 'all' ? '全域' : '目錄'}</span>
                 </button>
               </div>
 
