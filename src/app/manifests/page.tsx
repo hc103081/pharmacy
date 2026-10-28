@@ -35,10 +35,11 @@ import { Toaster, toast } from 'sonner';
 
 /** 格式化儲存容量大小 */
 function formatStorageSize(bytes: number): string {
-  if (bytes === 0) return '0 MB';
+  if (bytes === 0) return '0 B';
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
 export default function ManifestsPage() {
@@ -274,8 +275,8 @@ export default function ManifestsPage() {
     .filter(m => m.status === 'active' || (m.status === 'archived' && !m.cloud_backup))
     .reduce((sum, m) => sum + (m.storage_size_bytes || 0), 0);
 
-  const STORAGE_WARNING_THRESHOLD_MB = 800;
-  const STORAGE_CRITICAL_THRESHOLD_MB = 950;
+  const STORAGE_WARNING_THRESHOLD_MB = 8000; // 8,000 MB (約 80% B2 免費額度 10 GB)
+  const STORAGE_CRITICAL_THRESHOLD_MB = 9500; // 9,500 MB (約 93% B2 免費額度 10 GB)
   const storageWarningLevel = localStorageUsage >= STORAGE_CRITICAL_THRESHOLD_MB * 1024 * 1024
     ? 'critical'
     : localStorageUsage >= STORAGE_WARNING_THRESHOLD_MB * 1024 * 1024
@@ -561,7 +562,7 @@ export default function ManifestsPage() {
                     : '儲存空間即將滿載'}
                 </p>
                 <p className="text-xs opacity-80 mt-0.5">
-                  本地佔用 {formatStorageSize(localStorageUsage)} / 1024 MB
+                  B2 雲端儲存佔用 {formatStorageSize(localStorageUsage)} / 10 GB
                   {storageWarningLevel === 'critical' ? '，請盡快封存其他清單釋放空間' : ''}
                 </p>
               </div>
