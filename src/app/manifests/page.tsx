@@ -45,6 +45,8 @@ import {
 } from '@/app/actions/manifests/folders';
 import { Toaster, toast } from 'sonner';
 
+const FOLDERS_CACHE_KEY = 'phama_folders_cache_v1';
+
 /** 格式化儲存容量大小 */
 function formatStorageSize(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -84,10 +86,29 @@ export default function ManifestsPage() {
   const [b2UsageModalOpen, setB2UsageModalOpen] = useState(false);
   const [b2UsageManifestId, setB2UsageManifestId] = useState<string | null>(null);
 
-  // --- 資料夾與樹狀導航狀態 (全記憶體高速響應) ---
+  // --- SWR 0ms 本地快取資料夾狀態 ---
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
-  const [allFolders, setAllFolders] = useState<ManifestFolder[]>([]);
-  const [foldersLoading, setFoldersLoading] = useState(true);
+  const [allFolders, setAllFolders] = useState<ManifestFolder[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem(FOLDERS_CACHE_KEY);
+        if (cached) return JSON.parse(cached);
+      } catch {
+        // ignore
+      }
+    }
+    return [];
+  });
+  const [foldersLoading, setFoldersLoading] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return !localStorage.getItem(FOLDERS_CACHE_KEY);
+      } catch {
+        // ignore
+      }
+    }
+    return true;
+  });
 
   // 移動清單 Modal 狀態
   const [moveToModalOpen, setMoveToModalOpen] = useState(false);
@@ -276,9 +297,8 @@ export default function ManifestsPage() {
     }
   }, [supabase]);
 
-  // 2. 一次性取得所有資料夾 (單次批次，避免點選時多次網路往返)
+  // 2. 一次性取得所有資料夾 (SWR 優先直連 + 本地持久化快取)
   const fetchAllFolders = useCallback(async () => {
-    setFoldersLoading(true);
     try {
       // 優先使用已建立連線的客戶端 Supabase 實例直查（速度最快，免冷啟動）
       const { data, error } = await supabase
@@ -288,10 +308,20 @@ export default function ManifestsPage() {
 
       if (!error && data) {
         setAllFolders(data);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(FOLDERS_CACHE_KEY, JSON.stringify(data));
+          } catch {}
+        }
       } else {
         const res = await getAllFolders();
         if (res.success && res.folders) {
           setAllFolders(res.folders);
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem(FOLDERS_CACHE_KEY, JSON.stringify(res.folders));
+            } catch {}
+          }
         }
       }
     } catch (err) {
@@ -478,13 +508,13 @@ export default function ManifestsPage() {
       <div className="h-dvh overflow-hidden flex flex-col bg-[#07142b]">
         {/* Fixed Header */}
         <header className="fixed top-0 left-0 right-0 z-40 bg-[#07142b]/95 backdrop-blur-xl border-b border-slate-800/50">
-          <div className="max-w-3xl mx-auto p-4 lg:p-6">
-            <div className="flex items-center gap-3">
-              <Link href="/" className="p-2 hover:bg-slate-800 rounded-full transition-colors">
-                <ArrowLeft className="w-5 h-5 lg:w-6 lg:h-6 text-slate-400" />
+          <div className="max-w-3xl mx-auto p-3.5 sm:p-4 lg:p-6">
+            <div className="flex items-center gap-2.5">
+              <Link href="/" className="p-1.5 hover:bg-slate-800 rounded-full transition-colors text-slate-400 hover:text-white">
+                <ArrowLeft className="w-5 h-5 text-slate-400" />
               </Link>
-              <h1 className="text-xl lg:text-2xl font-bold text-white">選擇清點清單</h1>
-              <TeachingButton module="manifest-management" variant="inline" className="ml-2" />
+              <h1 className="text-lg lg:text-2xl font-bold text-white">選擇清點清單</h1>
+              <TeachingButton module="manifest-management" variant="inline" className="ml-1" />
 
               {/* B2 容量按鈕 */}
               {manifests.length > 0 && (
@@ -495,9 +525,9 @@ export default function ManifestsPage() {
                     setB2UsageModalOpen(true);
                   }}
                   aria-label="查看 B2 容量總覽"
-                  className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 bg-slate-800 text-[#00f2fe] border border-[#00f2fe]/30 hover:bg-[#00f2fe]/10 hover:shadow-[0_0_12px_rgba(0,242,254,0.4)] cursor-pointer mr-1"
+                  className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 bg-slate-800 text-[#00f2fe] border border-[#00f2fe]/30 hover:bg-[#00f2fe]/10 hover:shadow-[0_0_12px_rgba(0,242,254,0.4)] cursor-pointer mr-1"
                 >
-                  <HardDrive className="w-4 h-4" />
+                  <HardDrive className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </button>
               )}
 
@@ -507,9 +537,9 @@ export default function ManifestsPage() {
                   <button
                     onClick={() => setGdriveDropdownOpen(!gdriveDropdownOpen)}
                     aria-label={`已連線至 Google Drive: ${gdriveDetails.email}`}
-                    className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 bg-[#00f2fe]/10 text-[#00f2fe] border border-[#00f2fe]/30 hover:bg-[#00f2fe]/20 hover:shadow-[0_0_12px_rgba(0,242,254,0.4)]"
+                    className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 bg-slate-800 text-[#00f2fe] border border-[#00f2fe]/30 hover:bg-[#00f2fe]/10"
                   >
-                    <Cloud className="w-4 h-4" />
+                    <Cloud className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   </button>
 
                   {gdriveDropdownOpen && (
@@ -551,173 +581,148 @@ export default function ManifestsPage() {
         </header>
 
         {/* Scrollable Content */}
-        <main className="flex-1 min-h-0 overflow-y-auto pt-20 pb-8 lg:pt-24 px-4 lg:px-6">
-          <div className="max-w-3xl mx-auto space-y-4 lg:space-y-5">
-            {/* Tabs (Active vs Archived) */}
-            <div className="flex bg-slate-900/80 rounded-xl p-1 border border-slate-800">
-              <button
-                onClick={() => setTab('active')}
-                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  tab === 'active'
-                    ? 'bg-[#00f2fe]/20 text-[#00f2fe] hover:bg-[#00f2fe]/30 shadow-[0_0_10px_rgba(0,242,254,0.15)]'
-                    : 'bg-transparent text-slate-500 hover:text-slate-300'
-                }`}
-              >
-                active ({manifests.filter((m) => m.status === 'active').length})
-              </button>
-              <button
-                onClick={() => setTab('archived')}
-                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  tab === 'archived'
-                    ? 'bg-[#00f2fe]/20 text-[#00f2fe] hover:bg-[#00f2fe]/30 shadow-[0_0_10px_rgba(0,242,254,0.15)]'
-                    : 'bg-transparent text-slate-500 hover:text-slate-300'
-                }`}
-              >
-                archived ({manifests.filter((m) => m.status === 'archived').length})
-              </button>
-            </div>
+        <main className="flex-1 min-h-0 overflow-y-auto pt-16 pb-8 lg:pt-20 px-3.5 sm:px-4 lg:px-6">
+          <div className="max-w-3xl mx-auto space-y-3">
 
             {/* Storage Warning Banner */}
             {storageWarningLevel !== 'none' && (
               <div
-                className={`flex items-center gap-3 p-4 rounded-xl border ${
+                className={`flex items-center gap-3 p-3 rounded-xl border ${
                   storageWarningLevel === 'critical'
                     ? 'bg-[#ff4b5c]/10 border-[#ff4b5c]/30 text-[#ff4b5c]'
                     : 'bg-[#fbbf24]/10 border-[#fbbf24]/30 text-[#fbbf24]'
                 } animate-in slide-in-from-top-2 duration-300`}
               >
                 <div className="flex-shrink-0">
-                  <AlertTriangle className="w-5 h-5" />
+                  <AlertTriangle className="w-4 h-4" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm">
+                  <p className="font-medium text-xs sm:text-sm">
                     {storageWarningLevel === 'critical' ? '儲存空間接近上限' : '儲存空間即將滿載'}
                   </p>
-                  <p className="text-xs opacity-80 mt-0.5">
+                  <p className="text-[11px] opacity-80 mt-0.5">
                     B2 雲端儲存佔用 {formatStorageSize(localStorageUsage)} / 10 GB
-                    {storageWarningLevel === 'critical' ? '，請盡快封存其他清單釋放空間' : ''}
                   </p>
                 </div>
               </div>
             )}
 
-            {/* --- 雲端硬碟樹狀導航列 (Breadcrumbs & Action Toolbar) --- */}
-            <div className="p-3 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md space-y-3">
-              {/* 頂部麵包屑路徑列 (0ms 即時切換) */}
-              <FolderBreadcrumb
-                breadcrumbs={breadcrumbs}
-                onNavigate={handleNavigateBreadcrumb}
-              />
+            {/* --- 版本 A 核心：頂部極簡單行卡片 (整合 Breadcrumbs + Tabs) --- */}
+            <div className="p-2 sm:p-2.5 rounded-2xl bg-slate-900/90 border border-slate-800/80 backdrop-blur-md flex items-center justify-between gap-2">
+              {/* 麵包屑路徑 (0ms 即時切換) */}
+              <div className="min-w-0 flex-1">
+                <FolderBreadcrumb
+                  breadcrumbs={breadcrumbs}
+                  onNavigate={handleNavigateBreadcrumb}
+                />
+              </div>
 
-              {/* 工具按鈕列 */}
-              <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/60 flex-wrap">
+              {/* 緊湊狀態分頁 (在辦 vs 封存) */}
+              <div className="flex items-center bg-slate-950/80 rounded-xl p-0.5 border border-slate-800 flex-shrink-0">
+                <button
+                  onClick={() => setTab('active')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                    tab === 'active'
+                      ? 'bg-[#00f2fe]/20 text-[#00f2fe] border border-[#00f2fe]/40 shadow-[0_0_8px_rgba(0,242,254,0.15)]'
+                      : 'bg-transparent text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  在辦 ({manifests.filter((m) => m.status === 'active').length})
+                </button>
+                <button
+                  onClick={() => setTab('archived')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                    tab === 'archived'
+                      ? 'bg-[#00f2fe]/20 text-[#00f2fe] border border-[#00f2fe]/40 shadow-[0_0_8px_rgba(0,242,254,0.15)]'
+                      : 'bg-transparent text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  封存 ({manifests.filter((m) => m.status === 'archived').length})
+                </button>
+              </div>
+            </div>
+
+            {/* --- 版本 A 核心：子目錄橫向膠囊滑動列 (高度僅 34px，釋放 220px 空間) --- */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs text-slate-400 px-1 font-medium">
+                <span className="flex items-center gap-1.5 text-slate-300">
+                  <Folder className="w-3.5 h-3.5 text-[#00f2fe]" />
+                  <span>
+                    {currentFolderId === null ? '主目錄分類' : `${currentFolderObj?.name || '當前'} 子目錄`} ({currentFolders.length})
+                  </span>
+                </span>
+
+                {/* 右側操作按鈕群 */}
                 <div className="flex items-center gap-2">
-                  {/* 新增資料夾按鈕 */}
                   <button
                     onClick={() => {
                       setFolderDialogMode('create');
                       setEditingFolder(null);
                       setFolderDialogOpen(true);
                     }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700/60 transition-all active:scale-95 hover:border-[#00f2fe]/40"
+                    className="flex items-center gap-1 text-[11px] font-medium text-slate-300 hover:text-[#00f2fe] bg-slate-800/80 hover:bg-slate-700 px-2.5 py-1 rounded-lg border border-slate-700/60 transition-all active:scale-95"
                   >
-                    <FolderPlus className="w-3.5 h-3.5 text-[#00f2fe]" />
+                    <FolderPlus className="w-3 h-3 text-[#00f2fe]" />
                     <span>新增目錄</span>
                   </button>
 
-                  {/* AI 智慧整理按鈕 */}
                   <button
                     onClick={handleStartAiScan}
                     disabled={aiScanning}
-                    className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#00f2fe]/10 hover:bg-[#00f2fe]/20 text-[#00f2fe] text-xs font-semibold border border-[#00f2fe]/30 transition-all active:scale-95 shadow-[0_0_12px_rgba(0,242,254,0.15)] disabled:opacity-50"
+                    className="flex items-center gap-1 text-[11px] font-semibold text-[#00f2fe] bg-[#00f2fe]/10 hover:bg-[#00f2fe]/20 px-2.5 py-1 rounded-lg border border-[#00f2fe]/30 transition-all active:scale-95 disabled:opacity-50 whitespace-nowrap"
                   >
                     {aiScanning ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <Loader2 className="w-3 h-3 animate-spin" />
                     ) : (
-                      <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+                      <Sparkles className="w-3 h-3" />
                     )}
-                    <span>AI 智慧整理</span>
+                    <span>AI 整理</span>
                     {unclassifiedCount > 0 && currentFolderId === null && (
-                      <span className="ml-1 px-1.5 py-0.2 rounded-full bg-[#00f2fe] text-slate-950 text-[10px] font-bold">
+                      <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-[#00f2fe] text-slate-950 text-[9px] font-bold">
                         {unclassifiedCount}
                       </span>
                     )}
                   </button>
                 </div>
-
-                {/* 批次動作切換（封存 vs 垃圾桶） */}
-                <div className="flex items-center bg-slate-950/60 rounded-xl p-0.5 border border-slate-800">
-                  <button
-                    onClick={() => setBatchActionMode('archive')}
-                    className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-                      batchActionMode === 'archive'
-                        ? 'bg-[#00f2fe]/20 text-[#00f2fe] shadow-[0_0_8px_rgba(0,242,254,0.2)]'
-                        : 'text-slate-500 hover:text-slate-300'
-                    }`}
-                  >
-                    <Save className="w-3 h-3" />
-                    <span>{tab === 'active' ? '封存' : '還原'}</span>
-                  </button>
-                  <button
-                    onClick={() => setBatchActionMode('delete')}
-                    className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-                      batchActionMode === 'delete'
-                        ? 'bg-[#ff4b5c]/20 text-[#ff4b5c] shadow-[0_0_8px_rgba(255,75,92,0.2)]'
-                        : 'text-slate-500 hover:text-slate-300'
-                    }`}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    <span>刪除</span>
-                  </button>
-                </div>
               </div>
+
+              {/* 橫向膠囊列 (Chips Slider) */}
+              {foldersLoading ? (
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 animate-pulse">
+                  <div className="h-8 w-24 rounded-xl bg-slate-800/80 border border-slate-700/50 flex-shrink-0" />
+                  <div className="h-8 w-24 rounded-xl bg-slate-800/80 border border-slate-700/50 flex-shrink-0" />
+                  <div className="h-8 w-24 rounded-xl bg-slate-800/80 border border-slate-700/50 flex-shrink-0" />
+                </div>
+              ) : currentFolders.length > 0 ? (
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+                  {currentFolders.map((f) => {
+                    const isSystemDate = f.folder_type === 'system_date';
+                    return (
+                      <div
+                        key={f.id}
+                        onClick={() => handleOpenFolder(f.id)}
+                        className="group flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700/80 hover:border-[#00f2fe]/50 text-xs font-medium whitespace-nowrap active:scale-95 cursor-pointer flex-shrink-0 transition-all shadow-sm"
+                      >
+                        <span className={isSystemDate ? 'text-[#00f2fe]' : 'text-indigo-400'}>
+                          {isSystemDate ? '📅' : '📁'}
+                        </span>
+                        <span className="truncate max-w-[120px]">{f.name}</span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-700/80 text-slate-300 font-mono">
+                          {f.item_count ?? 0}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="py-2 px-3 rounded-xl bg-slate-900/50 border border-dashed border-slate-800 text-[11px] text-slate-500">
+                  {currentFolderId === null ? '尚無分類目錄，可點右上方「+ 新增目錄」或「AI 整理」' : '此層級無子目錄'}
+                </div>
+              )}
             </div>
 
-            {/* --- 資料夾區塊 (具備載入狀態與骨架屏) --- */}
-            {foldersLoading ? (
-              <div className="space-y-2 animate-pulse">
-                <div className="flex items-center gap-1.5 px-1">
-                  <div className="w-3.5 h-3.5 bg-slate-800 rounded" />
-                  <div className="h-3 w-24 bg-slate-800 rounded" />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div className="h-20 rounded-2xl bg-slate-900/60 border border-slate-800/80 flex items-center p-3.5 gap-3.5">
-                    <div className="w-11 h-11 rounded-xl bg-slate-800" />
-                    <div className="space-y-2 flex-1">
-                      <div className="h-4 w-32 bg-slate-800 rounded" />
-                      <div className="h-2.5 w-20 bg-slate-800/60 rounded" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : currentFolders.length > 0 ? (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between px-1">
-                  <h2 className="text-xs font-semibold text-slate-400 tracking-wider uppercase flex items-center gap-1.5">
-                    <Folder className="w-3.5 h-3.5 text-[#00f2fe]" />
-                    <span>目錄分類 ({currentFolders.length})</span>
-                  </h2>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {currentFolders.map((f) => (
-                    <FolderCard
-                      key={f.id}
-                      folder={f}
-                      onOpen={handleOpenFolder}
-                      onRename={(folder) => {
-                        setFolderDialogMode('rename');
-                        setEditingFolder(folder);
-                        setFolderDialogOpen(true);
-                      }}
-                      onDelete={(folder) => setDeletingFolder(folder)}
-                    />
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            {/* --- 清單列表區塊 (0ms 即時同步過濾) --- */}
-            <div className="space-y-3 pt-1">
+            {/* --- 清單列表區塊 (高度已釋放，首屏直接清晰可見) --- */}
+            <div className="space-y-2.5 pt-1">
               <div className="flex items-center justify-between px-1">
                 <h2 className="text-xs font-semibold text-slate-400 tracking-wider uppercase flex items-center gap-1.5">
                   <Package className="w-3.5 h-3.5 text-[#00f2fe]" />
@@ -727,41 +732,67 @@ export default function ManifestsPage() {
                       : `清單項目 (${displayedManifests.length})`}
                   </span>
                 </h2>
+
+                {/* 批次切換按鈕（封存/還原/刪除，規範深色背景，杜絕白底） */}
+                <div className="flex items-center bg-slate-950/80 rounded-xl p-0.5 border border-slate-800">
+                  <button
+                    onClick={() => setBatchActionMode('archive')}
+                    className={`flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-medium transition-all ${
+                      batchActionMode === 'archive'
+                        ? 'bg-[#00f2fe]/20 text-[#00f2fe] border border-[#00f2fe]/40 shadow-[0_0_8px_rgba(0,242,254,0.15)]'
+                        : 'bg-slate-900/80 text-slate-400 hover:text-slate-200 border border-transparent'
+                    }`}
+                  >
+                    <Save className="w-3 h-3" />
+                    <span>{tab === 'active' ? '封存' : '還原'}</span>
+                  </button>
+                  <button
+                    onClick={() => setBatchActionMode('delete')}
+                    className={`flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-medium transition-all ${
+                      batchActionMode === 'delete'
+                        ? 'bg-red-500/20 text-red-400 border border-red-500/40 shadow-[0_0_8px_rgba(255,75,92,0.15)]'
+                        : 'bg-slate-900/80 text-slate-400 hover:text-slate-200 border border-transparent'
+                    }`}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>刪除</span>
+                  </button>
+                </div>
               </div>
 
               {loading ? (
-                <div className="flex flex-col items-center justify-center py-16 space-y-4">
-                  <Loader2 className="w-8 h-8 text-[#00f2fe] animate-spin" />
+                <div className="flex flex-col items-center justify-center py-12 space-y-3">
+                  <Loader2 className="w-7 h-7 text-[#00f2fe] animate-spin" />
                   <p className="text-slate-400 text-xs">載入清單中...</p>
                 </div>
               ) : displayedManifests.length === 0 ? (
-                <div className="text-center py-12 tech-card border-dashed border-slate-700/80 rounded-2xl space-y-3">
-                  <Package className="w-10 h-10 text-slate-600 mx-auto" />
+                <div className="text-center py-10 tech-card border-dashed border-slate-700/80 rounded-2xl space-y-2.5">
+                  <Package className="w-9 h-9 text-slate-600 mx-auto" />
                   <div className="space-y-1">
-                    <p className="text-slate-300 text-sm font-medium">
+                    <p className="text-slate-300 text-xs sm:text-sm font-medium">
                       {currentFolderId === null
                         ? currentFolders.length > 0
-                          ? '根目錄無未分類清單（所有清單皆已歸入資料夾）'
+                          ? '根目錄無未分類清單（所有清單皆已歸入目錄）'
                           : '目前沒有可用的清單'
-                        : '此資料夾內暫無清單'}
+                        : '此目錄內暫無清單'}
                     </p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-[11px] text-slate-500">
                       {currentFolderId === null
-                        ? '可點選上方「新增目錄」或前往「匯入清單」'
+                        ? '可點上方膠囊標籤進入各目錄查看清單'
                         : '可將其他目錄清單移動至此處'}
                     </p>
                   </div>
                   {currentFolderId === null && currentFolders.length === 0 && (
                     <Link
                       href="/import"
-                      className="tech-button tech-button-primary inline-flex px-5 py-2 text-xs"
+                      className="tech-button tech-button-primary inline-flex px-4 py-1.5 text-xs font-semibold"
                     >
                       立即匯入清單
                     </Link>
                   )}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-3">
+                <div className="grid grid-cols-1 gap-2.5">
                   {displayedManifests.map((m) => {
                     const isOperationInProgress =
                       operationProgress?.manifestId === m.id &&
@@ -780,7 +811,7 @@ export default function ManifestsPage() {
                     return (
                       <div
                         key={m.id}
-                        className={`tech-card p-3.5 sm:p-4 group hover:border-[#00f2fe]/50 flex items-center justify-between relative ${
+                        className={`tech-card p-3 sm:p-3.5 group hover:border-[#00f2fe]/50 flex items-center justify-between relative ${
                           isOperationCompleted ? 'border-green-400/60 shadow-[0_0_12px_rgba(74,222,128,0.4)]' : ''
                         } ${operationAnimClass}`}
                       >
@@ -811,26 +842,26 @@ export default function ManifestsPage() {
                         {/* 清單卡片主體 */}
                         <Link
                           href={`/scan?manifestId=${m.id}`}
-                          className={`flex items-center gap-3.5 flex-1 min-w-0 ${
+                          className={`flex items-center gap-3 flex-1 min-w-0 ${
                             isOperationInProgress ? 'pointer-events-none' : ''
                           }`}
                         >
-                          <div className="p-2.5 bg-blue-500/10 rounded-xl group-hover:bg-[#00f2fe]/20 transition-all duration-300 shadow-[0_0_15px_rgba(0,242,254,0.15)] flex-shrink-0">
+                          <div className="p-2.5 bg-blue-500/10 rounded-xl group-hover:bg-[#00f2fe]/20 transition-all duration-300 shadow-[0_0_12px_rgba(0,242,254,0.12)] flex-shrink-0">
                             {m.status === 'archived' ? (
                               m.cloud_backup ? (
-                                <Cloud className="w-5 h-5 text-[#00f2fe]" />
+                                <Cloud className="w-4 h-4 text-[#00f2fe]" />
                               ) : (
-                                <Package className="w-5 h-5 text-[#ff4b5c]" />
+                                <Package className="w-4 h-4 text-[#ff4b5c]" />
                               )
                             ) : (
-                              <Package className="w-5 h-5 text-[#00f2fe]" />
+                              <Package className="w-4 h-4 text-[#00f2fe]" />
                             )}
                           </div>
-                          <div className="space-y-1 min-w-0 flex-1">
-                            <h3 className="font-semibold text-white text-sm sm:text-base truncate group-hover:text-[#00f2fe] transition-colors">
+                          <div className="space-y-0.5 min-w-0 flex-1">
+                            <h3 className="font-semibold text-white text-xs sm:text-sm truncate group-hover:text-[#00f2fe] transition-colors">
                               {m.name}
                             </h3>
-                            <div className="flex items-center gap-2 text-xs text-slate-400 flex-wrap">
+                            <div className="flex items-center gap-2 text-[11px] text-slate-400 flex-wrap">
                               <span className="flex items-center gap-1">
                                 <Calendar className="w-3 h-3 text-slate-500" />
                                 {m.created_at &&
@@ -857,11 +888,11 @@ export default function ManifestsPage() {
                           </div>
                         </Link>
 
-                        {/* 右側操作按鈕群 */}
+                        {/* 右側操作按鈕群 (統一規範：深色背景，杜絕白底) */}
                         <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
                           {m.storage_size_bytes !== undefined && (
                             <span
-                              className={`hidden sm:flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-slate-900/60 ${
+                              className={`hidden sm:flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-lg bg-slate-900/80 ${
                                 m.status === 'active' ? 'text-[#00f2fe]' : 'text-gray-400'
                               }`}
                             >
@@ -870,14 +901,14 @@ export default function ManifestsPage() {
                             </span>
                           )}
 
-                          {/* 移動至資料夾按鈕 */}
+                          {/* 移動至資料夾按鈕 (顯式深色背景 bg-slate-800，杜絕白底) */}
                           {!isOperationInProgress && (
                             <button
                               onClick={() => handleOpenMoveModal(m.id)}
-                              className="p-2 rounded-lg text-slate-400 hover:text-[#00f2fe] hover:bg-[#00f2fe]/10 transition-all active:scale-90"
+                              className="p-1.5 rounded-lg bg-slate-800/90 text-slate-300 border border-slate-700/80 hover:text-[#00f2fe] hover:bg-slate-700 active:scale-95 transition-all"
                               title="移動至資料夾"
                             >
-                              <FolderInput className="w-4 h-4" />
+                              <FolderInput className="w-3.5 h-3.5" />
                             </button>
                           )}
 
@@ -885,44 +916,44 @@ export default function ManifestsPage() {
                           {m.status === 'active' && !isOperationInProgress && batchActionMode === 'archive' && (
                             <button
                               onClick={() => handleArchive(m.id)}
-                              className="p-2 rounded-lg text-[#00f2fe]/70 bg-[#00f2fe]/5 border border-[#00f2fe]/10 hover:text-[#00f2fe] hover:bg-[#00f2fe]/15 hover:border-[#00f2fe]/40 hover:shadow-[0_0_8px_rgba(0,242,254,0.2)] transition-all active:scale-90"
+                              className="p-1.5 rounded-lg text-[#00f2fe] bg-[#00f2fe]/10 border border-[#00f2fe]/30 hover:bg-[#00f2fe]/20 active:scale-95 transition-all"
                               title="封存清單"
                             >
-                              <Save className="w-4 h-4" />
+                              <Save className="w-3.5 h-3.5" />
                             </button>
                           )}
                           {m.status === 'active' && !isOperationInProgress && batchActionMode === 'delete' && (
                             <button
                               onClick={() => setConfirmDeleteId(m.id)}
-                              className="p-2 rounded-lg text-[#ff4b5c]/70 bg-[#ff4b5c]/5 border border-[#ff4b5c]/10 hover:text-[#ff4b5c] hover:bg-[#ff4b5c]/15 hover:border-[#ff4b5c]/40 hover:shadow-[0_0_8px_rgba(255,75,92,0.3)] transition-all active:scale-90"
+                              className="p-1.5 rounded-lg text-red-400 bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 active:scale-95 transition-all"
                               title="永久刪除清單"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           )}
                           {m.status === 'archived' && !isOperationInProgress && batchActionMode === 'archive' && (
                             <button
                               onClick={() => handleRestore(m.id)}
-                              className="p-2 rounded-lg text-[#00f2fe]/70 bg-[#00f2fe]/5 border border-[#00f2fe]/10 hover:text-[#00f2fe] hover:bg-[#00f2fe]/15 hover:border-[#00f2fe]/40 hover:shadow-[0_0_8px_rgba(0,242,254,0.2)] transition-all active:scale-90"
+                              className="p-1.5 rounded-lg text-[#00f2fe] bg-[#00f2fe]/10 border border-[#00f2fe]/30 hover:bg-[#00f2fe]/20 active:scale-95 transition-all"
                               title="解壓還原"
                             >
-                              <RefreshCw className="w-4 h-4" />
+                              <RefreshCw className="w-3.5 h-3.5" />
                             </button>
                           )}
                           {m.status === 'archived' && !isOperationInProgress && batchActionMode === 'delete' && (
                             <button
                               onClick={() => setConfirmDeleteId(m.id)}
-                              className="p-2 rounded-lg text-[#ff4b5c]/70 bg-[#ff4b5c]/5 border border-[#ff4b5c]/10 hover:text-[#ff4b5c] hover:bg-[#ff4b5c]/15 hover:border-[#ff4b5c]/40 hover:shadow-[0_0_8px_rgba(255,75,92,0.3)] transition-all active:scale-90"
+                              className="p-1.5 rounded-lg text-red-400 bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 active:scale-95 transition-all"
                               title="永久刪除清單"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           )}
 
                           {!isOperationInProgress && (
                             <Link
                               href={`/scan?manifestId=${m.id}`}
-                              className="p-1.5 text-slate-500 group-hover:text-[#00f2fe] transition-colors"
+                              className="p-1 text-slate-500 group-hover:text-[#00f2fe] transition-colors"
                             >
                               <ChevronRight className="w-4 h-4" />
                             </Link>
