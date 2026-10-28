@@ -72,7 +72,7 @@ test.describe('search_drugs_cross_manifest RPC 修復驗證', () => {
       expect(data.length).toBeGreaterThanOrEqual(2);
       
       // 驗證每筆都是阿司匹林
-      data.forEach(item => {
+      data.forEach((item: any) => {
         expect(item.barcode).toBe('4710000000001');
         expect(item.name).toBe('阿司匹林腸溶錠 100mg');
       });
@@ -128,7 +128,7 @@ test.describe('search_drugs_cross_manifest RPC 修復驗證', () => {
       expect(Array.isArray(data)).toBe(true);
       expect(data.length).toBe(2); // 在兩個清單中都有
       
-      data.forEach(item => {
+      data.forEach((item: any) => {
         expect(item.barcode).toBe('4710000000002');
         expect(item.name).toBe('布洛芬錠 200mg');
       });

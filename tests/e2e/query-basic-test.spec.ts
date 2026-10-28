@@ -70,7 +70,7 @@ test.describe('查詢頁面基本功能測試', () => {
     await page.waitForTimeout(1000);
     
     // 檢查手機版布局
-    const mobileLayout = page.locator('.mobile, .sm\\:', '[data-testid="mobile"]');
+    const mobileLayout = page.locator('.mobile, .sm\\:, [data-testid="mobile"]');
     const hasMobileLayout = await mobileLayout.count() > 0;
     
     console.log(`📱 響應式設計測試完成 - 桌面版: ${hasDesktopLayout}, 手機版: ${hasMobileLayout}`);

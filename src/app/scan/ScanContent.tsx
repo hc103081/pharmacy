@@ -31,7 +31,9 @@ export default function ScanContent() {
   const manifestId = searchParams.get('manifestId');
   const supabase = createClient();
 
-  const [currentPage, setCurrentPage] = useState(1);
+  const pageParam = searchParams.get('page');
+  const initialPage = pageParam ? Math.max(1, parseInt(pageParam, 10)) : 1;
+  const [currentPage, setCurrentPage] = useState(initialPage);
   const [drugs, setDrugs] = useState<DrugItem[]>([]);
   const [barcodeInput, setBarcodeInput] = useState('');
   const [loading, setLoading] = useState(true);
@@ -134,6 +136,20 @@ export default function ScanContent() {
       if (pageRes.error) throw pageRes.error;
       const fetchedDrugs: DrugItem[] = pageRes.data || [];
       setDrugs(fetchedDrugs);
+
+      // 如果由查詢頁直達補盤，選取並滾動到該項目
+      const highlightItemOrder = searchParams.get('highlightItem');
+      if (highlightItemOrder) {
+        const orderNum = parseInt(highlightItemOrder, 10);
+        const match = fetchedDrugs.find((d) => d.item_order === orderNum);
+        if (match) {
+          setManuallySelectedDrugId(match.id);
+          setTimeout(() => {
+            const el = document.querySelector(`[data-drug-id="${match.id}"]`);
+            el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 350);
+        }
+      }
 
       // 預載入首屏圖片 (手機 ~12 項, 桌面 ~24 項)
       const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
@@ -663,7 +679,7 @@ export default function ScanContent() {
                   if (barcodeInput) {
                     clearBarcodeAndJumpToPending();
                   } else {
-                    safeNavigate(() => router.push('/manifests'));
+                    safeNavigate(() => router.push(searchParams.get('from') === 'query' ? '/query?return=true' : '/manifests'));
                   }
                 }}
                 className="p-2 rounded-full transition-all active:scale-95 hover:bg-slate-800 text-slate-400 shrink-0"
@@ -993,7 +1009,7 @@ export default function ScanContent() {
           <div className="p-4 border-b border-blue-500/20">
             <div className="flex items-center gap-3 mb-3">
               <button
-                onClick={() => safeNavigate(() => router.push('/manifests'))}
+                onClick={() => safeNavigate(() => router.push(searchParams.get('from') === 'query' ? '/query?return=true' : '/manifests'))}
                 className="p-2 rounded-full transition-all active:scale-95 hover:bg-slate-800 text-slate-400 shrink-0"
                 title="返回清單列表"
               >

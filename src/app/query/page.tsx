@@ -1,52 +1,92 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
-import QueryHeader from './components/QueryHeader';
-import SearchPanel from './components/SearchPanel';
-import { Tabs } from './components/Tabs';
-import DrugSearchTab from './components/Tabs/DrugSearchTab';
-import HistoryTab from './components/Tabs/HistoryTab';
-import TrendTab from './components/Tabs/TrendTab';
-import ReportTab from './components/Tabs/ReportTab';
-import { useOfflineCache } from './hooks/useOfflineCache';
-import { QueryFiltersProvider } from './context/QueryFiltersContext';
-import { QueryErrorBoundary } from './components/QueryErrorBoundary';
+import { useAuditSearch } from './hooks/useAuditSearch';
+import { CandidateListView } from './components/CandidateListView';
+import { DrugAuditTree } from './components/DrugAuditTree';
+import { EvidenceCompareModal } from './components/EvidenceCompareModal';
+import type { AuditNode, DrugAuditRecord } from '@/types/query';
 
-export default function QueryPage() {
-  const { user, loading } = useAuth();
-  const [isOffline, setIsOffline] = useState(false);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const { isCached, refreshCache } = useOfflineCache();
+function QueryMainContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { user, loading: authLoading } = useAuth();
 
-  // Detect online/offline status
+  const {
+    query,
+    setQuery,
+    records,
+    selectedRecord,
+    setSelectedBarcode,
+    isLoading,
+    error,
+    isOffline,
+    isFromCache,
+    executeSearch,
+  } = useAuditSearch();
+
+  // Active modal node
+  const [modalNode, setModalNode] = useState<AuditNode | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Restore query state on mount / return from scan
   useEffect(() => {
-    const handleOnline = () => setIsOffline(false);
-    const handleOffline = () => setIsOffline(true);
-    
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    
-    // Set initial state asynchronously to avoid synchronous setState in effect
-    const setInitialState = () => setIsOffline(!navigator.onLine);
-    requestAnimationFrame(setInitialState);
-    
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
+    const qParam = searchParams.get('q');
+    const returnParam = searchParams.get('return');
+
+    if (qParam) {
+      setQuery(qParam);
+      executeSearch(qParam);
+    } else if (returnParam === 'true') {
+      const savedQuery = sessionStorage.getItem('phama_query_last_search');
+      if (savedQuery) {
+        setQuery(savedQuery);
+        executeSearch(savedQuery);
+      }
+    }
+  }, [searchParams, executeSearch, setQuery]);
+
+  // Handle form submit / search trigger
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!query.trim()) return;
+    sessionStorage.setItem('phama_query_last_search', query.trim());
+    executeSearch(query.trim());
+  };
+
+  // Jump to scan page
+  const handleJumpToScan = useCallback(
+    (node: AuditNode) => {
+      // Save current search state before leaving
+      sessionStorage.setItem('phama_query_last_search', query.trim());
+      router.push(
+        `/scan?manifestId=${encodeURIComponent(node.manifestId)}&page=${
+          node.pageNumber
+        }&highlightItem=${node.itemOrder}&from=query`
+      );
+    },
+    [query, router]
+  );
+
+  // Open photo compare modal
+  const handleOpenPhotoModal = useCallback((node: AuditNode) => {
+    setModalNode(node);
+    setIsModalOpen(true);
   }, []);
 
-  // 當 loading 時顯示登入頁面，避免使用者狀態未同步時的錯誤
-  if (loading) {
+  const handleClosePhotoModal = useCallback(() => {
+    setIsModalOpen(false);
+    setModalNode(null);
+  }, []);
+
+  if (authLoading) {
     return (
-      <div className="min-h-[100vh] flex items-center justify-center bg-[#07142b]">
-        <div className="text-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-            <p className="text-gray-500">載入中...</p>
-          </div>
-          <p className="text-slate-400">正在驗證使用者身份，請稍候...</p>
+      <div className="min-h-screen flex items-center justify-center bg-[#07142b]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-[#00f2fe] border-t-transparent rounded-full animate-spin" />
+          <p className="text-slate-400 text-xs font-mono">身分驗證中...</p>
         </div>
       </div>
     );
@@ -54,85 +94,180 @@ export default function QueryPage() {
 
   if (!user) {
     return (
-      <div className="min-h-[100vh] flex items-center justify-center bg-[#07142b]">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-white mb-4">請先登入</h2>
-          <p className="text-slate-400">您需要登入才能使用查詢系統</p>
+      <div className="min-h-screen flex items-center justify-center bg-[#07142b] p-4">
+        <div className="text-center p-6 rounded-2xl bg-[#162a56] border border-slate-700 max-w-sm w-full space-y-3">
+          <h2 className="text-lg font-bold text-white">請先登入系統</h2>
+          <p className="text-xs text-slate-400">您需要登入藥局帳號才能使用藥品查詢系統</p>
+          <button
+            onClick={() => router.push('/login')}
+            className="w-full py-2.5 rounded-xl bg-[#00f2fe] text-[#07142b] font-bold text-xs"
+          >
+            前往登入
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <QueryFiltersProvider>
-      <QueryErrorBoundary>
-        <div className="min-h-[100vh] bg-[#07142b] text-white">
-          {/* Offline indicator */}
-          {isOffline && (
-            <div className="fixed top-0 left-0 right-0 h-4 bg-[#ff4b5c]/90 flex items-center justify-center z-50">
-              <span className="text-sm text-white">離線模式，顯示快取資料</span>
-            </div>
-          )}
-          
-          <div className="flex h-[100vh] overflow-hidden">
-            {/* Desktop: search panel as sidebar */}
-            <SearchPanel className="hidden lg:block lg:w-64 border-r border-slate-800" />
-            
-            <div className="flex-1 flex flex-col">
-              <QueryHeader 
-                user={{ ...user, role: user.role as 'counter' | 'pharmacist' | 'manager' | undefined }} 
-                isOffline={isOffline}
-                onMenuClick={() => setIsDrawerOpen(true)}
-              />
-              
-              <div className="flex-1 overflow-y-auto">
-                <Tabs>
-                  <Tabs.TabList className="bg-slate-800/50 border-b border-slate-800">
-                    <Tabs.Tab>藥品搜尋</Tabs.Tab>
-                    <Tabs.Tab>歷史記錄</Tabs.Tab>
-                    <Tabs.Tab>趨勢分析</Tabs.Tab>
-                    <Tabs.Tab>報表儀表板</Tabs.Tab>
-                  </Tabs.TabList>
-                  
-                  <Tabs.TabPanels>
-                    <Tabs.TabPanel>
-                         <DrugSearchTab />
-                     </Tabs.TabPanel>
-                    <Tabs.TabPanel>
-                        <HistoryTab />
-                    </Tabs.TabPanel>
-                    <Tabs.TabPanel>
-                        <TrendTab />
-                    </Tabs.TabPanel>
-                    <Tabs.TabPanel>
-                        <ReportTab />
-                    </Tabs.TabPanel>
-                </Tabs.TabPanels>
-              </Tabs>
-              </div>
-            </div>
-            
-            {/* Mobile: search panel as drawer */}
-            <SearchPanel 
-              className={`lg:hidden fixed inset-y-0 right-0 z-40 w-72 max-w-[85vw] bg-[#07142b] border-l border-slate-800 shadow-xl transform transition-transform duration-300 ${
-                isDrawerOpen ? 'translate-x-0' : 'translate-x-full'
-              }`}
-              isDrawer
-              isOpen={isDrawerOpen}
-              onClose={() => setIsDrawerOpen(false)}
-            />
-            
-            {/* Overlay backdrop */}
-            {isDrawerOpen && (
-              <div 
-                className="lg:hidden fixed inset-0 bg-black/50 z-30"
-                onClick={() => setIsDrawerOpen(false)}
-                aria-hidden="true"
-              />
-            )}
-          </div>
+    <div className="min-h-screen bg-[#07142b] text-slate-100 flex flex-col font-sans antialiased">
+      {/* Offline Status Bar */}
+      {(isOffline || isFromCache) && (
+        <div className="bg-[#ff4b5c]/90 text-white text-[11px] py-1 px-4 text-center font-bold tracking-wide sticky top-0 z-40 flex items-center justify-center gap-1.5 shadow-md">
+          <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
+          <span>離線模式：目前正在顯示 IndexedDB 本地快取之審計紀錄</span>
         </div>
-      </QueryErrorBoundary>
-    </QueryFiltersProvider>
+      )}
+
+      {/* Main Container */}
+      <div className="max-w-3xl w-full mx-auto flex-1 flex flex-col">
+        {/* ========================================== */}
+        {/* TOP APP SEARCH HEADER                      */}
+        {/* ========================================== */}
+        <header className="p-3.5 sm:p-4 bg-slate-900/90 border-b border-slate-800/80 sticky top-0 z-30 backdrop-blur-md">
+          <div className="flex items-center gap-2 mb-2.5">
+            <button
+              onClick={() => router.push('/manifests')}
+              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 active:scale-95 transition-all shrink-0"
+              title="返回清單列表"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                />
+              </svg>
+            </button>
+
+            <div className="flex-1 min-w-0">
+              <h1 className="text-sm font-bold text-white tracking-wide truncate">
+                藥品跨期盤點審計系統
+              </h1>
+              <p className="text-[11px] text-slate-400 truncate">
+                秒查儲位、歷史盤點差額與存證照片
+              </p>
+            </div>
+
+            <div className="shrink-0 flex items-center gap-2">
+              <span className="text-[11px] px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-mono">
+                {user.email?.split('@')[0]}
+              </span>
+            </div>
+          </div>
+
+          {/* Search Input Form */}
+          <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="輸入藥名、國際條碼或健保碼..."
+                className="w-full bg-[#0c1d3d] border border-[#233d7a] rounded-xl py-2.5 pl-10 pr-4 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#00f2fe] focus:shadow-[0_0_15px_rgba(0,242,254,0.35)] transition-all font-mono"
+              />
+              <svg
+                className="w-4 h-4 absolute left-3 top-3 text-slate-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="px-4 py-2.5 rounded-xl bg-[#00f2fe] hover:bg-[#00f2fe]/90 text-[#07142b] font-bold text-xs shrink-0 active:scale-95 shadow-[0_0_10px_rgba(0,242,254,0.3)] transition-all disabled:opacity-50 flex items-center gap-1.5"
+            >
+              {isLoading ? (
+                <div className="w-3.5 h-3.5 border-2 border-[#07142b] border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+              )}
+              <span>搜尋</span>
+            </button>
+          </form>
+
+          {error && (
+            <div className="mt-2 text-xs text-[#ff4b5c] px-1">{error}</div>
+          )}
+        </header>
+
+        {/* ========================================== */}
+        {/* MAIN VIEW STATE MACHINE (MODE 2) */}
+        {/* ========================================== */}
+        <main className="flex-1">
+          {selectedRecord ? (
+            <DrugAuditTree
+              record={selectedRecord}
+              onBack={() => setSelectedBarcode(null)}
+              onOpenPhotoModal={handleOpenPhotoModal}
+              onJumpToScan={handleJumpToScan}
+            />
+          ) : (
+            <CandidateListView
+              records={records}
+              onSelectRecord={(drug: DrugAuditRecord) => setSelectedBarcode(drug.barcode)}
+              isLoading={isLoading}
+              query={query}
+            />
+          )}
+        </main>
+      </div>
+
+      {/* ========================================== */}
+      {/* EVIDENCE COMPARE MODAL OVERLAY */}
+      {/* ========================================== */}
+      {selectedRecord && (
+        <EvidenceCompareModal
+          isOpen={isModalOpen}
+          onClose={handleClosePhotoModal}
+          currentNode={modalNode}
+          allHistory={selectedRecord.allHistory}
+          drugName={selectedRecord.name}
+          barcode={selectedRecord.barcode}
+          onJumpToScan={handleJumpToScan}
+        />
+      )}
+    </div>
+  );
+}
+
+export default function QueryPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-[#07142b]">
+          <div className="w-8 h-8 border-4 border-[#00f2fe] border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <QueryMainContent />
+    </Suspense>
   );
 }
