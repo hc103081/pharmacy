@@ -1213,6 +1213,9 @@ export default function ManifestsPage() {
                               if (isBatchMode) {
                                 e.preventDefault();
                                 handleToggleSelect(m.id);
+                              } else if (!isOperationInProgress) {
+                                setNavigatingId(m.id);
+                                startNavigation(`正在進入「${m.name}」清點...`);
                               }
                             }}
                             className={`flex items-center gap-3 flex-1 min-w-0 ${

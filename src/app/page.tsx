@@ -319,7 +319,10 @@ function HomeContent() {
                           {/* 動作按鈕：一鍵進入盤點 */}
                           <button
                             type="button"
-                            onClick={() => router.push(`/scan?manifestId=${manifest.id}`)}
+                            onClick={() => {
+                              startNavigation(`正在進入「${manifest.name}」清點作業...`);
+                              router.push(`/scan?manifestId=${manifest.id}`);
+                            }}
                             className="bg-[#00f2fe] hover:bg-cyan-300 active:scale-95 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition-all shadow-[0_0_10px_rgba(0,242,254,0.25)] flex-shrink-0"
                           >
                             <Play className="w-3 h-3 fill-slate-950" />

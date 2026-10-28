@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Manifest } from '@/types';
 import { calculatePaperPages } from '@/lib/folderUtils';
 import { FileText, X, ChevronRight, ExternalLink } from 'lucide-react';
+import { useNavigationProgress } from '@/components/navigation/NavigationProgress';
 
 interface PaperJumpModalProps {
   isOpen: boolean;
@@ -18,12 +19,14 @@ export function PaperJumpModal({
   onClose,
 }: PaperJumpModalProps) {
   const router = useRouter();
+  const { startNavigation } = useNavigationProgress();
 
   if (!isOpen || !manifest) return null;
 
   const { totalPages, pageRanges } = calculatePaperPages(manifest.total_items);
 
   const handleSelectPage = (page: number) => {
+    startNavigation(`正在前往「${manifest.name}」第 ${page} 頁...`);
     onClose();
     router.push(`/scan?manifestId=${manifest.id}&page=${page}`);
   };

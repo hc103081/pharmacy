@@ -88,11 +88,11 @@ export async function editDrug(input: EditDrugInput): Promise<EditDrugResponse> 
     if (updateData.barcode !== undefined && !updateData.barcode?.toString().trim()) {
       return { success: false, error: '條碼不可為空' };
     }
-    if (updateData.expected_quantity !== undefined && (typeof updateData.expected_quantity !== 'number' || updateData.expected_quantity < 0)) {
+    if (updateData.expected_quantity !== undefined && (typeof updateData.expected_quantity !== 'number' || updateData.expected_quantity < 0 || !Number.isInteger(updateData.expected_quantity))) {
       return { success: false, error: '預期數量必須為非負整數' };
     }
-    if (updateData.warehouse_quantity !== undefined && updateData.warehouse_quantity !== null && (typeof updateData.warehouse_quantity !== 'number' || updateData.warehouse_quantity < 0)) {
-      return { success: false, error: '倉庫數量必須為非負整數' };
+    if (updateData.warehouse_quantity !== undefined && updateData.warehouse_quantity !== null && (typeof updateData.warehouse_quantity !== 'number' || !Number.isInteger(updateData.warehouse_quantity))) {
+      return { success: false, error: '倉庫數量必須為整數' };
     }
 
     updateData.updated_at = new Date().toISOString();

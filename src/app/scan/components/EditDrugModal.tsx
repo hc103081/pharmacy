@@ -82,9 +82,11 @@ export default function EditDrugModal({
     }
   };
 
-  // 數字輸入處理 (只允許數字)
+  // 數字輸入處理 (倉庫數量允許負數，預期數量僅允許非負整數)
   const handleNumberChange = (field: string, value: string) => {
-    const numericValue = value.replace(/[^0-9]/g, '');
+    const numericValue = field === 'warehouse_quantity'
+      ? value.replace(/(?!^-)[^0-9]/g, '')
+      : value.replace(/[^0-9]/g, '');
     handleChange(field, numericValue);
   };
 
@@ -93,11 +95,11 @@ export default function EditDrugModal({
     const newErrors: Record<string, string> = {};
     if (!formData.name.trim()) newErrors.name = '藥品名稱不可為空';
     if (!formData.barcode.trim()) newErrors.barcode = '條碼不可為空';
-    if (formData.expected_quantity !== '' && (isNaN(Number(formData.expected_quantity)) || Number(formData.expected_quantity) < 0)) {
+    if (formData.expected_quantity !== '' && (isNaN(Number(formData.expected_quantity)) || Number(formData.expected_quantity) < 0 || !Number.isInteger(Number(formData.expected_quantity)))) {
       newErrors.expected_quantity = '預期數量必須為非負整數';
     }
-    if (formData.warehouse_quantity !== '' && (isNaN(Number(formData.warehouse_quantity)) || Number(formData.warehouse_quantity) < 0)) {
-      newErrors.warehouse_quantity = '倉庫數量必須為非負整數';
+    if (formData.warehouse_quantity !== '' && (isNaN(Number(formData.warehouse_quantity)) || !Number.isInteger(Number(formData.warehouse_quantity)))) {
+      newErrors.warehouse_quantity = '倉庫數量必須為整數';
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -112,8 +114,8 @@ export default function EditDrugModal({
       name: formData.name.trim(),
       barcode: formData.barcode.trim(),
       product_code: formData.product_code.trim() || null,
-      expected_quantity: formData.expected_quantity ? Number(formData.expected_quantity) : undefined,
-      warehouse_quantity: formData.warehouse_quantity ? Number(formData.warehouse_quantity) : null,
+      expected_quantity: formData.expected_quantity !== '' ? Number(formData.expected_quantity) : undefined,
+      warehouse_quantity: formData.warehouse_quantity !== '' ? Number(formData.warehouse_quantity) : null,
       storage_location: formData.storage_location.trim() || undefined,
       category: formData.category.trim() || undefined,
     };
