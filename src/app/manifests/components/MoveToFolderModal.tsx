@@ -95,7 +95,7 @@ export function MoveToFolderModal({
                   {hasChildren ? (
                     <button
                       onClick={(e) => toggleExpand(folder.id, e)}
-                      className="p-1 rounded hover:bg-slate-700/50 text-slate-400 hover:text-slate-200"
+                      className="p-1 rounded bg-transparent hover:bg-slate-700/50 text-slate-400 hover:text-slate-200"
                     >
                       {isExpanded ? (
                         <ChevronDown className="w-3.5 h-3.5 text-[#00f2fe]" />
@@ -143,7 +143,7 @@ export function MoveToFolderModal({
           <button
             onClick={onClose}
             disabled={moving}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg bg-transparent text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           >
             ✕
           </button>
@@ -185,7 +185,7 @@ export function MoveToFolderModal({
           <button
             onClick={onClose}
             disabled={moving}
-            className="px-4 py-2 rounded-xl text-xs sm:text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all"
+            className="px-4 py-2 rounded-xl text-xs sm:text-sm font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 transition-all"
           >
             取消
           </button>

@@ -388,17 +388,28 @@ export default function ManifestsPage() {
     return manifests.filter((m) => !m.folder_id).length;
   }, [manifests]);
 
+  // 當前目錄範圍下的所有清單（用於根據資料夾動態計算在辦/封存數量）
+  const currentScopeManifests = useMemo(() => {
+    return manifests.filter((m) => {
+      if (currentFolderId === null) {
+        return !m.folder_id; // 根目錄統計未分類清單
+      }
+      return m.folder_id === currentFolderId; // 子資料夾統計所屬清單
+    });
+  }, [manifests, currentFolderId]);
+
+  const currentScopeActiveCount = useMemo(() => {
+    return currentScopeManifests.filter((m) => m.status === 'active').length;
+  }, [currentScopeManifests]);
+
+  const currentScopeArchivedCount = useMemo(() => {
+    return currentScopeManifests.filter((m) => m.status === 'archived').length;
+  }, [currentScopeManifests]);
+
   // 目前目錄下的清單過濾 (同步 0ms 即時切換)
   const displayedManifests = useMemo(() => {
-    return manifests
-      .filter((m) => m.status === tab)
-      .filter((m) => {
-        if (currentFolderId === null) {
-          return !m.folder_id; // 根目錄顯示未分類清單
-        }
-        return m.folder_id === currentFolderId; // 子資料夾顯示所屬清單
-      });
-  }, [manifests, tab, currentFolderId]);
+    return currentScopeManifests.filter((m) => m.status === tab);
+  }, [currentScopeManifests, tab]);
 
   const {
     startOperation,
@@ -644,7 +655,7 @@ export default function ManifestsPage() {
                       : 'bg-transparent text-slate-500 hover:text-slate-300'
                   }`}
                 >
-                  在辦 ({manifests.filter((m) => m.status === 'active').length})
+                  在辦 ({currentScopeActiveCount})
                 </button>
                 <button
                   onClick={() => setTab('archived')}
@@ -654,7 +665,7 @@ export default function ManifestsPage() {
                       : 'bg-transparent text-slate-500 hover:text-slate-300'
                   }`}
                 >
-                  封存 ({manifests.filter((m) => m.status === 'archived').length})
+                  封存 ({currentScopeArchivedCount})
                 </button>
               </div>
             </div>
@@ -737,7 +748,7 @@ export default function ManifestsPage() {
                         <button
                           type="button"
                           onClick={() => handleOpenFolder(f.id)}
-                          className="flex items-center gap-1.5 pl-3 pr-2 py-1.5 text-slate-200 active:scale-95 transition-transform"
+                          className="flex items-center gap-1.5 pl-3 pr-2 py-1.5 bg-transparent text-slate-200 active:scale-95 transition-transform"
                         >
                           <span className={isSystemDate ? 'text-[#00f2fe]' : 'text-indigo-400'}>
                             {isSystemDate ? '📅' : '📁'}
@@ -753,7 +764,7 @@ export default function ManifestsPage() {
                             e.stopPropagation();
                             setActionModalFolder(f);
                           }}
-                          className="pr-2.5 pl-1.5 py-1.5 text-slate-400 hover:text-[#00f2fe] hover:bg-slate-700/80 transition-colors border-l border-slate-700/60"
+                          className="pr-2.5 pl-1.5 py-1.5 bg-transparent text-slate-400 hover:text-[#00f2fe] hover:bg-slate-700/80 transition-colors border-l border-slate-700/60"
                           title={`管理目錄「${f.name}」`}
                           aria-label={`管理目錄「${f.name}」`}
                         >

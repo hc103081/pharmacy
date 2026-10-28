@@ -104,7 +104,7 @@ export function CreateFolderDialog({
               type="button"
               onClick={onClose}
               disabled={submitting}
-              className="px-4 py-2 rounded-xl text-xs sm:text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all active:scale-95"
+              className="px-4 py-2 rounded-xl text-xs sm:text-sm font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 transition-all active:scale-95"
             >
               取消
             </button>

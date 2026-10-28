@@ -48,7 +48,7 @@ export function FolderBreadcrumb({
           className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all text-xs sm:text-sm font-medium whitespace-nowrap ${
             !currentFolder && !isUnclassifiedOnly
               ? 'bg-[#00f2fe]/15 text-[#00f2fe] border border-[#00f2fe]/40 shadow-[0_0_10px_rgba(0,242,254,0.15)]'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white border border-slate-700/60'
           }`}
         >
           <Home className="w-3.5 h-3.5" />
@@ -67,7 +67,7 @@ export function FolderBreadcrumb({
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all text-xs sm:text-sm font-medium whitespace-nowrap ${
                   isLast
                     ? 'bg-[#00f2fe]/15 text-[#00f2fe] border border-[#00f2fe]/40 shadow-[0_0_10px_rgba(0,242,254,0.15)] cursor-default'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                    : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white border border-slate-700/60'
                 }`}
               >
                 <Folder className="w-3.5 h-3.5 opacity-80" />

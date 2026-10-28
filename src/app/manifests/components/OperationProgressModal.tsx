@@ -74,7 +74,7 @@ export function OperationProgressModal({
         <div className="flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors active:scale-95"
+            className="px-4 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 transition-colors active:scale-95"
           >
             關閉
           </button>
