@@ -101,6 +101,20 @@ function QueryMainContent() {
     setModalNode(null);
   }, []);
 
+  // Handle header back navigation (returns to previous location in scan list if from scan)
+  const handleBack = useCallback(() => {
+    const returnUrl = searchParams.get('returnUrl');
+    if (returnUrl) {
+      router.push(returnUrl);
+      return;
+    }
+    if (searchParams.get('from') === 'scan' && typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push('/manifests');
+  }, [router, searchParams]);
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#07142b]">
@@ -147,9 +161,9 @@ function QueryMainContent() {
         <header className="p-3.5 sm:p-4 bg-slate-900/90 border-b border-slate-800/80 shrink-0 z-30 backdrop-blur-md">
           <div className="flex items-center gap-2 mb-2.5">
             <button
-              onClick={() => router.push('/manifests')}
+              onClick={handleBack}
               className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 active:scale-95 transition-all shrink-0"
-              title="返回清單列表"
+              title={searchParams.get('from') === 'scan' || searchParams.get('returnUrl') ? "返回盤點清單" : "返回清單列表"}
             >
               <svg
                 className="w-4 h-4"

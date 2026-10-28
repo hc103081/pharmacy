@@ -53,6 +53,7 @@ export default function ScanContent() {
   const [selectedStatus, setSelectedStatus] = useState<'correct' | 'incorrect' | 'pending_photo' | 'pending_skip' | null>(null);
   const [jumpTarget, setJumpTarget] = useState<JumpTarget | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [actionDrug, setActionDrug] = useState<DrugItem | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [pageInputValue, setPageInputValue] = useState<string>('');
   const pageInputRef = useRef<HTMLInputElement>(null);
@@ -74,6 +75,10 @@ export default function ScanContent() {
   const showToast = useCallback((message: string) => {
     setToast(message);
     setTimeout(() => setToast(null), 2000);
+  }, []);
+
+  const handleCardLongPress = useCallback((drug: DrugItem) => {
+    setActionDrug(drug);
   }, []);
 
   const fetchPageData = useCallback(async () => {
@@ -505,6 +510,34 @@ export default function ScanContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manifestId]);
 
+  // 恢復來自查詢頁面返回時的藥品捲動位置
+  useEffect(() => {
+    if (!manifestId || drugs.length === 0) return;
+    const raw = sessionStorage.getItem(`scan_return_state_${manifestId}`);
+    if (!raw) return;
+
+    try {
+      const { drugId, scrollY } = JSON.parse(raw);
+      sessionStorage.removeItem(`scan_return_state_${manifestId}`);
+      const timer = setTimeout(() => {
+        if (drugId) {
+          const el = document.querySelector(`[data-drug-id="${drugId}"]`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+          }
+        }
+        if (typeof scrollY === 'number') {
+          window.scrollTo({ top: scrollY, behavior: 'instant' });
+        }
+      }, 150);
+
+      return () => clearTimeout(timer);
+    } catch (e) {
+      console.warn('Failed to restore return position:', e);
+    }
+  }, [drugs, manifestId]);
+
   // 頁碼變更時持久化並載入資料
   useEffect(() => {
     if (!manifestId) return;
@@ -685,6 +718,90 @@ export default function ScanContent() {
       {previewImage && (
         <PhotoPreview imageUrl={previewImage} onClose={() => setPreviewImage(null)} />
       )}
+
+      {/* 卡片長按操作選單 Modal */}
+      {actionDrug && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-3 sm:p-4"
+          onClick={() => setActionDrug(null)}
+        >
+          <div
+            className="bg-[#162a56] border border-[#233d7a] rounded-2xl sm:rounded-3xl max-w-md w-full p-4 sm:p-5 shadow-2xl space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 標題與藥品資訊 */}
+            <div className="flex items-start justify-between pb-3 border-b border-slate-700/80">
+              <div className="min-w-0 flex-1 pr-2">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <span className="text-[11px] px-2 py-0.5 rounded bg-[#00f2fe]/10 text-[#00f2fe] font-mono border border-[#00f2fe]/30">
+                    P.{actionDrug.page_number} #{actionDrug.item_order}
+                  </span>
+                  {actionDrug.barcode && (
+                    <span className="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono border border-slate-700">
+                      {actionDrug.barcode}
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-base font-bold text-white truncate">
+                  {actionDrug.name}
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  儲位：{actionDrug.storage_location || '—'} • 應收：{actionDrug.expected_quantity}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActionDrug(null)}
+                className="w-7 h-7 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center text-xs ml-2 shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* 選項清單 */}
+            <div className="space-y-2.5">
+              {/* 選項一：直接查詢此項紀錄 */}
+              <button
+                type="button"
+                onClick={() => {
+                  saveState(currentPage);
+                  if (manifestId) {
+                    sessionStorage.setItem(
+                      `scan_return_state_${manifestId}`,
+                      JSON.stringify({
+                        page: currentPage,
+                        scrollY: window.scrollY,
+                        drugId: actionDrug.id,
+                      })
+                    );
+                  }
+                  const queryTarget = actionDrug.barcode || actionDrug.name;
+                  const returnUrl = `/scan?manifestId=${encodeURIComponent(manifestId || '')}&page=${currentPage}&restoreScroll=true`;
+                  setActionDrug(null);
+                  router.push(
+                    `/query?q=${encodeURIComponent(queryTarget)}&returnUrl=${encodeURIComponent(returnUrl)}&from=scan`
+                  );
+                }}
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#00f2fe] to-blue-500 text-[#07142b] font-bold text-sm shadow-[0_0_15px_rgba(0,242,254,0.3)] hover:brightness-110 active:scale-98 transition-all flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <span>直接查詢此項紀錄</span>
+              </button>
+
+              {/* 取消按鈕 */}
+              <button
+                type="button"
+                onClick={() => setActionDrug(null)}
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs border border-slate-700 active:scale-98 transition-all"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
   
       {/* ========== 手機端佈局 (< lg) ========== */}
       <div className="flex flex-col min-h-0 h-full lg:hidden">
@@ -854,6 +971,7 @@ export default function ScanContent() {
                           onCardClick={(id) => {
                             setManuallySelectedDrugId(id);
                           }}
+                          onLongPress={handleCardLongPress}
                           getImageUrl={imageCache.getUrl}
                           getImageLoadStatus={imageCache.getLoadStatus}
                           setImageLoadStatus={imageCache.setLoadStatus}
@@ -950,6 +1068,7 @@ export default function ScanContent() {
                             onCardClick={(id) => {
                               setManuallySelectedDrugId(id);
                             }}
+                            onLongPress={handleCardLongPress}
                             getImageUrl={imageCache.getUrl}
                             getImageLoadStatus={imageCache.getLoadStatus}
                             setImageLoadStatus={imageCache.setLoadStatus}
@@ -1204,6 +1323,7 @@ export default function ScanContent() {
                           onCardClick={(id) => {
                             setManuallySelectedDrugId(id);
                           }}
+                          onLongPress={handleCardLongPress}
                           getImageUrl={imageCache.getUrl}
                           getImageLoadStatus={imageCache.getLoadStatus}
                           setImageLoadStatus={imageCache.setLoadStatus}
@@ -1300,6 +1420,7 @@ export default function ScanContent() {
                             onCardClick={(id) => {
                               setManuallySelectedDrugId(id);
                             }}
+                            onLongPress={handleCardLongPress}
                             getImageUrl={imageCache.getUrl}
                             getImageLoadStatus={imageCache.getLoadStatus}
                             setImageLoadStatus={imageCache.setLoadStatus}

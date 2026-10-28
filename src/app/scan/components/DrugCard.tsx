@@ -26,6 +26,7 @@ interface DrugCardProps {
   onFilterByBarcode?: (barcode: string) => void;
   onResetDrug?: (drugId: string) => void;
   onCardClick?: (drugId: string) => void;
+  onLongPress?: (drug: DrugItem) => void;
   // Image cache functions (legacy)
   getImageUrl?: (key: string) => Promise<string | null>;
   getImageLoadStatus?: (key: string) => ImageLoadStatus;
@@ -122,6 +123,7 @@ export default function DrugCard({
   onFilterByBarcode,
   onResetDrug,
   onCardClick,
+  onLongPress,
   getImageUrl,
   getImageLoadStatus,
   setImageLoadStatus,
@@ -152,6 +154,92 @@ export default function DrugCard({
       onCardClick(drug.id);
     }
   };
+
+  // 長按卡片手勢偵測（相容手機觸控與桌面滑鼠，支援滾動取消以防誤觸）
+  const pressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const startCoordRef = useRef<{ x: number; y: number } | null>(null);
+  const isLongPressedRef = useRef(false);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    const target = e.target as HTMLElement;
+    if (
+      target.closest('button') ||
+      target.closest('input') ||
+      target.closest('[data-no-longpress="true"]')
+    ) {
+      return;
+    }
+
+    startCoordRef.current = { x: e.clientX, y: e.clientY };
+    isLongPressedRef.current = false;
+
+    if (pressTimerRef.current) {
+      clearTimeout(pressTimerRef.current);
+    }
+
+    pressTimerRef.current = setTimeout(() => {
+      isLongPressedRef.current = true;
+      if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+        try {
+          navigator.vibrate(40);
+        } catch {}
+      }
+      onLongPress?.(drug);
+    }, 500);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!startCoordRef.current || !pressTimerRef.current) return;
+    const dist = Math.hypot(
+      e.clientX - startCoordRef.current.x,
+      e.clientY - startCoordRef.current.y
+    );
+    if (dist > 10) {
+      clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+    }
+  };
+
+  const handlePointerUp = () => {
+    if (pressTimerRef.current) {
+      clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+    }
+    startCoordRef.current = null;
+  };
+
+  const handlePointerCancel = () => {
+    if (pressTimerRef.current) {
+      clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+    }
+    startCoordRef.current = null;
+  };
+
+  const handleCardRootClick = (e: React.MouseEvent) => {
+    if (isLongPressedRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      isLongPressedRef.current = false;
+      return;
+    }
+    handleCardClick();
+  };
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    if (isLongPressedRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (pressTimerRef.current) {
+        clearTimeout(pressTimerRef.current);
+      }
+    };
+  }, []);
 
   // 是否處於「有誤」後等待選擇拍照或跳過的狀態
   const isPendingPhotoChoice = selectedStatus === 'pending_photo' || selectedStatus === 'pending_skip';
@@ -269,12 +357,17 @@ export default function DrugCard({
   return (
     <div
       data-drug-id={drug.id}
-      className={`tech-card p-4 transition-all duration-300 flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2 ${
+      className={`tech-card p-4 transition-all duration-300 flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2 select-none ${
         isMatched ? 'border-[#00f2fe] ring-2 ring-inset ring-[#00f2fe]/50 scale-[1.02] z-10' : ''
       } ${isError || isRealtimeError ? 'border-[#ff4b5c] bg-[#ff4b5c]/10' : ''} ${
         isCompleted && !isMatched && !isManuallySelected ? 'opacity-40 grayscale' : ''
       } ${isManuallySelected ? 'border-[#00f2fe] ring-1 ring-[#00f2fe]/30' : ''}`}
-      onClick={handleCardClick}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+      onClick={handleCardRootClick}
+      onContextMenu={handleContextMenu}
       style={isNoBarcode && !isCompleted && !isError && !isLocked ? { cursor: 'pointer' } : undefined}
     >
       {/* 頂部：序號 + 藥品資訊 + 照片縮圖 */}
@@ -418,6 +511,7 @@ export default function DrugCard({
           {!isUploading && loadProgress.status === 'loaded' && imageUrl && (
             <div
               onClick={() => onPreviewPhoto(imageUrl)}
+              data-no-longpress="true"
               className="absolute inset-0 cursor-pointer"
               title="點擊預覽照片"
             >

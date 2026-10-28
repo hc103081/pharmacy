@@ -11,7 +11,7 @@ interface PhotoPreviewProps {
 export default function PhotoPreview({ imageUrl, onClose }: PhotoPreviewProps) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md cursor-zoom-out"
+      className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md cursor-zoom-out"
       onClick={onClose}
     >
       <div className="relative max-w-4xl w-full animate-in zoom-in duration-300">
