@@ -31,7 +31,21 @@ export function UserMenu() {
     };
   }, [isMenuOpen]);
 
-  if (loading || !user) return null;
+  if (loading) return null;
+
+  if (!user) {
+    return (
+      <div className="flex items-center justify-end w-full pointer-events-auto">
+        <a
+          href="/login"
+          className="px-3.5 py-1.5 rounded-xl bg-[#00f2fe] text-[#07142b] font-bold text-xs hover:bg-[#00f2fe]/90 active:scale-95 transition-all shadow-[0_0_10px_rgba(0,242,254,0.3)] flex items-center gap-1.5"
+        >
+          <User className="w-3.5 h-3.5" />
+          <span>登入系統</span>
+        </a>
+      </div>
+    );
+  }
 
   const handleLogoutConfirm = async () => {
     console.log('Logout confirm clicked');
