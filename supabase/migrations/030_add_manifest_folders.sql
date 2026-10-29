@@ -19,6 +19,7 @@ CREATE INDEX IF NOT EXISTS idx_manifest_folders_user_id ON manifest_folders(user
 -- 2. 啟用 RLS 與存取策略
 ALTER TABLE manifest_folders ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can manage their own manifest folders" ON manifest_folders;
 CREATE POLICY "Users can manage their own manifest folders"
     ON manifest_folders
     FOR ALL
