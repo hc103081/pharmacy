@@ -43,6 +43,16 @@
     * 利用內建 PostgreSQL 儲存結構化藥品與分頁資料。
     * 利用 Supabase Storage（免費 1GB 額度）儲存清點拍照的實體照片。
 
+### 3.3 資料庫遷移與 SQL 冪等性規範 (Database Migration & Idempotency)
+1. **策略宣告冪等性鐵律：**
+   * 所有涉及 PostgreSQL RLS (Row Level Security) 策略之遷移腳本，在執行 `CREATE POLICY` 前，**必須先執行**：
+     `DROP POLICY IF EXISTS "<policy_name>" ON <table>;`
+   * 嚴禁直接執行未經保護之 `CREATE POLICY`，以防遠端重複執行或環境重置時觸發 `SQLSTATE 42710` 錯誤。
+2. **結構與函式定義防護：**
+   * 建立表格與索引一律使用 `CREATE TABLE IF NOT EXISTS` 與 `CREATE INDEX IF NOT EXISTS`。
+   * 擴充既有資料表欄位一律使用 `ALTER TABLE <table> ADD COLUMN IF NOT EXISTS`。
+   * 資料庫自訂函式與 RPC 一律使用 `CREATE OR REPLACE FUNCTION`。
+
 ---
 
 ## 4. UI/UX 與視覺設計規範 (UI/UX Design Standards)
@@ -94,6 +104,28 @@
      * 時間軸或摺疊面板的各層展開狀態。
      * 檢視滾動座標 (`scrollTop`)。
    * 返回後需自動針對原點擊節點執行平滑滾動 (`scrollIntoView({ behavior: 'smooth', block: 'center' })`) 並附加短暫的視覺高亮反饋。
+
+### 4.5 React 副作用與狀態同步規範 (Effect & State Invariants)
+1. **嚴禁 Effect 內部同步觸發 setState (Zero SetState-in-Effect)：**
+   * 嚴禁在 `useEffect` 內無條件直接調用同步 `setState`。
+   * 能在 Render 階段透過計算推導出的衍生狀態（Derived State），嚴禁另設 `useState` + `useEffect` 同步。
+   * 若涉及外部事件驅動或狀態反饋，優先改於事件處理常式（Event Handlers）中更新，或以 `queueMicrotask` / `requestAnimationFrame` 進行非同步解耦。
+2. **靜態元件獨立宣告：**
+   * 彈出視窗（Modal）、抽屜（Drawer）或對話框，嚴禁於父元件的 Render 函式本體內嵌套宣告，必須抽離為獨立元件或子模組，透過 props 傳遞受控狀態。
+
+---
+
+## 5. 自動化測試與品質保證規範 (Testing & Quality Standards)
+
+### 5.1 Playwright E2E 定位器防呆 (Strict Mode Guardrails)
+1. **嚴禁非限定範圍之模糊文字定位：**
+   * 嚴禁直接使用 `page.locator('text=...')` 定位頁面通用詞彙（如系統名稱、常用按鈕字樣）。
+   * 優先採用無障礙語意定位器：
+     * 標題：`page.getByRole('heading', { name: '...' })`
+     * 按鈕：`page.getByRole('button', { name: '...' })`
+     * 輸入框：`page.getByPlaceholder('...')` 或 `page.getByLabel('...')`
+2. **多元素匹配防護：**
+   * 若目標元素可能於導航列、側邊欄或頁腳同時存在，必須透過父容器進行限定（例如 `page.locator('header').getByRole(...)`），或明確附加 `.first()`。
 
 <!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know
