@@ -39,19 +39,12 @@ export function BentoFolderGrid({
     [onActionFolder]
   );
 
-  const handleTouchEnd = useCallback(
-    (folder: ManifestFolder) => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-      // 非長按才觸發開啟
-      if (!isLongPressRef.current) {
-        onOpenFolder(folder.id);
-      }
-    },
-    [onOpenFolder]
-  );
+  const handleTouchEnd = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
 
   const handleTouchCancel = useCallback(() => {
     if (timerRef.current) {
@@ -59,6 +52,18 @@ export function BentoFolderGrid({
       timerRef.current = null;
     }
   }, []);
+
+  // 統一由點擊事件觸發導航，杜絕 touch 與 click 穿透連跳兩次
+  const handleClick = useCallback(
+    (folderId: string) => {
+      if (isLongPressRef.current) {
+        isLongPressRef.current = false;
+        return;
+      }
+      onOpenFolder(folderId);
+    },
+    [onOpenFolder]
+  );
 
   return (
     <div className="space-y-3 pt-1">
@@ -114,9 +119,9 @@ export function BentoFolderGrid({
               key={folder.id}
               role="button"
               tabIndex={0}
-              onClick={() => onOpenFolder(folder.id)}
+              onClick={() => handleClick(folder.id)}
               onTouchStart={() => handleTouchStart(folder)}
-              onTouchEnd={() => handleTouchEnd(folder)}
+              onTouchEnd={handleTouchEnd}
               onTouchCancel={handleTouchCancel}
               onContextMenu={(e) => {
                 e.preventDefault();
@@ -125,10 +130,10 @@ export function BentoFolderGrid({
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  onOpenFolder(folder.id);
+                  handleClick(folder.id);
                 }
               }}
-              className="group relative select-none p-3.5 sm:p-4 rounded-2xl bg-[#162a56]/80 hover:bg-[#1f3a75] border border-[#233d7a] hover:border-[#00f2fe] transition-all duration-200 cursor-pointer shadow-lg hover:shadow-[0_0_15px_rgba(0,242,254,0.18)] active:scale-[0.97] flex flex-col justify-between min-h-[110px] sm:min-h-[120px]"
+              className="group relative select-none p-3.5 sm:p-4 rounded-2xl bg-[#162a56]/80 hover:bg-[#1f3a75] border border-[#233d7a] hover:border-[#00f2fe] transition-all duration-200 cursor-pointer shadow-lg hover:shadow-[0_0_15px_rgba(0,242,254,0.18)] active:scale-[0.97] flex flex-col justify-between min-h-[115px] sm:min-h-[125px]"
             >
               {/* 卡片頂部：類型圖示 / 語意標籤 與 進入箭頭 */}
               <div className="flex items-center justify-between mb-2">
@@ -163,11 +168,14 @@ export function BentoFolderGrid({
                 <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-[#00f2fe] group-hover:translate-x-0.5 transition-all flex-shrink-0" />
               </div>
 
-              {/* 卡片主體：醒目大標題 */}
-              <div className="my-auto py-1">
+              {/* 卡片主體：醒目大標題 + 清單數量徽章 */}
+              <div className="my-auto py-1 flex items-center justify-between gap-2">
                 <h3 className="text-lg sm:text-xl font-black text-white tracking-tight truncate group-hover:text-[#00f2fe] transition-colors">
                   {folder.name}
                 </h3>
+                <span className="flex-shrink-0 text-xs px-2 py-0.5 rounded-full bg-[#00f2fe]/15 text-[#00f2fe] border border-[#00f2fe]/40 font-mono font-bold shadow-[0_0_8px_rgba(0,242,254,0.15)]">
+                  {itemCount}
+                </span>
               </div>
 
               {/* 卡片底部：清單份數徽章與子目錄資訊 */}
@@ -179,10 +187,10 @@ export function BentoFolderGrid({
                       ? isYear
                         ? `${subCount} 個月份`
                         : `${subCount} 個目錄`
-                      : '清單'}
+                      : '清單數目'}
                   </span>
                 </span>
-                <span className="font-mono font-bold text-[#00f2fe] bg-[#00f2fe]/10 px-2 py-0.5 rounded-md border border-[#00f2fe]/20">
+                <span className="font-mono font-semibold text-slate-300 text-xs">
                   {itemCount} 份
                 </span>
               </div>
@@ -201,7 +209,7 @@ export function BentoFolderGrid({
               onCreateFolder();
             }
           }}
-          className="group p-3.5 sm:p-4 rounded-2xl border-2 border-dashed border-[#233d7a] hover:border-[#00f2fe]/60 bg-[#0a1936]/40 hover:bg-[#0a1936]/80 flex flex-col items-center justify-center text-center cursor-pointer transition-all min-h-[110px] sm:min-h-[120px] active:scale-95"
+          className="group p-3.5 sm:p-4 rounded-2xl border-2 border-dashed border-[#233d7a] hover:border-[#00f2fe]/60 bg-[#0a1936]/40 hover:bg-[#0a1936]/80 flex flex-col items-center justify-center text-center cursor-pointer transition-all min-h-[115px] sm:min-h-[125px] active:scale-95"
         >
           <div className="w-8 h-8 rounded-full bg-slate-800 text-slate-400 group-hover:text-[#00f2fe] group-hover:bg-[#00f2fe]/10 border border-slate-700/60 group-hover:border-[#00f2fe]/30 flex items-center justify-center transition-colors mb-1.5">
             <Plus className="w-4 h-4" />
