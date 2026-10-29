@@ -35,14 +35,14 @@ import { DeleteConfirmDialog } from './components/DeleteConfirmDialog';
 import { OperationProgressModal } from './components/OperationProgressModal';
 import { B2UsageModal } from './components/B2UsageModal';
 import { FolderBreadcrumb } from './components/FolderBreadcrumb';
-import { FolderCard } from './components/FolderCard';
+import { BentoFolderGrid } from './components/BentoFolderGrid';
 import { MoveToFolderModal } from './components/MoveToFolderModal';
 import { AiOrganizeDrawer } from './components/AiOrganizeDrawer';
 import { CreateFolderDialog } from './components/CreateFolderDialog';
 import { FolderActionModal } from './components/FolderActionModal';
 import { PaperJumpModal } from './components/PaperJumpModal';
 import { BatchActionBar } from './components/BatchActionBar';
-import { calculateRecursiveFolderCount, calculatePaperPages } from '@/lib/folderUtils';
+import { calculateRecursiveFolderCount, calculatePaperPages, sortFoldersByDateDesc } from '@/lib/folderUtils';
 import {
   getAllFolders,
   createFolder,
@@ -434,7 +434,7 @@ export default function ManifestsPage() {
 
   // 當前層級下的子資料夾：直接從 allFolders 篩選並遞迴計算包含子樹狀的所有清單總數，0 毫秒即時響應
   const currentFolders = useMemo(() => {
-    return allFolders
+    const rawFolders = allFolders
       .filter((f) => (currentFolderId === null ? !f.parent_id : f.parent_id === currentFolderId))
       .map((f) => {
         const recursiveItemCount = calculateRecursiveFolderCount(f.id, allFolders, manifests);
@@ -445,6 +445,7 @@ export default function ManifestsPage() {
           subfolder_count: subfolderCount,
         };
       });
+    return sortFoldersByDateDesc(rawFolders);
   }, [allFolders, currentFolderId, manifests]);
 
   // 未分類清單數量
@@ -480,7 +481,10 @@ export default function ManifestsPage() {
   }, [scopedManifests, trimmedSearch]);
 
   // 全域符合搜尋的總數（當前目錄為 0 時提示引導）
-  const globalSearchMatches = useMemo(() => {
+    // 當只有子目錄且無直屬清單時，切換為純目錄大卡片視圖（隱藏空清單提示）
+  const isPureFolderView = currentFolders.length > 0 && displayedManifests.length === 0 && !trimmedSearch;
+
+const globalSearchMatches = useMemo(() => {
     if (!trimmedSearch || searchScope === 'all') return 0;
     return manifests.filter((m) => {
       const nameMatch = m.name?.toLowerCase().includes(trimmedSearch);
@@ -854,8 +858,9 @@ export default function ManifestsPage() {
               </div>
             </div>
 
-            {/* --- 子目錄橫向膠囊滑動列 (高度僅 34px，釋放空間) --- */}
-            <div className="space-y-1.5">
+            {/* --- 子目錄橫向膠囊滑動列 (僅在非純目錄視圖時顯示) --- */}
+            {!isPureFolderView && (
+              <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs text-slate-400 px-1 font-medium">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <Folder className="w-3.5 h-3.5 text-[#00f2fe] flex-shrink-0" />
@@ -935,7 +940,7 @@ export default function ManifestsPage() {
                           className="flex items-center gap-1.5 pl-3 pr-2 py-1.5 bg-transparent text-slate-200 active:scale-95 transition-transform"
                         >
                           <span className={isSystemDate ? 'text-[#00f2fe]' : 'text-indigo-400'}>
-                            {isSystemDate ? '📅' : '📁'}
+                            {isSystemDate ? <Calendar className="w-3.5 h-3.5" /> : <Folder className="w-3.5 h-3.5" />}
                           </span>
                           <span className="truncate max-w-[120px]">{f.name}</span>
                           <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-700/80 text-slate-300 font-mono">
@@ -964,6 +969,7 @@ export default function ManifestsPage() {
                 </div>
               )}
             </div>
+            )}
 
             {/* --- 即時搜尋與範圍切換列 (兩端精確對齊，搜尋範圍隨時可見，絕不撐破螢幕) --- */}
             <div className="space-y-1.5 pt-1 w-full min-w-0">
@@ -1025,7 +1031,22 @@ export default function ManifestsPage() {
             </div>
 
             {/* --- 清單列表區塊 --- */}
-            <div className="space-y-2.5 pt-1">
+            {isPureFolderView ? (
+              <BentoFolderGrid
+                folders={currentFolders}
+                onOpenFolder={handleOpenFolder}
+                onActionFolder={setActionModalFolder}
+                onCreateFolder={() => {
+                  setFolderDialogMode('create');
+                  setEditingFolder(null);
+                  setFolderDialogOpen(true);
+                }}
+                onAiOrganize={handleStartAiScan}
+                aiScanning={aiScanning}
+                currentFolderName={currentFolderObj?.name}
+              />
+            ) : (
+              <div className="space-y-2.5 pt-1">
               <div className="flex items-center justify-between px-1">
                 <h2 className="text-xs font-semibold text-slate-400 tracking-wider uppercase flex items-center gap-1.5 min-w-0">
                   <Package className="w-3.5 h-3.5 text-[#00f2fe] flex-shrink-0" />
@@ -1462,6 +1483,7 @@ export default function ManifestsPage() {
                 </div>
               )}
             </div>
+            )}
 
             {/* --- 對話框與彈窗組件 --- */}
 

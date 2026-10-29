@@ -4,6 +4,7 @@ import {
   calculateRecursiveFolderCount,
   getDescendantFolderIds,
   calculatePaperPages,
+  sortFoldersByDateDesc,
 } from '../folderUtils';
 import { Manifest } from '../../types';
 
@@ -141,4 +142,51 @@ describe('Manifest Folders & AI Classification Logic', () => {
       expect(res.pageRanges[5]).toEqual({ page: 6, start: 221, end: 244 });
     });
   });
+
+  describe('資料夾年月日數值降序排序 (sortFoldersByDateDesc)', () => {
+    it('月份應嚴格按照數值由大到小排序，杜絕字典序 10月 < 6月 的錯誤', () => {
+      const folders = [
+        { name: '10月' },
+        { name: '6月' },
+        { name: '7月' },
+        { name: '12月' },
+        { name: '1月' },
+      ];
+      const sorted = sortFoldersByDateDesc(folders);
+      expect(sorted.map((f) => f.name)).toEqual(['12月', '10月', '7月', '6月', '1月']);
+    });
+
+    it('年份應由大到小排序 (最新年份置頂)', () => {
+      const folders = [
+        { name: '2024年' },
+        { name: '2026年' },
+        { name: '2025年' },
+      ];
+      const sorted = sortFoldersByDateDesc(folders);
+      expect(sorted.map((f) => f.name)).toEqual(['2026年', '2025年', '2024年']);
+    });
+
+    it('日期應由大到小排序', () => {
+      const folders = [
+        { name: '5日' },
+        { name: '26日' },
+        { name: '17日' },
+        { name: '31日' },
+      ];
+      const sorted = sortFoldersByDateDesc(folders);
+      expect(sorted.map((f) => f.name)).toEqual(['31日', '26日', '17日', '5日']);
+    });
+
+    it('日期資料夾應優先於非日期自訂資料夾', () => {
+      const folders = [
+        { name: '特別專案' },
+        { name: '7月' },
+        { name: '10月' },
+        { name: '待確認' },
+      ];
+      const sorted = sortFoldersByDateDesc(folders);
+      expect(sorted.map((f) => f.name)).toEqual(['10月', '7月', '待確認', '特別專案']);
+    });
+  });
+
 });
