@@ -31,7 +31,10 @@ export function NavigationProgressProvider({ children }: { children: React.React
   const progressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const safetyTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  const isNavigatingRef = useRef(false);
+
   const stopNavigation = useCallback(() => {
+    isNavigatingRef.current = false;
     if (progressTimerRef.current) {
       clearInterval(progressTimerRef.current);
       progressTimerRef.current = null;
@@ -52,6 +55,7 @@ export function NavigationProgressProvider({ children }: { children: React.React
   }, []);
 
   const startNavigation = useCallback((msg = '頁面載入中...') => {
+    isNavigatingRef.current = true;
     if (progressTimerRef.current) clearInterval(progressTimerRef.current);
     if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
 
@@ -79,7 +83,13 @@ export function NavigationProgressProvider({ children }: { children: React.React
 
   // 路由改變時關閉跳轉指示
   useEffect(() => {
-    stopNavigation();
+    if (isNavigatingRef.current) {
+      isNavigatingRef.current = false;
+      const timer = setTimeout(() => {
+        stopNavigation();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
   }, [pathname, searchParams, stopNavigation]);
 
   // 攔截所有內部 <a> 標籤點擊

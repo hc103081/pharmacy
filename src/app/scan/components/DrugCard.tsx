@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Camera, CheckCircle2, AlertCircle, Loader2, Search, RotateCcw, SkipForward, Edit, MapPin, Barcode, Check, AlertTriangle } from 'lucide-react';
+import { Camera, CheckCircle2, AlertCircle, Search, RotateCcw, SkipForward, Edit, MapPin, Barcode, Check, AlertTriangle } from 'lucide-react';
 import type { DrugItem } from '@/types';
 import type { ImageLoadStatus, ImageLoadProgress } from '@/app/scan/hooks/useImageCache';
 
@@ -126,8 +126,6 @@ export default function DrugCard({
   onCardClick,
   onLongPress,
   onEditDrug,
-  getImageUrl,
-  getImageLoadStatus,
   setImageLoadStatus,
   getImageLoadProgress,
   downloadImageWithProgress,
@@ -144,7 +142,6 @@ export default function DrugCard({
   // 判斷是否缺少所有條碼（國際條碼與商品代碼同時缺失）
   // 判斷是否缺少條碼：僅在 barcode 與 product_code 皆缺失時視為缺失
   const isNoBarcode = !drug.barcode?.trim() && !drug.product_code?.trim();
-  const isEmptyStorage = !drug.storage_location || drug.storage_location.trim() === '';
 
   // 手動選取的無條碼卡片，操作區顯示優先於篩選隱藏邏輯
   const shouldShowActions = isMatched || isManuallySelected;
@@ -250,17 +247,13 @@ export default function DrugCard({
   const imgContainerRef = useRef<HTMLDivElement>(null);
   const hasPhoto = !!photoKey && !!photoKey.trim();
 
-  // 優先使用新的進度 API，回退到舊的狀態 API
+  // 優先使用新的進度 API
   const loadProgress = photoKey && getImageLoadProgress ? getImageLoadProgress(photoKey) : { status: 'idle' as const, progress: 0 };
-  const loadStatus = photoKey && getImageLoadStatus ? getImageLoadStatus(photoKey) : 'idle';
 
   // 從 loadProgress 直接取得 objectUrl，作為單一真相來源
   const imageUrl = getImageUrlFromProgress(loadProgress);
-  const [isThumbLoaded, setIsThumbLoaded] = useState(false);
-
-  useEffect(() => {
-    setIsThumbLoaded(false);
-  }, [imageUrl]);
+  const [loadedImageUrl, setLoadedImageUrl] = useState<string | null>(null);
+  const isThumbLoaded = !!imageUrl && loadedImageUrl === imageUrl;
 
   // 使用 ref 追蹤是否已經觸發過載入，避免因 triggerImageLoad 依賴變更導致重複執行
   const hasTriggeredLoadRef = useRef(false);
@@ -281,7 +274,7 @@ export default function DrugCard({
 
     try {
       await downloadImageWithProgress(photoKey);
-    } catch (err) {
+    } catch {
       // 錯誤會在 loadProgress 中體現，重置 ref 允許重試
       hasTriggeredLoadRef.current = false;
     }
@@ -337,7 +330,7 @@ export default function DrugCard({
     }
     
     return () => observer.disconnect();
-  }, [hasPhoto]); // triggerImageLoad 已穩定，不需放入 deps
+  }, [hasPhoto, triggerImageLoad]);
 
   // 掛載時直接觸發載入（最可靠的 fallback，不依賴 IntersectionObserver）
   useEffect(() => {
@@ -354,7 +347,7 @@ export default function DrugCard({
     }, 50);
     
     return () => clearTimeout(timer);
-  }, [hasPhoto, photoKey, downloadImageWithProgress, imageUrl]); // triggerImageLoad 已穩定，不需放入 deps
+  }, [hasPhoto, photoKey, downloadImageWithProgress, imageUrl, triggerImageLoad]);
 
   // 圖片錯誤處理
   const handleImageError = useCallback(() => {
@@ -556,9 +549,9 @@ export default function DrugCard({
               <img
                 src={imageUrl}
                 alt="Thumbnail"
-                onLoad={() => setIsThumbLoaded(true)}
+                onLoad={() => setLoadedImageUrl(imageUrl)}
                 onError={() => {
-                  setIsThumbLoaded(true);
+                  setLoadedImageUrl(imageUrl);
                   handleImageError();
                 }}
                 className={`w-full h-full object-cover animate-in fade-in duration-300 ${

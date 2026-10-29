@@ -36,20 +36,17 @@ export function EvidenceCompareModal({
     );
   }, [currentNode, allHistory]);
 
-  // Selected comparison node ID
-  const [selectedCompareKey, setSelectedCompareKey] = useState<string>('');
+  // Selected comparison node ID (derived from user selection or first available other node)
+  const [userSelectedKey, setUserSelectedKey] = useState<string | null>(null);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
 
-  // Default to the first available other node
-  useEffect(() => {
-    if (otherHistory.length > 0) {
-      setSelectedCompareKey(
-        `${otherHistory[0].manifestId}_${otherHistory[0].pageNumber}_${otherHistory[0].itemOrder}`
-      );
-    } else {
-      setSelectedCompareKey('');
-    }
-  }, [otherHistory, currentNode]);
+  const defaultCompareKey = otherHistory.length > 0
+    ? `${otherHistory[0].manifestId}_${otherHistory[0].pageNumber}_${otherHistory[0].itemOrder}`
+    : '';
+
+  const selectedCompareKey = userSelectedKey && otherHistory.some(
+    (h) => `${h.manifestId}_${h.pageNumber}_${h.itemOrder}` === userSelectedKey
+  ) ? userSelectedKey : defaultCompareKey;
 
   const compareNode = useMemo(() => {
     if (!selectedCompareKey) return null;
@@ -61,20 +58,28 @@ export function EvidenceCompareModal({
   }, [otherHistory, selectedCompareKey]);
 
   // Resolved Presigned URLs for B2 photos
-  const [currentPhotoUrl, setCurrentPhotoUrl] = useState<string | null>(null);
-  const [comparePhotoUrl, setComparePhotoUrl] = useState<string | null>(null);
-  const [loadingCurrent, setLoadingCurrent] = useState(false);
-  const [loadingCompare, setLoadingCompare] = useState(false);
-  const [currentImgLoaded, setCurrentImgLoaded] = useState(false);
-  const [compareImgLoaded, setCompareImgLoaded] = useState(false);
+  const currentPhotoKey = currentNode?.photoUrl || null;
+  const [resolvedCurrent, setResolvedCurrent] = useState<{ key: string | null; url: string | null }>({
+    key: null,
+    url: null,
+  });
+  const isCurrentKeyResolved = resolvedCurrent.key === currentPhotoKey;
+  const currentPhotoUrl = isCurrentKeyResolved ? resolvedCurrent.url : null;
+  const loadingCurrent = Boolean(currentPhotoKey && !isCurrentKeyResolved);
 
-  useEffect(() => {
-    setCurrentImgLoaded(false);
-  }, [currentPhotoUrl]);
+  const comparePhotoKey = compareNode?.photoUrl || null;
+  const [resolvedCompare, setResolvedCompare] = useState<{ key: string | null; url: string | null }>({
+    key: null,
+    url: null,
+  });
+  const isCompareKeyResolved = resolvedCompare.key === comparePhotoKey;
+  const comparePhotoUrl = isCompareKeyResolved ? resolvedCompare.url : null;
+  const loadingCompare = Boolean(comparePhotoKey && !isCompareKeyResolved);
 
-  useEffect(() => {
-    setCompareImgLoaded(false);
-  }, [comparePhotoUrl]);
+  const [loadedCurrentUrl, setLoadedCurrentUrl] = useState<string | null>(null);
+  const [loadedCompareUrl, setLoadedCompareUrl] = useState<string | null>(null);
+  const currentImgLoaded = !!currentPhotoUrl && loadedCurrentUrl === currentPhotoUrl;
+  const compareImgLoaded = !!comparePhotoUrl && loadedCompareUrl === comparePhotoUrl;
 
   // Helper function to resolve key to signed url
   const resolvePhotoUrl = useCallback(
@@ -103,43 +108,35 @@ export function EvidenceCompareModal({
 
   // Fetch current photo
   useEffect(() => {
-    if (!currentNode?.photoUrl) {
-      setCurrentPhotoUrl(null);
-      setLoadingCurrent(false);
+    if (!currentPhotoKey || !currentNode) {
       return;
     }
     let cancelled = false;
-    setLoadingCurrent(true);
-    resolvePhotoUrl(currentNode.manifestId, currentNode.photoUrl).then((url) => {
+    resolvePhotoUrl(currentNode.manifestId, currentPhotoKey).then((url) => {
       if (!cancelled) {
-        setCurrentPhotoUrl(url);
-        setLoadingCurrent(false);
+        setResolvedCurrent({ key: currentPhotoKey, url });
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [currentNode, resolvePhotoUrl]);
+  }, [currentNode, currentPhotoKey, resolvePhotoUrl]);
 
   // Fetch compare photo
   useEffect(() => {
-    if (!compareNode?.photoUrl) {
-      setComparePhotoUrl(null);
-      setLoadingCompare(false);
+    if (!comparePhotoKey || !compareNode) {
       return;
     }
     let cancelled = false;
-    setLoadingCompare(true);
-    resolvePhotoUrl(compareNode.manifestId, compareNode.photoUrl).then((url) => {
+    resolvePhotoUrl(compareNode.manifestId, comparePhotoKey).then((url) => {
       if (!cancelled) {
-        setComparePhotoUrl(url);
-        setLoadingCompare(false);
+        setResolvedCompare({ key: comparePhotoKey, url });
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [compareNode, resolvePhotoUrl]);
+  }, [compareNode, comparePhotoKey, resolvePhotoUrl]);
 
   if (!isOpen || !currentNode) return null;
 
@@ -215,8 +212,8 @@ export function EvidenceCompareModal({
                       <img
                         src={currentPhotoUrl}
                         alt="本次實體盤點照片"
-                        onLoad={() => setCurrentImgLoaded(true)}
-                        onError={() => setCurrentImgLoaded(true)}
+                        onLoad={() => setLoadedCurrentUrl(currentPhotoUrl)}
+                        onError={() => setLoadedCurrentUrl(currentPhotoUrl)}
                         className={`w-full h-full object-contain group-hover:scale-105 transition-transform duration-200 ${
                           currentImgLoaded ? 'opacity-100' : 'opacity-0'
                         }`}
@@ -257,7 +254,7 @@ export function EvidenceCompareModal({
                     {otherHistory.length > 0 ? (
                       <select
                         value={selectedCompareKey}
-                        onChange={(e) => setSelectedCompareKey(e.target.value)}
+                        onChange={(e) => setUserSelectedKey(e.target.value)}
                         className="w-full bg-[#0c1d3d] text-white border border-[#233d7a] rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-[#00f2fe]"
                       >
                         {otherHistory.map((h) => {
@@ -299,8 +296,8 @@ export function EvidenceCompareModal({
                         <img
                           src={comparePhotoUrl}
                           alt="歷史盤點存證照片"
-                          onLoad={() => setCompareImgLoaded(true)}
-                          onError={() => setCompareImgLoaded(true)}
+                          onLoad={() => setLoadedCompareUrl(comparePhotoUrl)}
+                          onError={() => setLoadedCompareUrl(comparePhotoUrl)}
                           className={`w-full h-full object-contain group-hover:scale-105 transition-transform duration-200 ${
                             compareImgLoaded ? 'opacity-100' : 'opacity-0'
                           }`}

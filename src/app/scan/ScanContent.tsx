@@ -28,6 +28,52 @@ import { updateDrugStatus } from '@/app/actions/scan/updatePhoto';
 import { useNavigationProgress } from '@/components/navigation/NavigationProgress';
 import { editDrug } from '@/app/actions/scan/editDrug';
 
+interface NavigationConfirmModalProps {
+  show: boolean;
+  pendingUploadsCount: number;
+  onCancel: () => void;
+  onConfirm: () => void;
+}
+
+function NavigationConfirmModal({
+  show,
+  pendingUploadsCount,
+  onCancel,
+  onConfirm,
+}: NavigationConfirmModalProps) {
+  if (!show) return null;
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="relative w-full max-w-md mx-4 bg-[#162a56] border border-[#00f2fe]/30 rounded-lg shadow-[0_0_30px_rgba(0,242,254,0.15)] overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="p-6 text-center">
+          <div className="w-14 h-14 mx-auto mb-4 bg-[#00f2fe]/10 border border-[#00f2fe]/30 rounded-full flex items-center justify-center">
+            <AlertTriangle className="w-7 h-7 text-[#00f2fe]" />
+          </div>
+          <h3 className="text-lg font-bold text-white mb-2">照片正在上傳中</h3>
+          <p className="text-slate-300 mb-1">目前有 <span className="font-bold text-[#00f2fe]">{pendingUploadsCount}</span> 張照片尚未完成上傳</p>
+          <p className="text-slate-400 text-sm mt-1">離開頁面將導致上傳中斷，需重新拍照</p>
+        </div>
+        <div className="flex border-t border-[#00f2fe]/20">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-3 text-slate-300 font-medium hover:bg-slate-800 transition-colors active:scale-[0.98]"
+          >
+            取消離開
+          </button>
+          <div className="w-px bg-[#00f2fe]/20" />
+          <button
+            onClick={onConfirm}
+            className="flex-1 py-3 text-white font-bold bg-[#ff4b5c]/20 border-l border-[#ff4b5c]/30 hover:bg-[#ff4b5c]/30 transition-colors active:scale-[0.98]"
+          >
+            確定離開
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ScanContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -37,7 +83,8 @@ export default function ScanContent() {
   const pageParam = searchParams.get('page');
   const initialPage = pageParam ? Math.max(1, parseInt(pageParam, 10) || 1) : 1;
   const [currentPage, setCurrentPage] = useState(initialPage);
-  const barcodeParam = searchParams.get('barcode');
+  const isFromQueryOrHasDrugId = searchParams.get('from') === 'query' || Boolean(searchParams.get('drugId'));
+  const barcodeParam = isFromQueryOrHasDrugId ? null : searchParams.get('barcode');
   const [drugs, setDrugs] = useState<DrugItem[]>([]);
   const [barcodeInput, setBarcodeInput] = useState(barcodeParam || '');
   const [loading, setLoading] = useState(true);
@@ -353,9 +400,9 @@ export default function ScanContent() {
         setBarcodeInput('');
         await refreshStatsOnly();
         showToast('已標記為有誤（未拍照）');
-      } catch (err: any) {
+      } catch (err: unknown) {
         setSelectedStatus(null);
-        showToast(`跳過失敗：${err.message}`);
+        showToast(`跳過失敗：${err instanceof Error ? err.message : String(err)}`);
       }
     },
     [matchingItem, actualQuantity, refreshStatsOnly, showToast]
@@ -401,8 +448,8 @@ export default function ScanContent() {
       } else {
         showToast(result.error || '更新失敗');
       }
-    } catch (err: any) {
-      showToast(`更新失敗：${err.message}`);
+    } catch (err: unknown) {
+      showToast(`更新失敗：${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setEditDrugLoading(false);
     }
@@ -413,20 +460,26 @@ export default function ScanContent() {
   }, []);
 
   // 當匹配到已確認的藥品時，自動恢復上次選擇的狀態和實際數量
+  const matchingItemId = matchingItem?.id;
+  const matchingItemStatus = matchingItem?.counted_status;
+  const matchingItemExpected = matchingItem?.expected_quantity;
+  const matchingItemActual = matchingItem?.actual_quantity;
+
   useEffect(() => {
-    if (matchingItem && matchingItem.counted_status !== 'pending') {
-      if (matchingItem.counted_status === 'completed') {
-        setSelectedStatus('correct');
-        setActualQuantity(String(matchingItem.expected_quantity));
-      } else if (matchingItem.counted_status === 'error') {
-        setSelectedStatus('incorrect');
-        setActualQuantity(String(matchingItem.actual_quantity));
-      }
-    } else if (!matchingItem) {
-      setSelectedStatus(null);
-      setActualQuantity('');
+    if (matchingItemId && matchingItemStatus !== 'pending') {
+      const status = matchingItemStatus === 'completed' ? 'correct' : 'incorrect';
+      const qty = String(matchingItemStatus === 'completed' ? matchingItemExpected : matchingItemActual);
+      queueMicrotask(() => {
+        setSelectedStatus(status);
+        setActualQuantity(qty);
+      });
+    } else if (!matchingItemId) {
+      queueMicrotask(() => {
+        setSelectedStatus(null);
+        setActualQuantity('');
+      });
     }
-  }, [matchingItem?.id]);
+  }, [matchingItemId, matchingItemStatus, matchingItemExpected, matchingItemActual]);
 
   const navigateToPage = (page: number) => {
     shouldJumpToNextRef.current = true;
@@ -530,40 +583,6 @@ export default function ScanContent() {
     }
   }, [hasPendingUploads, restorePendingUploads, showToast]);
 
-  // ==================== 導航確認 Modal 元件 ====================
-  const NavigationConfirmModal = () => {
-    if (!showNavConfirm) return null;
-
-    return (
-      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-        <div className="relative w-full max-w-md mx-4 bg-[#162a56] border border-[#00f2fe]/30 rounded-lg shadow-[0_0_30px_rgba(0,242,254,0.15)] overflow-hidden animate-in zoom-in-95 duration-200">
-          <div className="p-6 text-center">
-            <div className="w-14 h-14 mx-auto mb-4 bg-[#00f2fe]/10 border border-[#00f2fe]/30 rounded-full flex items-center justify-center">
-              <AlertTriangle className="w-7 h-7 text-[#00f2fe]" />
-            </div>
-            <h3 className="text-lg font-bold text-white mb-2">照片正在上傳中</h3>
-            <p className="text-slate-300 mb-1">目前有 <span className="font-bold text-[#00f2fe]">{pendingUploadsCount}</span> 張照片尚未完成上傳</p>
-            <p className="text-slate-400 text-sm mt-1">離開頁面將導致上傳中斷，需重新拍照</p>
-          </div>
-          <div className="flex border-t border-[#00f2fe]/20">
-            <button
-              onClick={cancelNavigation}
-              className="flex-1 py-3 text-slate-300 font-medium hover:bg-slate-800 transition-colors active:scale-[0.98]"
-            >
-              取消離開
-            </button>
-            <div className="w-px bg-[#00f2fe]/20" />
-            <button
-              onClick={confirmNavigation}
-              className="flex-1 py-3 text-white font-bold bg-[#ff4b5c]/20 border-l border-[#ff4b5c]/30 hover:bg-[#ff4b5c]/30 transition-colors active:scale-[0.98]"
-            >
-              確定離開
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   // 處理返回操作：若來自查詢頁，直接返回前頁或攜帶原查詢狀態；若在盤點頁，先清除搜尋或返回清單
   const handleBackNavigation = useCallback(() => {
@@ -1584,7 +1603,12 @@ export default function ScanContent() {
         isLoading={editDrugLoading}
       />
     )}
-    <NavigationConfirmModal />
+    <NavigationConfirmModal
+      show={showNavConfirm}
+      pendingUploadsCount={pendingUploadsCount}
+      onCancel={cancelNavigation}
+      onConfirm={confirmNavigation}
+    />
     </>
   );
 }

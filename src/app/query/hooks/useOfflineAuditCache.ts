@@ -69,8 +69,22 @@ export function useOfflineAuditCache() {
   }, []);
 
   useEffect(() => {
-    refreshCachedCount();
-  }, [refreshCachedCount]);
+    let cancelled = false;
+    getDB()
+      .then((db) => db.count(STORE_NAME))
+      .then((count) => {
+        if (!cancelled) {
+          setCachedCount(count);
+        }
+      })
+      .catch(() => {
+        // Ignore in SSR
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   /**
    * Save a drug audit record into IndexedDB with FIFO 50-limit

@@ -43,7 +43,7 @@ test.describe('重構驗收 Smoke 測試', () => {
     await page.goto('/');
 
     // 驗證品牌標題（無論登入與否都會出現）
-    await expect(page.locator('text=PhamaCount')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('heading', { name: 'PhamaCount Web' })).toBeVisible({ timeout: 15000 });
 
     // 未登入時顯示 Magic Link 登入表單；登入時顯示導覽卡片
     // 二者任一出現即代表首頁正常 render

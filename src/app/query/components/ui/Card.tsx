@@ -74,7 +74,7 @@ export function CardHeader({ title, description, action, className, ...props }: 
   );
 }
 
-export interface CardContentProps extends HTMLAttributes<HTMLDivElement> {}
+export type CardContentProps = HTMLAttributes<HTMLDivElement>;
 
 export function CardContent({ className, children, ...props }: CardContentProps) {
   return (
@@ -84,7 +84,7 @@ export function CardContent({ className, children, ...props }: CardContentProps)
   );
 }
 
-export interface CardFooterProps extends HTMLAttributes<HTMLDivElement> {}
+export type CardFooterProps = HTMLAttributes<HTMLDivElement>;
 
 export function CardFooter({ className, children, ...props }: CardFooterProps) {
   return (

@@ -86,7 +86,7 @@ export function PanelHeader({ title, description, icon, action, badge, className
   );
 }
 
-export interface PanelContentProps extends HTMLAttributes<HTMLDivElement> {}
+export type PanelContentProps = HTMLAttributes<HTMLDivElement>;
 
 export function PanelContent({ className, children, ...props }: PanelContentProps) {
   return (
@@ -96,7 +96,7 @@ export function PanelContent({ className, children, ...props }: PanelContentProp
   );
 }
 
-export interface PanelFooterProps extends HTMLAttributes<HTMLDivElement> {}
+export type PanelFooterProps = HTMLAttributes<HTMLDivElement>;
 
 export function PanelFooter({ className, children, ...props }: PanelFooterProps) {
   return (

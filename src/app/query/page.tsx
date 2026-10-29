@@ -134,9 +134,6 @@ function QueryMainContent() {
       if (selectedRecord?.name) {
         params.set('drugName', selectedRecord.name);
       }
-      if (selectedRecord?.barcode) {
-        params.set('barcode', selectedRecord.barcode);
-      }
       if (selectedRecordId) {
         params.set('returnRecordId', selectedRecordId);
       }
