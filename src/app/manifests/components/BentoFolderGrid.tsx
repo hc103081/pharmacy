@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useCallback } from 'react';
-import { Calendar, Folder, Plus, ChevronRight, FileText } from 'lucide-react';
+import { Calendar, Folder, Plus, ChevronRight, FileText, Sparkles, FolderPlus, Loader2 } from 'lucide-react';
 import { ManifestFolder } from '@/types';
 
 interface BentoFolderGridProps {
@@ -11,6 +11,7 @@ interface BentoFolderGridProps {
   onCreateFolder: () => void;
   onAiOrganize?: () => void;
   aiScanning?: boolean;
+  unclassifiedCount?: number;
   currentFolderName?: string;
 }
 
@@ -19,6 +20,9 @@ export function BentoFolderGrid({
   onOpenFolder,
   onActionFolder,
   onCreateFolder,
+  onAiOrganize,
+  aiScanning = false,
+  unclassifiedCount = 0,
   currentFolderName,
 }: BentoFolderGridProps) {
   // 長按計時器（手機端 500ms 觸發管理）
@@ -65,21 +69,52 @@ export function BentoFolderGrid({
     [onOpenFolder]
   );
 
+  const totalManifestCount = folders.reduce((sum, f) => sum + (f.item_count || 0), 0);
+
   return (
     <div className="space-y-3 pt-1">
-      {/* 頂部引導與統計 */}
+      {/* 頂部引導、統計與快捷操作列 (整合取代舊式標題列) */}
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-2 h-2 rounded-full bg-[#00f2fe] animate-pulse flex-shrink-0" />
           <h2 className="text-xs font-bold text-slate-200 tracking-wider truncate">
             {currentFolderName ? `${currentFolderName} 目錄導覽` : '目錄導覽'} ({folders.length})
           </h2>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0 text-[11px] text-slate-400">
-          <span className="font-mono">
-            共 {folders.reduce((sum, f) => sum + (f.item_count || 0), 0)} 份清單
+          <span className="text-[11px] text-slate-400 font-mono hidden xs:inline">
+            • 共 {totalManifestCount} 份清單
           </span>
-          <span className="hidden sm:inline text-slate-500">• 長按或右鍵可管理</span>
+        </div>
+
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {onAiOrganize && (
+            <button
+              type="button"
+              onClick={onAiOrganize}
+              disabled={aiScanning}
+              className="flex items-center gap-1 text-[11px] font-semibold text-[#00f2fe] bg-[#00f2fe]/10 hover:bg-[#00f2fe]/20 px-2.5 py-1 rounded-lg border border-[#00f2fe]/30 transition-all active:scale-95 disabled:opacity-50 whitespace-nowrap"
+            >
+              {aiScanning ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Sparkles className="w-3 h-3" />
+              )}
+              <span>AI 整理</span>
+              {unclassifiedCount > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-[#00f2fe] text-slate-950 text-[9px] font-bold">
+                  {unclassifiedCount}
+                </span>
+              )}
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={onCreateFolder}
+            className="flex items-center gap-1 text-[11px] font-medium text-slate-300 hover:text-[#00f2fe] bg-slate-800/80 hover:bg-slate-700 px-2.5 py-1 rounded-lg border border-slate-700/60 transition-all active:scale-95 whitespace-nowrap"
+          >
+            <FolderPlus className="w-3 h-3 text-[#00f2fe]" />
+            <span>新增目錄</span>
+          </button>
         </div>
       </div>
 

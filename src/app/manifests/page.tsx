@@ -858,8 +858,9 @@ const globalSearchMatches = useMemo(() => {
               </div>
             </div>
 
-            {/* --- 子目錄橫向膠囊滑動列 (常駐顯示完整清單計數與快捷操作) --- */}
-            <div className="space-y-1.5">
+            {/* --- 子目錄橫向膠囊滑動列 (僅在有實體清單的非純目錄視圖時顯示，純目錄視圖完全由 Bento Grid 接管) --- */}
+            {!isPureFolderView && (
+              <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs text-slate-400 px-1 font-medium">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <Folder className="w-3.5 h-3.5 text-[#00f2fe] flex-shrink-0" />
@@ -968,6 +969,7 @@ const globalSearchMatches = useMemo(() => {
                 </div>
               )}
             </div>
+            )}
 
             {/* --- 即時搜尋與範圍切換列 (兩端精確對齊，搜尋範圍隨時可見，絕不撐破螢幕) --- */}
             <div className="space-y-1.5 pt-1 w-full min-w-0">
@@ -1041,6 +1043,7 @@ const globalSearchMatches = useMemo(() => {
                 }}
                 onAiOrganize={handleStartAiScan}
                 aiScanning={aiScanning}
+                unclassifiedCount={unclassifiedCount}
                 currentFolderName={currentFolderObj?.name}
               />
             ) : (
